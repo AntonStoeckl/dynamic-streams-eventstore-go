@@ -9,68 +9,56 @@ import (
 	_ "github.com/doug-martin/goqu/v9/dialect/postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"dynamic-streams-eventstore/eventstore"
-	"dynamic-streams-eventstore/test/userland/core"
-	"dynamic-streams-eventstore/test/userland/shell"
+	. "dynamic-streams-eventstore/eventstore"
 )
 
 var ErrConcurrencyConflict = errors.New("no rows were affected")
 
-type unmarshalEventFromJSON func(eventType string, payload []byte) (core.Event, error)
+type MaxSequenceNumberUint = uint
+type sqlQueryString = string
 
 type PostgresEventStore struct {
-	db                     *pgxpool.Pool
-	unmarshalEventFromJSON unmarshalEventFromJSON
+	db *pgxpool.Pool
 }
-
-type eventStreamSlice = []core.Event
-type maxSequenceNumberUint = uint
-type sqlQueryString = string
 
 type queryResultRow struct {
 	eventType         string
 	payload           []byte
-	maxSequenceNumber uint
+	maxSequenceNumber MaxSequenceNumberUint
 }
 
-func NewPostgresEventStore(db *pgxpool.Pool, unmarshalEventFromJSON unmarshalEventFromJSON) PostgresEventStore {
-	return PostgresEventStore{
-		db:                     db,
-		unmarshalEventFromJSON: unmarshalEventFromJSON,
-	}
+func NewPostgresEventStore(db *pgxpool.Pool) PostgresEventStore {
+	return PostgresEventStore{db: db}
 }
 
-func (es PostgresEventStore) Query(filter eventstore.Filter) ([]core.Event, uint, error) {
+func (es PostgresEventStore) Query(filter Filter) (StorableEvents, MaxSequenceNumberUint, error) {
+	empty := make(StorableEvents, 0)
+
 	sqlQuery, buildQueryErr := es.buildSelectQuery(filter)
 	if buildQueryErr != nil {
-		return nil, 0, buildQueryErr
+		return empty, 0, buildQueryErr
 	}
 
 	//fmt.Println(sqlQuery)
 
 	rows, queryErr := es.db.Query(context.Background(), sqlQuery)
 	if queryErr != nil {
-		return nil, 0, errors.Join(errors.New("querying events failed"), queryErr)
+		return empty, 0, errors.Join(errors.New("querying events failed"), queryErr)
 	}
 
 	defer rows.Close()
 
 	result := queryResultRow{}
-	eventStream := make(eventStreamSlice, 0)
-	maxSequenceNumber := maxSequenceNumberUint(0)
+	eventStream := make(StorableEvents, 0)
+	maxSequenceNumber := MaxSequenceNumberUint(0)
 
 	for rows.Next() {
 		rowScanErr := rows.Scan(&result.eventType, &result.payload, &result.maxSequenceNumber)
 		if rowScanErr != nil {
-			return eventStreamSlice{}, 0, errors.Join(errors.New("scanning db row failed"), rowScanErr)
+			return empty, 0, errors.Join(errors.New("scanning db row failed"), rowScanErr)
 		}
 
-		event, mapToEventErr := shell.EventFromJSON(result.eventType, result.payload)
-		if mapToEventErr != nil {
-			return eventStreamSlice{}, maxSequenceNumberUint(0), mapToEventErr
-		}
-
-		eventStream = append(eventStream, event)
+		eventStream = append(eventStream, BuildStorableEvent(result.eventType, result.payload))
 		maxSequenceNumber = result.maxSequenceNumber
 	}
 
@@ -78,17 +66,12 @@ func (es PostgresEventStore) Query(filter eventstore.Filter) ([]core.Event, uint
 }
 
 func (es PostgresEventStore) Append(
-	event core.Event,
-	filter eventstore.Filter,
-	expectedMaxSequenceNumber maxSequenceNumberUint,
+	event StorableEvent,
+	filter Filter,
+	expectedMaxSequenceNumber MaxSequenceNumberUint,
 ) error {
 
-	payloadJSON, unmarshalErr := event.PayloadToJSON()
-	if unmarshalErr != nil {
-		return errors.Join(errors.New("marshaling the event payload failed"), unmarshalErr)
-	}
-
-	sqlQuery, buildQueryErr := es.buildInsertQuery(event, filter, expectedMaxSequenceNumber, payloadJSON)
+	sqlQuery, buildQueryErr := es.buildInsertQuery(event, filter, expectedMaxSequenceNumber)
 	if buildQueryErr != nil {
 		return buildQueryErr
 	}
@@ -107,7 +90,7 @@ func (es PostgresEventStore) Append(
 	return nil
 }
 
-func (es PostgresEventStore) buildSelectQuery(filter eventstore.Filter) (sqlQueryString, error) {
+func (es PostgresEventStore) buildSelectQuery(filter Filter) (sqlQueryString, error) {
 	selectStmt := goqu.Dialect("postgres").
 		From("events").
 		Select("event_type", "payload", "sequence_number").
@@ -124,10 +107,9 @@ func (es PostgresEventStore) buildSelectQuery(filter eventstore.Filter) (sqlQuer
 }
 
 func (es PostgresEventStore) buildInsertQuery(
-	event core.Event,
-	filter eventstore.Filter,
-	expectedMaxSequenceNumber maxSequenceNumberUint,
-	payloadJSON []byte,
+	event StorableEvent,
+	filter Filter,
+	expectedMaxSequenceNumber MaxSequenceNumberUint,
 ) (sqlQueryString, error) {
 
 	builder := goqu.Dialect("postgres")
@@ -142,7 +124,7 @@ func (es PostgresEventStore) buildInsertQuery(
 	// Define the SELECT for the INSERT
 	selectStmt := builder.
 		From("context").
-		Select(goqu.V(event.EventType()), goqu.V(payloadJSON)).
+		Select(goqu.V(event.EventType()), goqu.V(event.PayloadJSON())).
 		Where(goqu.COALESCE(goqu.C("max_seq"), 0).Eq(goqu.V(expectedMaxSequenceNumber)))
 
 	// Finalize the full INSERT query
@@ -160,7 +142,7 @@ func (es PostgresEventStore) buildInsertQuery(
 	return sqlQuery, nil
 }
 
-func (es PostgresEventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.SelectDataset) *goqu.SelectDataset {
+func (es PostgresEventStore) addWhereClause(filter Filter, selectStmt *goqu.SelectDataset) *goqu.SelectDataset {
 	itemsExpressions := make([]goqu.Expression, 0)
 
 	for _, item := range filter.Items() {
