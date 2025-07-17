@@ -6,7 +6,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
-const SomethingHasHappenedEventTypePrefix = "SomethingHasHappened"
+const SomethingHasHappenedEventTypePrefix = EventTypeString("SomethingHasHappened")
 
 type SomethingHasHappened struct {
 	eventType string

@@ -4,7 +4,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
-const BookCopyRemovedFromCirculationEventType = "BookCopyRemovedFromCirculation"
+const BookCopyRemovedFromCirculationEventType = EventTypeString("BookCopyRemovedFromCirculation")
 
 type BookCopyRemovedFromCirculation struct {
 	eventType string
