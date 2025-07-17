@@ -1,4 +1,4 @@
-package userland
+package core
 
 import (
 	jsoniter "github.com/json-iterator/go"

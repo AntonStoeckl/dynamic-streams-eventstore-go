@@ -14,7 +14,8 @@ import (
 	"dynamic-streams-eventstore/config"
 	. "dynamic-streams-eventstore/eventstore"
 	. "dynamic-streams-eventstore/eventstore/engine"
-	"dynamic-streams-eventstore/test/userland"
+	"dynamic-streams-eventstore/test/userland/core"
+	"dynamic-streams-eventstore/test/userland/shell"
 )
 
 type maxSequenceNumberUint = uint
@@ -25,7 +26,7 @@ func Test_Append_When_NoEvent_Matches_TheQuery_BeforeAppend(t *testing.T) {
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStore(connPool, userland.EventFromJSON)
+	es := NewPostgresEventStore(connPool, shell.EventFromJSON)
 
 	// arrange
 	cleanUpEvents(t, connPool)
@@ -51,7 +52,7 @@ func Test_Append_When_SomeEvents_Match_TheQuery_BeforeAppend(t *testing.T) {
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStore(connPool, userland.EventFromJSON)
+	es := NewPostgresEventStore(connPool, shell.EventFromJSON)
 
 	// arrange
 	cleanUpEvents(t, connPool)
@@ -78,7 +79,7 @@ func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStore(connPool, userland.EventFromJSON)
+	es := NewPostgresEventStore(connPool, shell.EventFromJSON)
 
 	// arrange
 	cleanUpEvents(t, connPool)
@@ -109,7 +110,7 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 	defer connPool.Close()
 
-	es := NewPostgresEventStore(connPool, userland.EventFromJSON)
+	es := NewPostgresEventStore(connPool, shell.EventFromJSON)
 
 	// arrange
 	cleanUpEvents(t, connPool)
@@ -138,22 +139,22 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 		description       string
 		filter            Filter
 		expectedNumEvents int
-		expectedEvents    userland.Events
+		expectedEvents    core.Events
 	}{
 		{
 			description:       "empty filter",
 			filter:            BuildEventFilter().MatchingAnyEvent(),
 			expectedNumEvents: numOtherEvents + 9,
-			expectedEvents:    userland.Events{}, // we don't want to assert the random "something has happened" events
+			expectedEvents:    core.Events{}, // we don't want to assert the random "something has happened" events
 		},
 		{
 			description: "(EventType)",
 			filter: BuildEventFilter().
 				Matching().
-				AnyEventTypeOf(userland.BookCopyAddedToCirculationEventType).
+				AnyEventTypeOf(core.BookCopyAddedToCirculationEventType).
 				Finalize(),
 			expectedNumEvents: 2,
-			expectedEvents: userland.Events{
+			expectedEvents: core.Events{
 				bookCopy1AddedToCirculationBook,
 				bookCopy2AddedToCirculationBook},
 		},
@@ -162,11 +163,11 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 			filter: BuildEventFilter().
 				Matching().
 				AnyEventTypeOf(
-					userland.BookCopyAddedToCirculationEventType,
-					userland.BookCopyRemovedFromCirculationEventType).
+					core.BookCopyAddedToCirculationEventType,
+					core.BookCopyRemovedFromCirculationEventType).
 				Finalize(),
 			expectedNumEvents: 3,
-			expectedEvents: userland.Events{
+			expectedEvents: core.Events{
 				bookCopy1AddedToCirculationBook,
 				bookCopy1RemovedFromCirculationBook,
 				bookCopy2AddedToCirculationBook},
@@ -178,7 +179,7 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 				AnyPredicateOf(P("BookID", bookID1.String())).
 				Finalize(),
 			expectedNumEvents: 4,
-			expectedEvents: userland.Events{
+			expectedEvents: core.Events{
 				bookCopy1AddedToCirculationBook,
 				bookCopy1LentToReader1,
 				bookCopy1ReturnedByReader1,
@@ -193,7 +194,7 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 					P("ReaderID", readerID1.String())).
 				Finalize(),
 			expectedNumEvents: 6,
-			expectedEvents: userland.Events{
+			expectedEvents: core.Events{
 				bookCopy1AddedToCirculationBook,
 				bookCopy1LentToReader1,
 				bookCopy1ReturnedByReader1,
@@ -205,11 +206,11 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 			description: "(EventType AND Predicate)",
 			filter: BuildEventFilter().
 				Matching().
-				AnyEventTypeOf(userland.BookCopyLentToReaderEventType).
+				AnyEventTypeOf(core.BookCopyLentToReaderEventType).
 				AndAnyPredicateOf(P("ReaderID", readerID1.String())).
 				Finalize(),
 			expectedNumEvents: 2,
-			expectedEvents: userland.Events{
+			expectedEvents: core.Events{
 				bookCopy1LentToReader1,
 				bookCopy2LentToReader1},
 		},
@@ -217,11 +218,11 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 			description: "(EventType AND (Predicate OR Predicate...))",
 			filter: BuildEventFilter().
 				Matching().
-				AnyEventTypeOf(userland.BookCopyLentToReaderEventType).
+				AnyEventTypeOf(core.BookCopyLentToReaderEventType).
 				AndAnyPredicateOf(P("BookID", bookID1.String()), P("ReaderID", readerID2.String())).
 				Finalize(),
 			expectedNumEvents: 2,
-			expectedEvents: userland.Events{
+			expectedEvents: core.Events{
 				bookCopy1LentToReader1,
 				bookCopy2LentToReader2},
 		},
@@ -230,12 +231,12 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 			filter: BuildEventFilter().
 				Matching().
 				AnyEventTypeOf(
-					userland.BookCopyAddedToCirculationEventType,
-					userland.BookCopyRemovedFromCirculationEventType).
+					core.BookCopyAddedToCirculationEventType,
+					core.BookCopyRemovedFromCirculationEventType).
 				AndAnyPredicateOf(P("BookID", bookID1.String())).
 				Finalize(),
 			expectedNumEvents: 2,
-			expectedEvents: userland.Events{
+			expectedEvents: core.Events{
 				bookCopy1AddedToCirculationBook,
 				bookCopy1RemovedFromCirculationBook},
 		},
@@ -244,14 +245,14 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 			filter: BuildEventFilter().
 				Matching().
 				AnyEventTypeOf(
-					userland.BookCopyLentToReaderEventType,
-					userland.BookCopyReturnedByReaderEventType).
+					core.BookCopyLentToReaderEventType,
+					core.BookCopyReturnedByReaderEventType).
 				AndAnyPredicateOf(
 					P("BookID", bookID1.String()),
 					P("BookID", bookID2.String())).
 				Finalize(),
 			expectedNumEvents: 6,
-			expectedEvents: userland.Events{
+			expectedEvents: core.Events{
 				bookCopy1LentToReader1,
 				bookCopy1ReturnedByReader1,
 				bookCopy2LentToReader2,
@@ -264,13 +265,13 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 			filter: BuildEventFilter().
 				Matching().
 				AnyPredicateOf(P("BookID", bookID1.String())).
-				AndAnyEventTypeOf(userland.BookCopyLentToReaderEventType).
+				AndAnyEventTypeOf(core.BookCopyLentToReaderEventType).
 				OrMatching().
 				AnyPredicateOf(P("BookID", bookID2.String())).
-				AndAnyEventTypeOf(userland.BookCopyReturnedByReaderEventType).
+				AndAnyEventTypeOf(core.BookCopyReturnedByReaderEventType).
 				Finalize(),
 			expectedNumEvents: 3,
-			expectedEvents: userland.Events{
+			expectedEvents: core.Events{
 				bookCopy1LentToReader1,
 				bookCopy2ReturnedByReader2,
 				bookCopy2ReturnedByReader1},
@@ -298,7 +299,7 @@ func Benchmark_Append_With_1000000_Events_InTheStore(b *testing.B) {
 	defer connPool.Close()
 	assert.NoError(b, err, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStore(connPool, userland.EventFromJSON)
+	es := NewPostgresEventStore(connPool, shell.EventFromJSON)
 
 	// arrange
 	row := connPool.QueryRow(context.Background(), `SELECT count(*) FROM events`)
@@ -384,7 +385,7 @@ func Benchmark_Query_With_1000000_Events_InTheStore(b *testing.B) {
 	defer connPool.Close()
 	assert.NoError(b, err, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStore(connPool, userland.EventFromJSON)
+	es := NewPostgresEventStore(connPool, shell.EventFromJSON)
 
 	// arrange
 	row := connPool.QueryRow(context.Background(), `SELECT count(*) FROM events`)
@@ -455,10 +456,10 @@ func filterAllEventTypesForOneBook(bookID uuid.UUID) Filter {
 	filter := BuildEventFilter().
 		Matching().
 		AnyEventTypeOf(
-			userland.BookCopyAddedToCirculationEventType,
-			userland.BookCopyRemovedFromCirculationEventType,
-			userland.BookCopyLentToReaderEventType,
-			userland.BookCopyReturnedByReaderEventType).
+			core.BookCopyAddedToCirculationEventType,
+			core.BookCopyRemovedFromCirculationEventType,
+			core.BookCopyLentToReaderEventType,
+			core.BookCopyReturnedByReaderEventType).
 		AndAnyPredicateOf(P("BookID", bookID.String())).
 		Finalize()
 
@@ -469,10 +470,10 @@ func filterAllEvenTypesForOneBookOrReader(bookID uuid.UUID, readerID uuid.UUID) 
 	filter := BuildEventFilter().
 		Matching().
 		AnyEventTypeOf(
-			userland.BookCopyAddedToCirculationEventType,
-			userland.BookCopyRemovedFromCirculationEventType,
-			userland.BookCopyLentToReaderEventType,
-			userland.BookCopyReturnedByReaderEventType).
+			core.BookCopyAddedToCirculationEventType,
+			core.BookCopyRemovedFromCirculationEventType,
+			core.BookCopyLentToReaderEventType,
+			core.BookCopyReturnedByReaderEventType).
 		AndAnyPredicateOf(
 			P("BookID", bookID.String()),
 			P("ReaderID", readerID.String())).
@@ -481,9 +482,9 @@ func filterAllEvenTypesForOneBookOrReader(bookID uuid.UUID, readerID uuid.UUID) 
 	return filter
 }
 
-func buildBookCopyAddedToCirculation(bookID uuid.UUID) userland.BookCopyAddedToCirculation {
-	event := userland.BookCopyAddedToCirculationFromPayload(
-		userland.BookCopyAddedToCirculationPayload{
+func buildBookCopyAddedToCirculation(bookID uuid.UUID) core.BookCopyAddedToCirculation {
+	event := core.BookCopyAddedToCirculationFromPayload(
+		core.BookCopyAddedToCirculationPayload{
 			BookID:          bookID.String(),
 			ISBN:            "978-1-098-10013-1",
 			Title:           "Learning Domain-Driven Design",
@@ -497,9 +498,9 @@ func buildBookCopyAddedToCirculation(bookID uuid.UUID) userland.BookCopyAddedToC
 	return event
 }
 
-func buildBookCopyRemovedFromCirculation(bookID uuid.UUID) userland.BookCopyRemovedFromCirculation {
-	event := userland.BookCopyRemovedFromCirculationFromPayload(
-		userland.BookCopyRemovedFromCirculationPayload{
+func buildBookCopyRemovedFromCirculation(bookID uuid.UUID) core.BookCopyRemovedFromCirculation {
+	event := core.BookCopyRemovedFromCirculationFromPayload(
+		core.BookCopyRemovedFromCirculationPayload{
 			BookID: bookID.String(),
 		},
 	)
@@ -507,9 +508,9 @@ func buildBookCopyRemovedFromCirculation(bookID uuid.UUID) userland.BookCopyRemo
 	return event
 }
 
-func buildBookCopyLentToReader(bookID uuid.UUID, readerID uuid.UUID) userland.BookCopyLentToReader {
-	event := userland.BookCopyLentToReaderFromPayload(
-		userland.BookCopyLentToReaderPayload{
+func buildBookCopyLentToReader(bookID uuid.UUID, readerID uuid.UUID) core.BookCopyLentToReader {
+	event := core.BookCopyLentToReaderFromPayload(
+		core.BookCopyLentToReaderPayload{
 			BookID:   bookID.String(),
 			ReaderID: readerID.String(),
 		},
@@ -518,9 +519,9 @@ func buildBookCopyLentToReader(bookID uuid.UUID, readerID uuid.UUID) userland.Bo
 	return event
 }
 
-func buildBookCopyReturnedFromReader(bookID uuid.UUID, readerID uuid.UUID) userland.BookCopyReturnedByReader {
-	event := userland.BookCopyReturnedByReaderFromPayload(
-		userland.BookCopyReturnedByReaderPayload{
+func buildBookCopyReturnedFromReader(bookID uuid.UUID, readerID uuid.UUID) core.BookCopyReturnedByReader {
+	event := core.BookCopyReturnedByReaderFromPayload(
+		core.BookCopyReturnedByReaderPayload{
 			BookID:   bookID.String(),
 			ReaderID: readerID.String(),
 		},
@@ -529,7 +530,7 @@ func buildBookCopyReturnedFromReader(bookID uuid.UUID, readerID uuid.UUID) userl
 	return event
 }
 
-func givenBookCopyAddedToCirculationWasAppended(t *testing.T, es PostgresEventStore, bookID uuid.UUID) userland.Event {
+func givenBookCopyAddedToCirculationWasAppended(t *testing.T, es PostgresEventStore, bookID uuid.UUID) core.Event {
 	filter := filterAllEventTypesForOneBook(bookID)
 	event := buildBookCopyAddedToCirculation(bookID)
 	err := es.Append(event, filter, queryMaxSequenceNumberBeforeAppend(t, es, filter))
@@ -538,7 +539,7 @@ func givenBookCopyAddedToCirculationWasAppended(t *testing.T, es PostgresEventSt
 	return event
 }
 
-func givenBookCopyRemovedFromCirculationWasAppended(t *testing.T, es PostgresEventStore, bookID uuid.UUID) userland.Event {
+func givenBookCopyRemovedFromCirculationWasAppended(t *testing.T, es PostgresEventStore, bookID uuid.UUID) core.Event {
 	filter := filterAllEventTypesForOneBook(bookID)
 	event := buildBookCopyRemovedFromCirculation(bookID)
 	err := es.Append(event, filter, queryMaxSequenceNumberBeforeAppend(t, es, filter))
@@ -547,7 +548,7 @@ func givenBookCopyRemovedFromCirculationWasAppended(t *testing.T, es PostgresEve
 	return event
 }
 
-func givenBookCopyLentToReaderWasAppended(t *testing.T, es PostgresEventStore, bookID uuid.UUID, readerID uuid.UUID) userland.Event {
+func givenBookCopyLentToReaderWasAppended(t *testing.T, es PostgresEventStore, bookID uuid.UUID, readerID uuid.UUID) core.Event {
 	filter := filterAllEvenTypesForOneBookOrReader(bookID, readerID)
 	event := buildBookCopyLentToReader(bookID, readerID)
 	err := es.Append(event, filter, queryMaxSequenceNumberBeforeAppend(t, es, filter))
@@ -556,7 +557,7 @@ func givenBookCopyLentToReaderWasAppended(t *testing.T, es PostgresEventStore, b
 	return event
 }
 
-func givenBookCopyReturnedByReaderWasAppended(t *testing.T, es PostgresEventStore, bookID uuid.UUID, readerID uuid.UUID) userland.Event {
+func givenBookCopyReturnedByReaderWasAppended(t *testing.T, es PostgresEventStore, bookID uuid.UUID, readerID uuid.UUID) core.Event {
 	filter := filterAllEvenTypesForOneBookOrReader(bookID, readerID)
 	event := buildBookCopyReturnedFromReader(bookID, readerID)
 	err := es.Append(event, filter, queryMaxSequenceNumberBeforeAppend(t, es, filter))
@@ -574,8 +575,8 @@ func givenSomeOtherEventsWereAppended(t testing.TB, es PostgresEventStore, numEv
 		id, err := uuid.NewV7()
 		assert.NoError(t, err, "error in arranging test data")
 
-		event := userland.SomethingHasHappenedFromPayload(
-			userland.SomethingHasHappenedPayload{
+		event := core.SomethingHasHappenedFromPayload(
+			core.SomethingHasHappenedPayload{
 				ID:              id.String(),
 				SomeInformation: "lorem ipsum dolor sit amet: " + id.String(),
 			},
@@ -587,7 +588,7 @@ func givenSomeOtherEventsWereAppended(t testing.TB, es PostgresEventStore, numEv
 		for j := 0; j < amountOfSameEvents; j++ {
 			filter := BuildEventFilter().
 				Matching().
-				AnyEventTypeOf(userland.SomethingHasHappenedEventTypePrefix + strconv.Itoa(eventPostfix)).
+				AnyEventTypeOf(core.SomethingHasHappenedEventTypePrefix + strconv.Itoa(eventPostfix)).
 				AndAnyPredicateOf(P("ID", id.String())).
 				Finalize()
 
@@ -603,7 +604,7 @@ func givenSomeOtherEventsWereAppended(t testing.TB, es PostgresEventStore, numEv
 			maxSequenceNumber++
 
 			if totalEvent%5000 == 0 {
-				fmt.Printf("inserted %d %s events\n", totalEvent, userland.SomethingHasHappenedEventTypePrefix)
+				fmt.Printf("inserted %d %s events\n", totalEvent, core.SomethingHasHappenedEventTypePrefix)
 			}
 
 			if totalEvent == numEvents {
@@ -618,7 +619,7 @@ func givenSomeOtherEventsWereAppended(t testing.TB, es PostgresEventStore, numEv
 		}
 	}
 
-	fmt.Printf("inserted %d %s events\n", totalEvent, userland.SomethingHasHappenedEventTypePrefix)
+	fmt.Printf("inserted %d %s events\n", totalEvent, core.SomethingHasHappenedEventTypePrefix)
 }
 
 func cleanUpEvents(t testing.TB, connPool *pgxpool.Pool) {

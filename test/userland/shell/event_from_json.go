@@ -1,38 +1,40 @@
-package userland
+package shell
 
 import (
 	"errors"
 	"strings"
+
+	"dynamic-streams-eventstore/test/userland/core"
 )
 
-func EventFromJSON(eventType EventTypeString, payload []byte) (Event, error) {
+func EventFromJSON(eventType core.EventTypeString, payload []byte) (core.Event, error) {
 	switch eventType {
-	case BookCopyAddedToCirculationEventType:
-		event, unmarshallingErr := BookCopyAddedToCirculationFromJSON(payload)
+	case core.BookCopyAddedToCirculationEventType:
+		event, unmarshallingErr := core.BookCopyAddedToCirculationFromJSON(payload)
 		if unmarshallingErr != nil {
 			return nil, errors.Join(errors.New("unmarshalling event from json failed"), unmarshallingErr)
 		}
 
 		return event, nil
 
-	case BookCopyRemovedFromCirculationEventType:
-		event, unmarshallingErr := BookCopyRemovedFromCirculationFromJSON(payload)
+	case core.BookCopyRemovedFromCirculationEventType:
+		event, unmarshallingErr := core.BookCopyRemovedFromCirculationFromJSON(payload)
 		if unmarshallingErr != nil {
 			return nil, errors.Join(errors.New("unmarshalling event from json failed"), unmarshallingErr)
 		}
 
 		return event, nil
 
-	case BookCopyLentToReaderEventType:
-		event, unmarshallingErr := BookCopyLentToReaderFromJSON(payload)
+	case core.BookCopyLentToReaderEventType:
+		event, unmarshallingErr := core.BookCopyLentToReaderFromJSON(payload)
 		if unmarshallingErr != nil {
 			return nil, errors.Join(errors.New("unmarshalling event from json failed"), unmarshallingErr)
 		}
 
 		return event, nil
 
-	case BookCopyReturnedByReaderEventType:
-		event, unmarshallingErr := BookCopyReturnedByReaderFromJSON(payload)
+	case core.BookCopyReturnedByReaderEventType:
+		event, unmarshallingErr := core.BookCopyReturnedByReaderFromJSON(payload)
 		if unmarshallingErr != nil {
 			return nil, errors.Join(errors.New("unmarshalling event from json failed"), unmarshallingErr)
 		}
@@ -40,8 +42,8 @@ func EventFromJSON(eventType EventTypeString, payload []byte) (Event, error) {
 		return event, nil
 
 	default:
-		if strings.Contains(eventType, SomethingHasHappenedEventTypePrefix) {
-			event, unmarshallingErr := SomethingHasHappenedFromJSON(payload)
+		if strings.Contains(eventType, core.SomethingHasHappenedEventTypePrefix) {
+			event, unmarshallingErr := core.SomethingHasHappenedFromJSON(payload)
 			if unmarshallingErr != nil {
 				return nil, errors.Join(errors.New("unmarshalling event from json failed"), unmarshallingErr)
 			}
