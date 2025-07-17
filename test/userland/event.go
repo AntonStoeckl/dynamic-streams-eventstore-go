@@ -1,4 +1,4 @@
-package events
+package userland
 
 type EventTypeString = string
 type Events = []Event

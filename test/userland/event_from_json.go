@@ -1,4 +1,4 @@
-package events
+package userland
 
 import (
 	"errors"

@@ -9,20 +9,20 @@ import (
 	_ "github.com/doug-martin/goqu/v9/dialect/postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"dynamic-streams-eventstore/events"
 	"dynamic-streams-eventstore/eventstore"
+	"dynamic-streams-eventstore/test/userland"
 )
 
 var ErrConcurrencyConflict = errors.New("no rows were affected")
 
-type unmarshalEventFromJSON func(eventType string, payload []byte) (events.Event, error)
+type unmarshalEventFromJSON func(eventType string, payload []byte) (userland.Event, error)
 
 type PostgresEventStore struct {
 	db                     *pgxpool.Pool
 	unmarshalEventFromJSON unmarshalEventFromJSON
 }
 
-type eventStreamSlice = []events.Event
+type eventStreamSlice = []userland.Event
 type maxSequenceNumberUint = uint
 type sqlQueryString = string
 
@@ -39,7 +39,7 @@ func NewPostgresEventStore(db *pgxpool.Pool, unmarshalEventFromJSON unmarshalEve
 	}
 }
 
-func (es PostgresEventStore) Query(filter eventstore.Filter) ([]events.Event, uint, error) {
+func (es PostgresEventStore) Query(filter eventstore.Filter) ([]userland.Event, uint, error) {
 	sqlQuery, buildQueryErr := es.buildSelectQuery(filter)
 	if buildQueryErr != nil {
 		return nil, 0, buildQueryErr
@@ -64,7 +64,7 @@ func (es PostgresEventStore) Query(filter eventstore.Filter) ([]events.Event, ui
 			return eventStreamSlice{}, 0, errors.Join(errors.New("scanning db row failed"), rowScanErr)
 		}
 
-		event, mapToEventErr := events.EventFromJSON(result.eventType, result.payload)
+		event, mapToEventErr := userland.EventFromJSON(result.eventType, result.payload)
 		if mapToEventErr != nil {
 			return eventStreamSlice{}, maxSequenceNumberUint(0), mapToEventErr
 		}
@@ -77,7 +77,7 @@ func (es PostgresEventStore) Query(filter eventstore.Filter) ([]events.Event, ui
 }
 
 func (es PostgresEventStore) Append(
-	event events.Event,
+	event userland.Event,
 	filter eventstore.Filter,
 	expectedMaxSequenceNumber maxSequenceNumberUint,
 ) error {
@@ -123,7 +123,7 @@ func (es PostgresEventStore) buildSelectQuery(filter eventstore.Filter) (sqlQuer
 }
 
 func (es PostgresEventStore) buildInsertQuery(
-	event events.Event,
+	event userland.Event,
 	filter eventstore.Filter,
 	expectedMaxSequenceNumber maxSequenceNumberUint,
 	payloadJSON []byte,

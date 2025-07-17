@@ -1,4 +1,4 @@
-package events
+package userland
 
 import (
 	jsoniter "github.com/json-iterator/go"
