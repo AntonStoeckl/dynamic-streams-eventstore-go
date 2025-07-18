@@ -1,5 +1,5 @@
 services:
-  postgres:
+  postgres_test:
     image: postgres
     environment:
       POSTGRES_USER: test
@@ -9,3 +9,17 @@ services:
       - ./initdb:/docker-entrypoint-initdb.d/
     ports:
       - "5432:5432"
+  postgres_benchmark:
+    image: postgres
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: eventstore
+    volumes:
+      - ./initdb:/docker-entrypoint-initdb.d/
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+
+volumes:
+  pgdata:

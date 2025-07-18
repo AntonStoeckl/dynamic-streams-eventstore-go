@@ -2,43 +2,39 @@ package engine_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math/rand/v2"
-	"strconv"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 
 	"dynamic-streams-eventstore/config"
 	. "dynamic-streams-eventstore/eventstore"
 	. "dynamic-streams-eventstore/eventstore/engine"
+	. "dynamic-streams-eventstore/test"
 	"dynamic-streams-eventstore/test/userland/core"
 	"dynamic-streams-eventstore/test/userland/shell"
 )
 
-type maxSequenceNumberUint = uint
-
 func Test_Append_When_NoEvent_Matches_TheQuery_BeforeAppend(t *testing.T) {
 	// setup
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.DBConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.DBTestConfig())
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
 	es := NewPostgresEventStore(connPool)
 
 	// arrange
-	cleanUpEvents(t, connPool)
-	givenSomeOtherEventsWereAppended(t, es, rand.IntN(5)+1, 0)
-	bookID := givenUniqueID(t)
-	filter := filterAllEventTypesForOneBook(bookID)
-	maxSequenceNumberBeforeAppend := queryMaxSequenceNumberBeforeAppend(t, es, filter)
+	CleanUpEvents(t, connPool)
+	GivenSomeOtherEventsWereAppended(t, es, rand.IntN(5)+1, 0)
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, es, filter)
 
 	// act
 	err = es.Append(
-		toStorable(t, buildBookCopyAddedToCirculation(bookID)),
+		ToStorable(t, BuildBookCopyAddedToCirculation(bookID)),
 		filter,
 		maxSequenceNumberBeforeAppend,
 	)
@@ -49,23 +45,23 @@ func Test_Append_When_NoEvent_Matches_TheQuery_BeforeAppend(t *testing.T) {
 
 func Test_Append_When_SomeEvents_Match_TheQuery_BeforeAppend(t *testing.T) {
 	// setup
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.DBConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.DBTestConfig())
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
 	es := NewPostgresEventStore(connPool)
 
 	// arrange
-	cleanUpEvents(t, connPool)
-	givenSomeOtherEventsWereAppended(t, es, rand.IntN(5)+1, 0)
-	bookID := givenUniqueID(t)
-	givenBookCopyAddedToCirculationWasAppended(t, es, bookID)
-	filter := filterAllEventTypesForOneBook(bookID)
-	maxSequenceNumberBeforeAppend := queryMaxSequenceNumberBeforeAppend(t, es, filter)
+	CleanUpEvents(t, connPool)
+	GivenSomeOtherEventsWereAppended(t, es, rand.IntN(5)+1, 0)
+	bookID := GivenUniqueID(t)
+	GivenBookCopyAddedToCirculationWasAppended(t, es, bookID)
+	filter := FilterAllEventTypesForOneBook(bookID)
+	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, es, filter)
 
 	// act
 	err = es.Append(
-		toStorable(t, buildBookCopyRemovedFromCirculation(bookID)),
+		ToStorable(t, BuildBookCopyRemovedFromCirculation(bookID)),
 		filter,
 		maxSequenceNumberBeforeAppend,
 	)
@@ -76,26 +72,26 @@ func Test_Append_When_SomeEvents_Match_TheQuery_BeforeAppend(t *testing.T) {
 
 func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 	// setup
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.DBConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.DBTestConfig())
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
 	es := NewPostgresEventStore(connPool)
 
 	// arrange
-	cleanUpEvents(t, connPool)
-	givenSomeOtherEventsWereAppended(t, es, rand.IntN(5)+1, 0)
-	bookID := givenUniqueID(t)
-	readerID := givenUniqueID(t)
-	givenBookCopyAddedToCirculationWasAppended(t, es, bookID)
-	filter := filterAllEventTypesForOneBook(bookID)
-	maxSequenceNumberBeforeAppend := queryMaxSequenceNumberBeforeAppend(t, es, filter)
+	CleanUpEvents(t, connPool)
+	GivenSomeOtherEventsWereAppended(t, es, rand.IntN(5)+1, 0)
+	bookID := GivenUniqueID(t)
+	readerID := GivenUniqueID(t)
+	GivenBookCopyAddedToCirculationWasAppended(t, es, bookID)
+	filter := FilterAllEventTypesForOneBook(bookID)
+	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, es, filter)
 
-	givenBookCopyLentToReaderWasAppended(t, es, bookID, readerID) // concurrent append
+	GivenBookCopyLentToReaderWasAppended(t, es, bookID, readerID) // concurrent append
 
 	// act
 	err = es.Append(
-		toStorable(t, buildBookCopyRemovedFromCirculation(bookID)),
+		ToStorable(t, BuildBookCopyRemovedFromCirculation(bookID)),
 		filter,
 		maxSequenceNumberBeforeAppend,
 	)
@@ -107,32 +103,32 @@ func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 
 func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 	// setup
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.DBConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.DBTestConfig())
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 	defer connPool.Close()
 
 	es := NewPostgresEventStore(connPool)
 
 	// arrange
-	cleanUpEvents(t, connPool)
+	CleanUpEvents(t, connPool)
 	numOtherEvents := 10
-	givenSomeOtherEventsWereAppended(t, es, numOtherEvents, 0)
+	GivenSomeOtherEventsWereAppended(t, es, numOtherEvents, 0)
 
-	bookID1 := givenUniqueID(t)
-	bookID2 := givenUniqueID(t)
-	readerID1 := givenUniqueID(t)
-	readerID2 := givenUniqueID(t)
+	bookID1 := GivenUniqueID(t)
+	bookID2 := GivenUniqueID(t)
+	readerID1 := GivenUniqueID(t)
+	readerID2 := GivenUniqueID(t)
 
-	bookCopy1AddedToCirculationBook := givenBookCopyAddedToCirculationWasAppended(t, es, bookID1)
-	bookCopy1LentToReader1 := givenBookCopyLentToReaderWasAppended(t, es, bookID1, readerID1)
-	bookCopy1ReturnedByReader1 := givenBookCopyReturnedByReaderWasAppended(t, es, bookID1, readerID1)
-	bookCopy1RemovedFromCirculationBook := givenBookCopyRemovedFromCirculationWasAppended(t, es, bookID1)
+	bookCopy1AddedToCirculationBook := GivenBookCopyAddedToCirculationWasAppended(t, es, bookID1)
+	bookCopy1LentToReader1 := GivenBookCopyLentToReaderWasAppended(t, es, bookID1, readerID1)
+	bookCopy1ReturnedByReader1 := GivenBookCopyReturnedByReaderWasAppended(t, es, bookID1, readerID1)
+	bookCopy1RemovedFromCirculationBook := GivenBookCopyRemovedFromCirculationWasAppended(t, es, bookID1)
 
-	bookCopy2AddedToCirculationBook := givenBookCopyAddedToCirculationWasAppended(t, es, bookID2)
-	bookCopy2LentToReader2 := givenBookCopyLentToReaderWasAppended(t, es, bookID2, readerID2)
-	bookCopy2ReturnedByReader2 := givenBookCopyReturnedByReaderWasAppended(t, es, bookID2, readerID2)
-	bookCopy2LentToReader1 := givenBookCopyLentToReaderWasAppended(t, es, bookID2, readerID1)
-	bookCopy2ReturnedByReader1 := givenBookCopyReturnedByReaderWasAppended(t, es, bookID2, readerID1)
+	bookCopy2AddedToCirculationBook := GivenBookCopyAddedToCirculationWasAppended(t, es, bookID2)
+	bookCopy2LentToReader2 := GivenBookCopyLentToReaderWasAppended(t, es, bookID2, readerID2)
+	bookCopy2ReturnedByReader2 := GivenBookCopyReturnedByReaderWasAppended(t, es, bookID2, readerID2)
+	bookCopy2LentToReader1 := GivenBookCopyLentToReaderWasAppended(t, es, bookID2, readerID1)
+	bookCopy2ReturnedByReader1 := GivenBookCopyReturnedByReaderWasAppended(t, es, bookID2, readerID1)
 
 	/******************************/
 
@@ -298,326 +294,140 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 	}
 }
 
-func Benchmark_Append_With_1000000_Events_InTheStore(b *testing.B) {
-	// setup
-	factor := 1
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.DBConfig())
-	defer connPool.Close()
-	assert.NoError(b, err, "error connecting to DB pool in test setup")
-
-	es := NewPostgresEventStore(connPool)
-
-	// arrange
-	row := connPool.QueryRow(context.Background(), `SELECT count(*) FROM events`)
-	var cnt int
-	err = row.Scan(&cnt)
-
-	fmt.Printf("found %d events in the DB\n", cnt)
-
-	assert.NoError(b, err, "error in arranging test data")
-
-	if cnt < 1000*factor {
-		fmt.Println("DomainEvent setup will run")
-		cleanUpEvents(b, connPool)
-		givenSomeOtherEventsWereAppended(b, es, 900*factor, 0)
-
-		var totalEvents int
-		for i := 0; i < 10*factor; i++ {
-			bookID := givenUniqueID(b)
-
-			for j := 0; j < 5; j++ {
-				givenBookCopyAddedToCirculationWasAppended(b, es, bookID)
-				totalEvents++
-				givenBookCopyRemovedFromCirculationWasAppended(b, es, bookID)
-				totalEvents++
-
-				if totalEvents%5000 == 0 {
-					fmt.Printf("appended %d events into the DB\n", totalEvents)
-				}
-			}
-		}
-
-		fmt.Printf("appended %d events into the DB\n", totalEvents)
-	} else {
-		fmt.Println("DomainEvent setup will NOT run")
-	}
-
-	bookID := givenUniqueID(b)
-	filter := filterAllEventTypesForOneBook(bookID)
-
-	// act
-	b.Run("append", func(b *testing.B) {
-		b.ResetTimer()
-
-		for i := 0; i < b.N; i++ {
-			b.StopTimer()
-			maxSequenceNumberBeforeAppend := queryMaxSequenceNumberBeforeAppend(b, es, filter)
-			b.StartTimer()
-
-			err = es.Append(
-				toStorable(b, buildBookCopyAddedToCirculation(bookID)),
-				filter,
-				maxSequenceNumberBeforeAppend,
-			)
-			assert.NoError(b, err, "error in running benchmark action")
-
-			b.StopTimer()
-			cmdTag, dbErr := connPool.Exec(
-				context.Background(),
-				fmt.Sprintf(`DELETE FROM events WHERE payload @> '{"BookID": "%s"}'`, bookID.String()),
-			)
-			assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
-			assert.Equal(b, 1, int(cmdTag.RowsAffected()))
-			b.StartTimer()
-		}
-	})
-}
-
-func Benchmark_Query_With_1000000_Events_InTheStore(b *testing.B) {
-	// setup
-	factor := 1
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.DBConfig())
-	defer connPool.Close()
-	assert.NoError(b, err, "error connecting to DB pool in test setup")
-
-	es := NewPostgresEventStore(connPool)
-
-	// arrange
-	row := connPool.QueryRow(context.Background(), `SELECT count(*) FROM events`)
-	var cnt int
-	err = row.Scan(&cnt)
-	assert.NoError(b, err, "error in arranging test data")
-
-	bookID := uuid.MustParse("01980de3-9296-7598-b929-557d3ab67686")
-
-	var totalEvents int
-	if cnt < 1000*factor {
-		fmt.Println("DomainEvent setup will run")
-		cleanUpEvents(b, connPool)
-		givenSomeOtherEventsWereAppended(b, es, 900*factor, 0)
-
-		for i := 0; i < 10*factor; i++ {
-			bookID = givenUniqueID(b)
-
-			for j := 0; j < 5; j++ {
-				givenBookCopyAddedToCirculationWasAppended(b, es, bookID)
-				totalEvents++
-				givenBookCopyRemovedFromCirculationWasAppended(b, es, bookID)
-				totalEvents++
-
-				if totalEvents%5000 == 0 {
-					fmt.Printf("appended %d events in the DB\n", totalEvents)
-				}
-			}
-		}
-
-		fmt.Printf("appended %d events into the DB\n", totalEvents)
-	} else {
-		fmt.Println("DomainEvent setup will NOT run")
-	}
-
-	filter := filterAllEventTypesForOneBook(bookID)
-
-	// act
-	b.Run("query", func(b *testing.B) {
-		b.ResetTimer()
-
-		for i := 0; i < b.N; i++ {
-			queryMaxSequenceNumberBeforeAppend(b, es, filter)
-		}
-	})
-}
-
-/***** Test HELPER Functions *****/
-
-func givenUniqueID(t testing.TB) uuid.UUID {
-	bookID, err := uuid.NewV7()
-	assert.NoError(t, err, "error in arranging test data")
-
-	return bookID
-}
-
-func queryMaxSequenceNumberBeforeAppend(t testing.TB, es PostgresEventStore, filter Filter) maxSequenceNumberUint {
-	_, maxSequenceNumBeforeAppend, err := es.Query(filter)
-	assert.NoError(t, err, "error in arranging test data")
-
-	return maxSequenceNumBeforeAppend
-}
-
-func filterAllEventTypesForOneBook(bookID uuid.UUID) Filter {
-	filter := BuildEventFilter().
-		Matching().
-		AnyEventTypeOf(
-			core.BookCopyAddedToCirculationEventType,
-			core.BookCopyRemovedFromCirculationEventType,
-			core.BookCopyLentToReaderEventType,
-			core.BookCopyReturnedByReaderEventType).
-		AndAnyPredicateOf(P("BookID", bookID.String())).
-		Finalize()
-
-	return filter
-}
-
-func filterAllEvenTypesForOneBookOrReader(bookID uuid.UUID, readerID uuid.UUID) Filter {
-	filter := BuildEventFilter().
-		Matching().
-		AnyEventTypeOf(
-			core.BookCopyAddedToCirculationEventType,
-			core.BookCopyRemovedFromCirculationEventType,
-			core.BookCopyLentToReaderEventType,
-			core.BookCopyReturnedByReaderEventType).
-		AndAnyPredicateOf(
-			P("BookID", bookID.String()),
-			P("ReaderID", readerID.String())).
-		Finalize()
-
-	return filter
-}
-
-func buildBookCopyAddedToCirculation(bookID uuid.UUID) core.DomainEvent {
-	event := core.BookCopyAddedToCirculation{
-		BookID:          bookID.String(),
-		ISBN:            "978-1-098-10013-1",
-		Title:           "Learning Domain-Driven Design",
-		Authors:         "Vlad Khononov",
-		Edition:         "First Edition",
-		Publisher:       "O'Reilly Media, Inc.",
-		PublicationYear: 2021,
-	}
-
-	return event
-}
-
-func buildBookCopyRemovedFromCirculation(bookID uuid.UUID) core.DomainEvent {
-	event := core.BookCopyRemovedFromCirculation{
-		BookID: bookID.String(),
-	}
-
-	return event
-}
-
-func buildBookCopyLentToReader(bookID uuid.UUID, readerID uuid.UUID) core.DomainEvent {
-	event := core.BookCopyLentToReader{
-		BookID:   bookID.String(),
-		ReaderID: readerID.String(),
-	}
-
-	return event
-}
-
-func buildBookCopyReturnedFromReader(bookID uuid.UUID, readerID uuid.UUID) core.DomainEvent {
-	event := core.BookCopyReturnedByReader{
-		BookID:   bookID.String(),
-		ReaderID: readerID.String(),
-	}
-
-	return event
-}
-
-func toStorable(t testing.TB, event core.DomainEvent) StorableEvent {
-	payloadJSON, err := json.Marshal(event)
-	assert.NoError(t, err, "error in arranging test data")
-
-	esEvent := BuildStorableEvent(event.EventType(), payloadJSON)
-
-	return esEvent
-}
-
-func givenBookCopyAddedToCirculationWasAppended(t testing.TB, es PostgresEventStore, bookID uuid.UUID) core.DomainEvent {
-	filter := filterAllEventTypesForOneBook(bookID)
-	event := buildBookCopyAddedToCirculation(bookID)
-	err := es.Append(toStorable(t, event), filter, queryMaxSequenceNumberBeforeAppend(t, es, filter))
-	assert.NoError(t, err, "error in arranging test data")
-
-	return event
-}
-
-func givenBookCopyRemovedFromCirculationWasAppended(t testing.TB, es PostgresEventStore, bookID uuid.UUID) core.DomainEvent {
-	filter := filterAllEventTypesForOneBook(bookID)
-	event := buildBookCopyRemovedFromCirculation(bookID)
-	err := es.Append(toStorable(t, event), filter, queryMaxSequenceNumberBeforeAppend(t, es, filter))
-	assert.NoError(t, err, "error in arranging test data")
-
-	return event
-}
-
-func givenBookCopyLentToReaderWasAppended(t testing.TB, es PostgresEventStore, bookID uuid.UUID, readerID uuid.UUID) core.DomainEvent {
-	filter := filterAllEvenTypesForOneBookOrReader(bookID, readerID)
-	event := buildBookCopyLentToReader(bookID, readerID)
-	err := es.Append(toStorable(t, event), filter, queryMaxSequenceNumberBeforeAppend(t, es, filter))
-	assert.NoError(t, err, "error in arranging test data")
-
-	return event
-}
-
-func givenBookCopyReturnedByReaderWasAppended(t testing.TB, es PostgresEventStore, bookID uuid.UUID, readerID uuid.UUID) core.DomainEvent {
-	filter := filterAllEvenTypesForOneBookOrReader(bookID, readerID)
-	event := buildBookCopyReturnedFromReader(bookID, readerID)
-	err := es.Append(toStorable(t, event), filter, queryMaxSequenceNumberBeforeAppend(t, es, filter))
-	assert.NoError(t, err, "error in arranging test data")
-
-	return event
-}
-
-func givenSomeOtherEventsWereAppended(t testing.TB, es PostgresEventStore, numEvents int, startFrom maxSequenceNumberUint) {
-	maxSequenceNumber := startFrom
-	totalEvent := 0
-	eventPostfix := 0
-
-	for {
-		id, err := uuid.NewV7()
-		assert.NoError(t, err, "error in arranging test data")
-
-		event := core.BuildSomethingHasHappened(
-			id.String(),
-			"lorem ipsum dolor sit amet: "+id.String(),
-			core.SomethingHasHappenedEventTypePrefix+strconv.Itoa(eventPostfix))
-
-		amountOfSameEvents := rand.IntN(3) + 1
-
-		for j := 0; j < amountOfSameEvents; j++ {
-			filter := BuildEventFilter().
-				Matching().
-				AnyEventTypeOf(core.SomethingHasHappenedEventTypePrefix + strconv.Itoa(eventPostfix)).
-				AndAnyPredicateOf(P("ID", id.String())).
-				Finalize()
-
-			maxSequenceNumberForThisEventType := maxSequenceNumber
-			if j == 0 {
-				maxSequenceNumberForThisEventType = 0
-			}
-
-			err = es.Append(toStorable(t, event), filter, maxSequenceNumberForThisEventType)
-			assert.NoError(t, err, "error in arranging test data")
-
-			totalEvent++
-			maxSequenceNumber++
-
-			if totalEvent%5000 == 0 {
-				fmt.Printf("appended %d %s events into the DB\n", totalEvent, core.SomethingHasHappenedEventTypePrefix)
-			}
-
-			if totalEvent == numEvents {
-				break
-			}
-		}
-
-		eventPostfix++
-
-		if totalEvent == numEvents {
-			break
-		}
-	}
-
-	fmt.Printf("appended %d %s events into the DB\n", totalEvent, core.SomethingHasHappenedEventTypePrefix)
-}
-
-func cleanUpEvents(t testing.TB, connPool *pgxpool.Pool) {
-	_, err := connPool.Exec(
-		context.Background(),
-		"TRUNCATE TABLE events RESTART IDENTITY",
-	)
-
-	assert.NoError(t, err, "error cleaning up the events table")
-	fmt.Println("events table truncated")
-}
+//func Benchmark_Append_With_1000000_Events_InTheStore(b *testing.B) {
+//	// setup
+//	factor := 1
+//	connPool, err := pgxpool.NewWithConfig(context.Background(), config.DBTestConfig())
+//	defer connPool.Close()
+//	assert.NoError(b, err, "error connecting to DB pool in test setup")
+//
+//	es := NewPostgresEventStore(connPool)
+//
+//	// arrange
+//	row := connPool.QueryRow(context.Background(), `SELECT count(*) FROM events`)
+//	var cnt int
+//	err = row.Scan(&cnt)
+//
+//	fmt.Printf("found %d events in the DB\n", cnt)
+//
+//	assert.NoError(b, err, "error in arranging test data")
+//
+//	if cnt < 1000*factor {
+//		fmt.Println("DomainEvent setup will run")
+//		CleanUpEvents(b, connPool)
+//		GivenSomeOtherEventsWereAppended(b, es, 900*factor, 0)
+//
+//		var totalEvents int
+//		for i := 0; i < 10*factor; i++ {
+//			bookID := GivenUniqueID(b)
+//
+//			for j := 0; j < 5; j++ {
+//				GivenBookCopyAddedToCirculationWasAppended(b, es, bookID)
+//				totalEvents++
+//				GivenBookCopyRemovedFromCirculationWasAppended(b, es, bookID)
+//				totalEvents++
+//
+//				if totalEvents%5000 == 0 {
+//					fmt.Printf("appended %d events into the DB\n", totalEvents)
+//				}
+//			}
+//		}
+//
+//		fmt.Printf("appended %d events into the DB\n", totalEvents)
+//	} else {
+//		fmt.Println("DomainEvent setup will NOT run")
+//	}
+//
+//	bookID := GivenUniqueID(b)
+//	filter := FilterAllEventTypesForOneBook(bookID)
+//
+//	// act
+//	b.Run("append", func(b *testing.B) {
+//		b.ResetTimer()
+//
+//		for i := 0; i < b.N; i++ {
+//			b.StopTimer()
+//			maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(b, es, filter)
+//			b.StartTimer()
+//
+//			err = es.Append(
+//				ToStorable(b, BuildBookCopyAddedToCirculation(bookID)),
+//				filter,
+//				maxSequenceNumberBeforeAppend,
+//			)
+//			assert.NoError(b, err, "error in running benchmark action")
+//
+//			b.StopTimer()
+//			cmdTag, dbErr := connPool.Exec(
+//				context.Background(),
+//				fmt.Sprintf(`DELETE FROM events WHERE payload @> '{"BookID": "%s"}'`, bookID.String()),
+//			)
+//			assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
+//			assert.Equal(b, 1, int(cmdTag.RowsAffected()))
+//			b.StartTimer()
+//		}
+//	})
+//}
+
+//func Benchmark_Query_With_1000000_Events_InTheStore(b *testing.B) {
+//	// setup
+//	factor := 1
+//	connPool, err := pgxpool.NewWithConfig(context.Background(), config.DBTestConfig())
+//	defer connPool.Close()
+//	assert.NoError(b, err, "error connecting to DB pool in test setup")
+//
+//	es := NewPostgresEventStore(connPool)
+//
+//	// arrange
+//	row := connPool.QueryRow(context.Background(), `SELECT count(*) FROM events`)
+//	var cnt int
+//	err = row.Scan(&cnt)
+//	assert.NoError(b, err, "error in arranging test data")
+//
+//	var totalEvents int
+//	if cnt < 1000*factor {
+//		fmt.Println("DomainEvent setup will run")
+//		CleanUpEvents(b, connPool)
+//		GivenSomeOtherEventsWereAppended(b, es, 900*factor, 0)
+//
+//		for i := 0; i < 10*factor; i++ {
+//			bookID := GivenUniqueID(b)
+//
+//			for j := 0; j < 5; j++ {
+//				GivenBookCopyAddedToCirculationWasAppended(b, es, bookID)
+//				totalEvents++
+//				GivenBookCopyRemovedFromCirculationWasAppended(b, es, bookID)
+//				totalEvents++
+//
+//				if totalEvents%5000 == 0 {
+//					fmt.Printf("appended %d events in the DB\n", totalEvents)
+//				}
+//			}
+//		}
+//
+//		fmt.Printf("appended %d events into the DB\n", totalEvents)
+//	} else {
+//		fmt.Println("DomainEvent setup will NOT run")
+//	}
+//
+//	row = connPool.QueryRow(
+//		context.Background(),
+//		`select payload->'BookID' as bookID from events where sequence_number = (select max(sequence_number) from events)`,
+//	)
+//	var bookIDString string
+//	err = row.Scan(&bookIDString)
+//	assert.NoError(b, err, "error in arranging test data")
+//	bookID, err := uuid.Parse(bookIDString)
+//	assert.NoError(b, err, "error in arranging test data")
+//
+//	filter := FilterAllEventTypesForOneBook(bookID)
+//
+//	// act
+//	b.Run("query", func(b *testing.B) {
+//		b.ResetTimer()
+//
+//		for i := 0; i < b.N; i++ {
+//			QueryMaxSequenceNumberBeforeAppend(b, es, filter)
+//		}
+//	})
+//}
