@@ -45,7 +45,7 @@ func FilterAllEventTypesForOneBook(bookID uuid.UUID) Filter {
 	return filter
 }
 
-func FilterAllEvenTypesForOneBookOrReader(bookID uuid.UUID, readerID uuid.UUID) Filter {
+func FilterAllEventTypesForOneBookOrReader(bookID uuid.UUID, readerID uuid.UUID) Filter {
 	filter := BuildEventFilter().
 		Matching().
 		AnyEventTypeOf(
@@ -129,7 +129,7 @@ func GivenBookCopyRemovedFromCirculationWasAppended(t testing.TB, es PostgresEve
 }
 
 func GivenBookCopyLentToReaderWasAppended(t testing.TB, es PostgresEventStore, bookID uuid.UUID, readerID uuid.UUID) core.DomainEvent {
-	filter := FilterAllEvenTypesForOneBookOrReader(bookID, readerID)
+	filter := FilterAllEventTypesForOneBookOrReader(bookID, readerID)
 	event := BuildBookCopyLentToReader(bookID, readerID)
 	err := es.Append(ToStorable(t, event), filter, QueryMaxSequenceNumberBeforeAppend(t, es, filter))
 	assert.NoError(t, err, "error in arranging test data")
@@ -138,7 +138,7 @@ func GivenBookCopyLentToReaderWasAppended(t testing.TB, es PostgresEventStore, b
 }
 
 func GivenBookCopyReturnedByReaderWasAppended(t testing.TB, es PostgresEventStore, bookID uuid.UUID, readerID uuid.UUID) core.DomainEvent {
-	filter := FilterAllEvenTypesForOneBookOrReader(bookID, readerID)
+	filter := FilterAllEventTypesForOneBookOrReader(bookID, readerID)
 	event := BuildBookCopyReturnedFromReader(bookID, readerID)
 	err := es.Append(ToStorable(t, event), filter, QueryMaxSequenceNumberBeforeAppend(t, es, filter))
 	assert.NoError(t, err, "error in arranging test data")
