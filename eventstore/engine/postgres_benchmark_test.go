@@ -9,9 +9,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 
-	"dynamic-streams-eventstore/config"
 	. "dynamic-streams-eventstore/eventstore/engine"
 	. "dynamic-streams-eventstore/test"
+	"dynamic-streams-eventstore/test/userland/config"
 	"dynamic-streams-eventstore/test/userland/core"
 	"dynamic-streams-eventstore/test/userland/shell"
 )
@@ -19,7 +19,7 @@ import (
 func Benchmark_Append_With_Many_Events_InTheStore(b *testing.B) {
 	// setup
 	factor := 1000 // multiplied by 1000 -> total num of fixture events
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.DBBenchmarkConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresBenchmarkConfig())
 	defer connPool.Close()
 	assert.NoError(b, err, "error connecting to DB pool in test setup")
 
@@ -69,7 +69,7 @@ func Benchmark_Append_With_Many_Events_InTheStore(b *testing.B) {
 func Benchmark_Query_With_Many_Events_InTheStore(b *testing.B) {
 	// setup
 	factor := 1000 // multiplied by 1000 -> total num of fixture events
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.DBBenchmarkConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresBenchmarkConfig())
 	defer connPool.Close()
 	assert.NoError(b, err, "error connecting to DB pool in test setup")
 
@@ -103,7 +103,7 @@ func Benchmark_Query_With_Many_Events_InTheStore(b *testing.B) {
 func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 	// setup
 	factor := 1000 // multiplied by 1000 -> total num of fixture events
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.DBBenchmarkConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresBenchmarkConfig())
 	defer connPool.Close()
 	assert.NoError(b, err, "error connecting to DB pool in test setup")
 

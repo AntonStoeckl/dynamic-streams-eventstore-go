@@ -9,17 +9,17 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 
-	"dynamic-streams-eventstore/config"
 	. "dynamic-streams-eventstore/eventstore"
 	. "dynamic-streams-eventstore/eventstore/engine"
 	. "dynamic-streams-eventstore/test"
+	"dynamic-streams-eventstore/test/userland/config"
 	"dynamic-streams-eventstore/test/userland/core"
 	"dynamic-streams-eventstore/test/userland/shell"
 )
 
 func Test_Append_When_NoEvent_Matches_TheQuery_BeforeAppend(t *testing.T) {
 	// setup
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.DBTestConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
@@ -45,7 +45,7 @@ func Test_Append_When_NoEvent_Matches_TheQuery_BeforeAppend(t *testing.T) {
 
 func Test_Append_When_SomeEvents_Match_TheQuery_BeforeAppend(t *testing.T) {
 	// setup
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.DBTestConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
@@ -72,7 +72,7 @@ func Test_Append_When_SomeEvents_Match_TheQuery_BeforeAppend(t *testing.T) {
 
 func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 	// setup
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.DBTestConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
@@ -103,7 +103,7 @@ func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 
 func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 	// setup
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.DBTestConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 	defer connPool.Close()
 
@@ -297,7 +297,7 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 //func Benchmark_Append_With_1000000_Events_InTheStore(b *testing.B) {
 //	// setup
 //	factor := 1
-//	connPool, err := pgxpool.NewWithConfig(context.Background(), config.DBTestConfig())
+//	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
 //	defer connPool.Close()
 //	assert.NoError(b, err, "error connecting to DB pool in test setup")
 //
@@ -372,7 +372,7 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 //func Benchmark_Query_With_1000000_Events_InTheStore(b *testing.B) {
 //	// setup
 //	factor := 1
-//	connPool, err := pgxpool.NewWithConfig(context.Background(), config.DBTestConfig())
+//	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
 //	defer connPool.Close()
 //	assert.NoError(b, err, "error connecting to DB pool in test setup")
 //
