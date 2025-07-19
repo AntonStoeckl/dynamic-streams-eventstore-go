@@ -77,21 +77,27 @@ At the point of the **Query** the highest sequence number of _**relevant events*
 
 
 
-## Overview
-
-This project provides a robust event store solution that enables:
-- Event persistence and retrieval
-- Stream-based event processing
-- PostgreSQL integration for reliable storage
-- Domain event handling for event-driven systems
-
 ## Features
 
-- **PostgreSQL Backend**: Leverages PostgreSQL for reliable event storage
-- **Event Filtering**: Built-in filtering capabilities for event queries
-- **Domain Events**: Support for domain-driven design patterns
+### Production
+
+- **PostgreSQL Backend engine**: Leverages PostgreSQL for reliable event storage
+- **Event Filtering with a fluent FilterBuilder**: Storage-agnostic filtering capabilities for event queries
+- **Mapping to StorableEvent**: A **StorableEvent** type with a factory method that is completely independent
+  of the userland implementation of **DomainEvents** my just receiving the **EventType** and the serialized payload
+
+#### Currently missing
+
+The _OccurredAt_ timestamp is currently created in the DB, this should be passed in from the application.  
+More storage engines, like MongoDB, might follow ...
+
+### Running the tests
+
+- **Functional Tests**: Functional tests for the even store included which showcase how the event store can be used in production
 - **Benchmarking**: Performance testing utilities included
-- **Docker Support**: Ready-to-use Docker Compose configuration
+- **Docker Support**: Ready-to-use Docker Compose configuration for testing and benchmarking
+
+
 
 ## Tech Stack
 
