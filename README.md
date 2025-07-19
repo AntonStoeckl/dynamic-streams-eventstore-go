@@ -9,7 +9,8 @@ Check out https://sara.event-thinking.io/ for her ideas!
 
 ### Disclaimer
 
-This is currently just an **experiment** with the concept, **not yet a production-ready library**.  
+This is currently just an **experiment** with the concept, **not yet a production-ready library**
+(well, it should actually work fine).  
 It might be a production-ready OSS library at some point in the future, though.  
 For the time being, use it or play with it if the idea is interesting for you. :-)
 
@@ -89,7 +90,8 @@ At the point of the **Query** the highest sequence number of _**relevant events*
 #### Currently missing
 
 The _OccurredAt_ timestamp is currently created in the DB, this should be passed in from the application.  
-More storage engines, like MongoDB, might follow ...
+The table name (_events_) is currently hardcoded in the postgres engine implementation.  
+More storage engines, like MongoDB, might follow ...  
 
 ### Running the tests
 
@@ -111,19 +113,29 @@ More storage engines, like MongoDB, might follow ...
     - `github.com/stretchr/testify/assert` - Assertions for testing
 
 
-## Quick Start
+## Quick Start for running the tests
 
-1. **Start PostgreSQL**: Use Docker Compose to run the database
+1. **Start PostgreSQL for functional tests with Docker**: 
    ```bash
-   docker-compose up -d postgres_test
+   docker-compose --file test/docker-compose.yml up -d postgres_test
+   ```
+   
+2. **Start PostgreSQL for benchmark tests with Docker**: 
+   ```bash
+   docker-compose --file test/docker-compose.yml up -d postgres_benchmark
+   ```
+   
+3. **Start both containers at once with Docker**:
+   ```bash
+   docker-compose --file test/docker-compose.yml
    ```
 
-2. **Run Tests**: Execute the test suite
+4. **Run Tests**: Execute the functional test suite
    ```bash
-   go test ./...
+   go test ./eventstore/engine/
    ```
 
-3. **Benchmarks**: Run performance benchmarks
+5. **Benchmarks**: Run performance benchmark test suite
    ```bash
    go test -bench=. ./eventstore/engine/
    ```
@@ -136,6 +148,91 @@ The project includes Docker Compose configuration with:
 
 Both services include automatic database initialization from the `initdb/` directory.
 
+## Quick start for using it in an application
+
+Install the dependency in your Go application via go get (todo).
+
+Check **test/initdb/init.sql** on how to set up tables and indexes.  
+If you want to dockerize the event store DB, you can copy from **test/docker-compose.yml**.
+
+### The fluent FilterBuilder
+
+
+### Mapping to your DomainEvents to StorableEvent 
+
+
+## Benchmarks
+
+When you run any benchmark for the first time, it will prime the DB with **one million events**, which runs
+a while (**circa 1 hour** on my plain vanilla linux laptop).  
+The docker image for benchmarks uses a persistent volume, so from then on this will not run, unless you 
+delete the events (actually it checks if one million events exist) or delete the volume. A regular 
+docker-compose down will keep the data intact.  
+You can change the amount of events to be set up, each benchmark has such a line:  
+`factor := 1000 // multiplied by 1000 -> total num of fixture events`  
+This is quite a naive implementation, but "good enough" for me at the moment.
+
+### My benchmark results
+
+I'm running this on an 8-core i7 with 16GB ram.  
+The results naturally vary, I'm showing some "typical" results below.  
+I'm running them with `--count 8` which means 8 repetitions.
+
+---  
+goos: linux  
+goarch: amd64  
+pkg: dynamic-streams-eventstore/eventstore/engine  
+cpu: Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz  
+Benchmark_Append_With_Many_Events_InTheStore/append-8 535 2211224 ns/op
+Benchmark_Append_With_Many_Events_InTheStore/append-8 588 2494717 ns/op
+Benchmark_Append_With_Many_Events_InTheStore/append-8 484 2560869 ns/op
+Benchmark_Append_With_Many_Events_InTheStore/append-8 480 2566933 ns/op
+Benchmark_Append_With_Many_Events_InTheStore/append-8 480 2477165 ns/op
+Benchmark_Append_With_Many_Events_InTheStore/append-8 441 2556536 ns/op
+Benchmark_Append_With_Many_Events_InTheStore/append-8 505 2605083 ns/op
+Benchmark_Append_With_Many_Events_InTheStore/append-8 442 2623357 ns/op
+---  
+goos: linux  
+goarch: amd64  
+pkg: dynamic-streams-eventstore/eventstore/engine  
+cpu: Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz  
+Benchmark_Query_With_Many_Events_InTheStore/query-8 5818 197042 ns/op
+Benchmark_Query_With_Many_Events_InTheStore/query-8 5202 204716 ns/op
+Benchmark_Query_With_Many_Events_InTheStore/query-8 5222 192455 ns/op
+Benchmark_Query_With_Many_Events_InTheStore/query-8 6264 190324 ns/op
+Benchmark_Query_With_Many_Events_InTheStore/query-8 6236 192805 ns/op
+Benchmark_Query_With_Many_Events_InTheStore/query-8 5370 209709 ns/op
+Benchmark_Query_With_Many_Events_InTheStore/query-8 5589 204389 ns/op
+Benchmark_Query_With_Many_Events_InTheStore/query-8 5571 193981 ns/op
+Benchmark_Query_With_Many_Events_InTheStore/query-8 6292 194154 ns/op
+Benchmark_Query_With_Many_Events_InTheStore/query-8 5716 210545 ns/op
+---  
+goos: linux  
+goarch: amd64  
+pkg: dynamic-streams-eventstore/eventstore/engine  
+cpu: Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz  
+Benchmark_TypicalWorkload_With_Many_Events_InTheStore  
+Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append  
+Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append
+Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append-8 302 3586976 ns/op
+Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append-8 339 3466188 ns/op
+Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append-8 331 3863671 ns/op
+Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append-8 290 4714235 ns/op
+Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append-8 226 4830584 ns/op
+Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append-8 267 5173156 ns/op
+Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append-8 217 5728742 ns/op
+Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append-8 204 5705906 ns/op
+---
+
+The "typical workload" one does a full cycle of:
+* Query
+* Unserialize
+* Apply business logic and make a decision
+* Append
+
+In other words, what a real application would do (minus http request, emitting events, ...).  
+The average of those 8 "workloads" is around 4.6 ms, which I consider decent on my hardware.
+
 ## License
 
-This project is licensed under the terms specified in `LICENSE.txt`.
+This project is licensed under the terms specified in `LICENSE.txt` (**GNU GPLv3**).
