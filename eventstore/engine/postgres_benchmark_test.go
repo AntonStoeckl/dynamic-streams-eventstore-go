@@ -190,7 +190,7 @@ func appendFixtureEvents(b *testing.B, connPool *pgxpool.Pool, es PostgresEventS
 	var cnt int
 	err := row.Scan(&cnt)
 	assert.NoError(b, err, "error in arranging test data")
-	fmt.Printf("found %d events in the DB\n", cnt)
+	//fmt.Printf("found %d events in the DB\n", cnt)
 
 	if cnt < 1000*factor {
 		fmt.Println("DomainEvent setup will run")
@@ -213,8 +213,8 @@ func appendFixtureEvents(b *testing.B, connPool *pgxpool.Pool, es PostgresEventS
 			}
 		}
 
-		fmt.Printf("appended %d events into the DB\n", totalEvents)
+		//fmt.Printf("appended %d events into the DB\n", totalEvents)
 	} else {
-		fmt.Println("DomainEvent setup will NOT run")
+		//fmt.Println("DomainEvent setup will NOT run")
 	}
 }

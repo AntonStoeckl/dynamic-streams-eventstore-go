@@ -3,7 +3,6 @@ package test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"math/rand/v2"
 	"strconv"
 	"testing"
@@ -181,7 +180,7 @@ func GivenSomeOtherEventsWereAppended(t testing.TB, es PostgresEventStore, numEv
 			maxSequenceNumber++
 
 			if totalEvent%5000 == 0 {
-				fmt.Printf("appended %d %s events into the DB\n", totalEvent, core.SomethingHasHappenedEventTypePrefix)
+				//fmt.Printf("appended %d %s events into the DB\n", totalEvent, core.SomethingHasHappenedEventTypePrefix)
 			}
 
 			if totalEvent == numEvents {
@@ -196,7 +195,7 @@ func GivenSomeOtherEventsWereAppended(t testing.TB, es PostgresEventStore, numEv
 		}
 	}
 
-	fmt.Printf("appended %d %s events into the DB\n", totalEvent, core.SomethingHasHappenedEventTypePrefix)
+	//fmt.Printf("appended %d %s events into the DB\n", totalEvent, core.SomethingHasHappenedEventTypePrefix)
 }
 
 func CleanUpEvents(t testing.TB, connPool *pgxpool.Pool) {
@@ -206,5 +205,5 @@ func CleanUpEvents(t testing.TB, connPool *pgxpool.Pool) {
 	)
 
 	assert.NoError(t, err, "error cleaning up the events table")
-	fmt.Println("events table truncated")
+	//fmt.Println("events table truncated")
 }
