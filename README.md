@@ -24,7 +24,7 @@ One _**atomic operation**_ with _**Optimistic locking**_ means that 1-N events a
 only when the stream has not changed since it was queried. To make this decision, the **_StreamVersion_** of the last query
 must be sent with the **Append** operation.
 
-### The problem which Dynamic Event Streams or DCB try to solve.
+### The problem which Dynamic Event Streams (or DCB) try to solve.
 
 A _**fixed stream**_ is a tight boundary that also enforces designing with fixed **_Entities_** or **_Aggregates_**
 (see: Domain-Driven Design).  
@@ -50,33 +50,74 @@ Rico is a much more productive writer than me, so make sure to check out his oth
 
 Long story short: the basics for this implementation are _**Guard Clauses**_ implemented with **_Common Table Expressions_** (CTE).  
 The **Append** command uses the same where conditions that the **Query** used before, and with a CTE it guards that the  
-"dynamic stream" has not changed between Query and Append.
+"dynamic stream" has not changed between **Query** and **Append**.
 
-An example speaks more than 1000 words ...
+#### An example says more than 1000 words ...
 
-The **Query** to read the event stream:
+The **Query** to read the dynamic event stream:
 
-`SELECT "event_type", "payload", "sequence_number"`  
-`FROM "events"`  
-`WHERE ((("event_type" = 'BookCopyAddedToCirculation') OR ("event_type" = 'BookCopyLentToReader') OR ("event_type" = 'BookCopyRemovedFromCirculation') OR ("event_type" = 'BookCopyReturnedByReader')) AND (payload @> '{"BookID": "0198226e-19f6-7d29-8be9-10871e23e820"}' OR payload @> '{"ReaderID": "0198226e-19f6-7d2a-8342-dc5c8d5a2cd5"}'))`  
-`ORDER BY "sequence_number" ASC `
+```postgresql
+SELECT "event_type", "payload", "sequence_number"  
+FROM "events"  
+WHERE (
+    (
+           ("event_type" = 'BookCopyAddedToCirculation')
+        OR ("event_type" = 'BookCopyLentToReader') 
+        OR ("event_type" = 'BookCopyRemovedFromCirculation') 
+        OR ("event_type" = 'BookCopyReturnedByReader')
+    )
+    AND
+    (
+        payload @> '{"BookID": "0198226e-19f6-7d29-8be9-10871e23e820"}'
+        OR payload @> '{"ReaderID": "0198226e-19f6-7d2a-8342-dc5c8d5a2cd5"}'
+    )
+)  
+ORDER BY "sequence_number" ASC 
+```
 
-The **CTE** for the **Append**:
+The **Append** with the **CTE**:
 
-`WITH context AS`  
-`(SELECT MAX("sequence_number") AS "max_seq" FROM "events"`  
-`WHERE ((("event_type" = 'BookCopyAddedToCirculation') OR ("event_type" = 'BookCopyLentToReader') OR ("event_type" = 'BookCopyRemovedFromCirculation') OR ("event_type" = 'BookCopyReturnedByReader')) AND (payload @> '{"BookID": "0198226e-19f6-7d29-8be9-10871e23e820"}' OR payload @> '{"ReaderID": "0198226e-19f6-7d2a-8342-dc5c8d5a2cd5"}')))`  
+```postgresql
+WITH context AS --- CTE starts here
+(
+    SELECT MAX("sequence_number") AS "max_seq"
+    FROM "events"  
+    WHERE (
+        (
+               ("event_type" = 'BookCopyAddedToCirculation')
+            OR ("event_type" = 'BookCopyLentToReader')
+            OR ("event_type" = 'BookCopyRemovedFromCirculation')
+            OR ("event_type" = 'BookCopyReturnedByReader')
+        )
+        AND
+        (
+            payload @> '{"BookID": "0198226e-19f6-7d29-8be9-10871e23e820"}'
+            OR payload @> '{"ReaderID": "0198226e-19f6-7d2a-8342-dc5c8d5a2cd5"}'
+        )
+    )
+) --- CTE ends here
 
-The insert for the **Append** using the **CTE**:
+INSERT INTO "events" ("event_type", "payload")  
+SELECT 'BookCopyAddedToCirculation',
+       '{
+         "BookID":"0198223b-12f8-74af-ada1-12ac0687b922",
+         "ISBN":"978-1-098-10013-1",
+         "Title":"Learning Domain-Driven Design",
+         "Authors":"Vlad Khononov",
+         "Edition":"First Edition",
+         "Publisher":"O''Reilly Media, Inc.",
+         "PublicationYear":2021
+       }'  
+FROM context WHERE (COALESCE("max_seq", 0) = 6)
+```
 
-`INSERT INTO "events" ("event_type", "payload")`  
-`SELECT 'BookCopyAddedToCirculation', '{"BookID":"0198223b-12f8-74af-ada1-12ac0687b922","ISBN":"978-1-098-10013-1","Title":"Learning Domain-Driven Design","Authors":"Vlad Khononov","Edition":"First Edition","Publisher":"O''Reilly Media, Inc.","PublicationYear":2021}'`  
-`FROM context" WHERE (COALESCE("max_seq", 0) = 6)`
+If you look close, you will notice that the where clause is the same in the **Query** and the **CTE**!  
 
-If you look closely (I know it might be hard to read), you will notice that the where clause is the same in the **Query** and the **CTE**!  
-At the point of the **Query** the highest sequence number of _**relevant events**_ was 6, so the **Append** guards this to be unchanged.
+At the point of the **Query** the highest sequence number of _**relevant events**_ was 6, so if it has changed
+since then, no rows will be inserted (the guard). Which will then be mapped to a concurrency error in the event store.
 
-
+So it's crucial that the same where clause is used in **Query** and **Append** (as mentioned above).  
+I'll show an example under "Quick start for using it in an application" below.
 
 ## Features
 
@@ -89,17 +130,12 @@ At the point of the **Query** the highest sequence number of _**relevant events*
 
 #### Currently missing
 
-The _OccurredAt_ timestamp is currently created in the DB, this should be passed in from the application.  
+The _OccurredAt_ timestamp is currently created in the DB, this should be passed-in from the application.  
 The table name (_events_) is currently hardcoded in the postgres engine implementation.  
-More storage engines, like MongoDB, might follow ...  
+No support for _metadata_ yet.  
+The FilterBuilder does not support concatenating predicates with OR (more below).  
 
-### Running the tests
-
-- **Functional Tests**: Functional tests for the even store included which showcase how the event store can be used in production
-- **Benchmarking**: Performance testing utilities included
-- **Docker Support**: Ready-to-use Docker Compose configuration for testing and benchmarking
-
-
+More storage engines, like MongoDB, might follow ...
 
 ## Tech Stack
 
@@ -114,6 +150,13 @@ More storage engines, like MongoDB, might follow ...
 
 
 ## Quick Start for running the tests
+
+The project includes Docker Compose configuration with:
+- **postgres_test**: Development database (port 5432)
+- **postgres_benchmark**: Performance testing database (port 5433)
+
+Both services include automatic database initialization from the `initdb/` directory.
+
 
 1. **Start PostgreSQL for functional tests with Docker**: 
    ```bash
@@ -140,15 +183,7 @@ More storage engines, like MongoDB, might follow ...
    go test -bench=. ./eventstore/engine/
    ```
 
-## Docker Support
-
-The project includes Docker Compose configuration with:
-- **postgres_test**: Development database (port 5432)
-- **postgres_benchmark**: Performance testing database (port 5433)
-
-Both services include automatic database initialization from the `initdb/` directory.
-
-## Quick start for using it in an application
+## Quick Start for using it in an application
 
 Install the dependency in your Go application via go get (todo).
 
@@ -157,8 +192,108 @@ If you want to dockerize the event store DB, you can copy from **test/docker-com
 
 ### The fluent FilterBuilder
 
+The FilterBuilder is designed with the idea to only allow "useful" filter combinations for event-sourced workflows;
+this is clearly opinionated. It will guide the user by only allowing next operations that make sense.  
+It is thoroughly documented, please see `eventstore/filter.go`.
+
+Some examples (taken from `test/helper.go`) ...
+
+This one might be useful for "feature slices" where only some events that are tied to an "entity" (BookCopy) are of interest:
+
+```go
+// WHERE ((eventType1 OR eventType2 OR ...) AND predicate)
+filter := BuildEventFilter().
+    Matching().
+    AnyEventTypeOf(
+        core.BookCopyAddedToCirculationEventType,
+        core.BookCopyRemovedFromCirculationEventType,
+        core.BookCopyLentToReaderEventType,
+        core.BookCopyReturnedByReaderEventType).
+    AndAnyPredicateOf(P("BookID", bookID.String())).
+    Finalize()
+}
+```
+
+This one "solves" the case(s) described above where two "entities" (BookCopy, Reader) are affected:
+
+```go
+// WHERE ((eventType1 OR eventType2 OR ...) AND (predicate1 OR predicate2))
+filter := BuildEventFilter().
+    Matching().
+    AnyEventTypeOf(
+        core.BookCopyAddedToCirculationEventType,
+        core.BookCopyRemovedFromCirculationEventType,
+        core.BookCopyLentToReaderEventType,
+        core.BookCopyReturnedByReaderEventType).
+    AndAnyPredicateOf(
+        P("BookID", bookID.String()),
+        P("ReaderID", readerID.String())).
+    Finalize()
+```
+
+Another example that resembles classical/fixed streams (per aggregate/entity):
+
+```go
+filter := BuildEventFilter().
+    Matching().
+    AnyPredicateOf(P("BookID", bookID.String())).
+    Finalize()
+}
+```
 
 ### Mapping to your DomainEvents to StorableEvent 
+
+**_StorableEvent_** is completely agnostic of your implementation of DomainEvents, it just receives `(eventType string, payloadJSON []byte)`:
+
+```go
+payloadJSON, err := json.Marshal(event)
+if err != nil {
+	// handle error
+}
+
+esEvent := BuildStorableEvent(event.EventType(), payloadJSON)
+```
+
+### Putting it all together in an application
+
+```go
+// the code below should live in the "imperative shell"
+
+filter := BuildEventFilter().
+    Matching().
+    AnyPredicateOf(P("BookID", bookID.String())).
+    Finalize()
+}
+
+storableEvents, maxSequenceNumberBeforeAppend, queryErr := es.Query(filter)
+if queryErr != nil {
+    // handle error
+}
+
+domainEvents, mappingErr := shell.DomainEventsFrom(storableEvents)
+if mappingErr != nil {
+    // handle error
+}
+
+// See eventstore/engine/postgres_benchmark_test.go -> Benchmark_TypicalWorkload_With_Many_Events_InTheStore
+//   for a business logic example. ApplyBusinessLogic() code should live in your "functional core".
+event, bizErr := core.ApplyBusinessLogic(domainEvents)
+if bizErr != nil {
+    // handle error
+}
+
+payloadJSON, marshalingErr := json.Marshal(event)
+if marshalingErr != nil {
+	// handle error
+}
+
+esEvent := BuildStorableEvent(event.EventType(), payloadJSON)
+
+appendErr := es.Append(esEvent, filter, maxSequenceNumberBeforeAppend)
+if appendErr != nil {
+    // handle error
+}
+```
 
 
 ## Benchmarks
@@ -168,7 +303,7 @@ a while (**circa 1 hour** on my plain vanilla linux laptop).
 The docker image for benchmarks uses a persistent volume, so from then on this will not run, unless you 
 delete the events (actually it checks if one million events exist) or delete the volume. A regular 
 docker-compose down will keep the data intact.  
-You can change the amount of events to be set up, each benchmark has such a line:  
+You can change the number of events to be set up, each benchmark has such a line:  
 `factor := 1000 // multiplied by 1000 -> total num of fixture events`  
 This is quite a naive implementation, but "good enough" for me at the moment.
 
@@ -178,7 +313,7 @@ I'm running this on an 8-core i7 with 16GB ram.
 The results naturally vary, I'm showing some "typical" results below.  
 I'm running them with `--count 8` which means 8 repetitions.
 
----  
+```shell
 goos: linux  
 goarch: amd64  
 pkg: dynamic-streams-eventstore/eventstore/engine  
@@ -191,7 +326,8 @@ Benchmark_Append_With_Many_Events_InTheStore/append-8 480 2477165 ns/op
 Benchmark_Append_With_Many_Events_InTheStore/append-8 441 2556536 ns/op
 Benchmark_Append_With_Many_Events_InTheStore/append-8 505 2605083 ns/op
 Benchmark_Append_With_Many_Events_InTheStore/append-8 442 2623357 ns/op
----  
+```
+```shell
 goos: linux  
 goarch: amd64  
 pkg: dynamic-streams-eventstore/eventstore/engine  
@@ -206,7 +342,8 @@ Benchmark_Query_With_Many_Events_InTheStore/query-8 5589 204389 ns/op
 Benchmark_Query_With_Many_Events_InTheStore/query-8 5571 193981 ns/op
 Benchmark_Query_With_Many_Events_InTheStore/query-8 6292 194154 ns/op
 Benchmark_Query_With_Many_Events_InTheStore/query-8 5716 210545 ns/op
----  
+```
+```shell
 goos: linux  
 goarch: amd64  
 pkg: dynamic-streams-eventstore/eventstore/engine  
@@ -222,16 +359,17 @@ Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append-8 226 4830584 ns/op
 Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append-8 267 5173156 ns/op
 Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append-8 217 5728742 ns/op
 Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append-8 204 5705906 ns/op
----
+```
 
-The "typical workload" one does a full cycle of:
-* Query
-* Unserialize
+The "typical workload" benchmark does a full cycle of:
+* Query events
+* Unserialize events
 * Apply business logic and make a decision
-* Append
+* Serialize event
+* Append event
 
 In other words, what a real application would do (minus http request, emitting events, ...).  
-The average of those 8 "workloads" is around 4.6 ms, which I consider decent on my hardware.
+The average of those 8 "workloads" is around **4.6 ms**, which I consider decent on my hardware.
 
 ## License
 
