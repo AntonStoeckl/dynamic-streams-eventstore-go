@@ -68,7 +68,7 @@ WHERE (
     )
     AND
     (
-        payload @> '{"BookID": "0198226e-19f6-7d29-8be9-10871e23e820"}'
+           payload @> '{"BookID": "0198226e-19f6-7d29-8be9-10871e23e820"}'
         OR payload @> '{"ReaderID": "0198226e-19f6-7d2a-8342-dc5c8d5a2cd5"}'
     )
 )  
@@ -91,7 +91,7 @@ WITH context AS --- CTE starts here
         )
         AND
         (
-            payload @> '{"BookID": "0198226e-19f6-7d29-8be9-10871e23e820"}'
+               payload @> '{"BookID": "0198226e-19f6-7d29-8be9-10871e23e820"}'
             OR payload @> '{"ReaderID": "0198226e-19f6-7d2a-8342-dc5c8d5a2cd5"}'
         )
     )
@@ -241,7 +241,7 @@ filter := BuildEventFilter().
 }
 ```
 
-### Mapping to your DomainEvents to StorableEvent 
+### Mapping from your DomainEvents to StorableEvent 
 
 **_StorableEvent_** is completely agnostic of your implementation of DomainEvents, it just receives `(eventType string, payloadJSON []byte)`:
 
