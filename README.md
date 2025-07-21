@@ -295,6 +295,25 @@ if appendErr != nil {
 }
 ```
 
+### Userland code under test
+
+The functional and benchmark tests use some stuff from test/userland that can be copied or used as inspiration.
+
+#### test/userland/config
+
+Contains Postgres DB config to be used with "github.com/jackc/pgx/v5/pgxpool" for testing and benchmarks.  
+All values are hardcoded so that they correspond with test/docker-compose.yml.  
+In a real application the values should be read from env or a .env file.
+
+#### test/userland/core
+
+**Core/shell** below follows the _**functional core, imperative shell**_ idea.  
+Core contains an interface and some other bits for domain events.  
+The other files contain concrete domain event implementations.
+
+#### test/userland/shell
+
+Contains functions to unmarshal those domain events from **StorableEvent**(s).
 
 ## Benchmarks
 
