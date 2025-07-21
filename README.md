@@ -308,7 +308,7 @@ In a real application the values should be read from env or a .env file.
 #### test/userland/core
 
 **Core/shell** below follows the _**functional core, imperative shell**_ idea.  
-Core contains an interface and some other bits for domain events.  
+Core contains an interface and some other bits for domain events in test/userland/core/domain_event.go.
 The other files contain concrete domain event implementations.
 
 #### test/userland/shell
