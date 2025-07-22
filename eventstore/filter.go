@@ -2,6 +2,7 @@ package eventstore
 
 import (
 	"slices"
+	"time"
 )
 
 type FilterEventTypeString = string
@@ -11,11 +12,21 @@ type FilterValString = string
 /***** Filter *****/
 
 type Filter struct {
-	items []FilterItem
+	items         []FilterItem
+	occurredFrom  time.Time
+	occurredUntil time.Time
 }
 
 func (f Filter) Items() []FilterItem {
 	return f.items
+}
+
+func (f Filter) OccurredFrom() time.Time {
+	return f.occurredFrom
+}
+
+func (f Filter) OccurredUntil() time.Time {
+	return f.occurredUntil
 }
 
 /***** FilterItem *****/
@@ -126,6 +137,14 @@ type FilterItemBuilderLackingPredicates interface {
 	//	- removing duplicate FilterPredicate(s)
 	AndAllPredicatesOf(predicate FilterPredicate, predicates ...FilterPredicate) CompletedFilterItemBuilder
 
+	// OccurredFrom sets the lower boundary for occurredAt (including this timestamp) for the whole Filter.
+	OccurredFrom(occurredAtFrom time.Time) CompletedFilterItemBuilderWithOccurredFrom
+
+	// OccurredUntil sets the upper boundary for occurredAt (including this timestamp) for the whole Filter.
+	//
+	// Currently, there is NO check if OccurredUntil is later than OccurredFrom!
+	OccurredUntil(occurredAtUntil time.Time) CompletedFilterItemBuilderWithOccurredUntil
+
 	// OrMatching finalizes the current FilterItem and starts a new one.
 	OrMatching() EmptyFilterItemBuilder
 
@@ -142,6 +161,14 @@ type FilterItemBuilderLackingEventTypes interface {
 	//	- removing duplicate EventTypes
 	AndAnyEventTypeOf(eventType FilterEventTypeString, eventTypes ...FilterEventTypeString) CompletedFilterItemBuilder
 
+	// OccurredFrom sets the lower boundary for occurredAt (including this timestamp) for the whole Filter.
+	OccurredFrom(occurredAtFrom time.Time) CompletedFilterItemBuilderWithOccurredFrom
+
+	// OccurredUntil sets the upper boundary for occurredAt (including this timestamp) for the whole Filter.
+	//
+	// Currently, there is NO check if OccurredUntil is later than OccurredFrom!
+	OccurredUntil(occurredAtUntil time.Time) CompletedFilterItemBuilderWithOccurredUntil
+
 	// OrMatching finalizes the current FilterItem and starts a new one.
 	OrMatching() EmptyFilterItemBuilder
 
@@ -150,9 +177,37 @@ type FilterItemBuilderLackingEventTypes interface {
 }
 
 type CompletedFilterItemBuilder interface {
+	// OccurredFrom sets the lower boundary for occurredAt (including this timestamp) for the whole Filter.
+	OccurredFrom(occurredAtFrom time.Time) CompletedFilterItemBuilderWithOccurredFrom
+
+	// OccurredUntil sets the upper boundary for occurredAt (including this timestamp) for the whole Filter.
+	//
+	// Currently, there is NO check if OccurredUntil is later than OccurredFrom!
+	OccurredUntil(occurredAtUntil time.Time) CompletedFilterItemBuilderWithOccurredUntil
+
 	// OrMatching finalizes the current FilterItem and starts a new one.
 	OrMatching() EmptyFilterItemBuilder
 
+	// Finalize returns the Filter once it has at least one FilterItem with at least one EventType OR one Predicate.
+	Finalize() Filter
+}
+
+type CompletedFilterItemBuilderWithOccurredFrom interface {
+	// AndOccurredUntil sets the upper boundary for occurredAt (including this timestamp) for the whole Filter.
+	//
+	// Currently, there is NO check if AndOccurredUntil is later than OccurredFrom!
+	AndOccurredUntil(occurredAtUntil time.Time) CompletedFilterItemBuilderWithOccurredFromToUntil
+
+	// Finalize returns the Filter once it has at least one FilterItem with at least one EventType OR one Predicate.
+	Finalize() Filter
+}
+
+type CompletedFilterItemBuilderWithOccurredUntil interface {
+	// Finalize returns the Filter once it has at least one FilterItem with at least one EventType OR one Predicate.
+	Finalize() Filter
+}
+
+type CompletedFilterItemBuilderWithOccurredFromToUntil interface {
 	// Finalize returns the Filter once it has at least one FilterItem with at least one EventType OR one Predicate.
 	Finalize() Filter
 }
@@ -319,6 +374,31 @@ func (fb filterBuilder) sanitizePredicates(
 	allPredicates = slices.Clip(allPredicates)
 
 	return allPredicates
+}
+
+// OccurredFrom sets the lower boundary for occurredAt (including this timestamp) for the whole Filter.
+func (fb filterBuilder) OccurredFrom(occurredFrom time.Time) CompletedFilterItemBuilderWithOccurredFrom {
+	fb.filter.occurredFrom = occurredFrom
+
+	return fb
+}
+
+// OccurredUntil sets the upper boundary for occurredAt (including this timestamp) for the whole Filter.
+//
+// Currently, there is NO check if OccurredUntil is later than OccurredFrom!
+func (fb filterBuilder) OccurredUntil(occurredUntil time.Time) CompletedFilterItemBuilderWithOccurredUntil {
+	fb.filter.occurredUntil = occurredUntil
+
+	return fb
+}
+
+// AndOccurredUntil sets the upper boundary for occurredAt (including this timestamp) for the whole Filter.
+//
+// Currently, there is NO check if AndOccurredUntil is later than OccurredFrom!
+func (fb filterBuilder) AndOccurredUntil(occurredUntil time.Time) CompletedFilterItemBuilderWithOccurredFromToUntil {
+	fb.filter.occurredUntil = occurredUntil
+
+	return fb
 }
 
 // OrMatching finalizes the current FilterItem and starts a new one.

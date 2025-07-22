@@ -197,7 +197,28 @@ func (es PostgresEventStore) addWhereClause(filter Filter, selectStmt *goqu.Sele
 		)
 	}
 
-	selectStmt = selectStmt.Where(goqu.Or(itemsExpressions...))
+	occurredAtExpressions := make([]goqu.Expression, 0)
+
+	if !filter.OccurredFrom().IsZero() {
+		occurredAtExpressions = append(
+			occurredAtExpressions,
+			goqu.C("occurred_at").Gte(filter.OccurredFrom()),
+		)
+	}
+
+	if !filter.OccurredUntil().IsZero() {
+		occurredAtExpressions = append(
+			occurredAtExpressions,
+			goqu.C("occurred_at").Lte(filter.OccurredUntil()),
+		)
+	}
+
+	selectStmt = selectStmt.Where(
+		goqu.And(
+			goqu.Or(itemsExpressions...),
+			goqu.And(occurredAtExpressions...),
+		),
+	)
 
 	return selectStmt
 }

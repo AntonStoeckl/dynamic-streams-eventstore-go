@@ -358,6 +358,56 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 				bookCopy2ReturnedByReader2,
 				bookCopy2ReturnedByReader1},
 		},
+		{
+			description: "Time based filtering (occurredFrom)",
+			filter: BuildEventFilter().
+				Matching().
+				AnyPredicateOf(P("BookID", bookID1.String())).
+				AndAnyEventTypeOf(core.BookCopyLentToReaderEventType).
+				OrMatching().
+				AnyPredicateOf(P("BookID", bookID2.String())).
+				AndAnyEventTypeOf(core.BookCopyReturnedByReaderEventType).
+				// only works because it's impossible that multiple events are appended in the same microsecond - forgive me :D
+				OccurredFrom(bookCopy2ReturnedByReader2.HasOccurredAt()).
+				Finalize(),
+			expectedNumEvents: 2,
+			expectedEvents: core.DomainEvents{
+				bookCopy2ReturnedByReader2,
+				bookCopy2ReturnedByReader1},
+		},
+		{
+			description: "Time based filtering (occurredUntil)",
+			filter: BuildEventFilter().
+				Matching().
+				AnyPredicateOf(P("BookID", bookID1.String())).
+				AndAnyEventTypeOf(core.BookCopyLentToReaderEventType).
+				OrMatching().
+				AnyPredicateOf(P("BookID", bookID2.String())).
+				AndAnyEventTypeOf(core.BookCopyReturnedByReaderEventType).
+				// only works because it's impossible that multiple events are appended in the same microsecond - forgive me :D
+				OccurredUntil(bookCopy2ReturnedByReader2.HasOccurredAt()).
+				Finalize(),
+			expectedNumEvents: 2,
+			expectedEvents: core.DomainEvents{
+				bookCopy1LentToReader1,
+				bookCopy2ReturnedByReader2},
+		},
+		{
+			description: "Time based filtering (occurredFrom to occurredUntil)",
+			filter: BuildEventFilter().
+				Matching().
+				AnyPredicateOf(P("BookID", bookID1.String())).
+				AndAnyEventTypeOf(core.BookCopyLentToReaderEventType).
+				OrMatching().
+				AnyPredicateOf(P("BookID", bookID2.String())).
+				AndAnyEventTypeOf(core.BookCopyReturnedByReaderEventType).
+				// only works because it's impossible that multiple events are appended in the same microsecond - forgive me :D
+				OccurredFrom(bookCopy2ReturnedByReader2.HasOccurredAt()).
+				AndOccurredUntil(bookCopy2ReturnedByReader2.HasOccurredAt()).
+				Finalize(),
+			expectedNumEvents: 1,
+			expectedEvents:    core.DomainEvents{bookCopy2ReturnedByReader2},
+		},
 	}
 
 	for _, tc := range testCases {
