@@ -17,7 +17,7 @@ func BuildSomethingHasHappened(id string, someInformation string, occurredAt tim
 	return SomethingHasHappened{
 		ID:               id,
 		SomeInformation:  someInformation,
-		OccurredAt:       occurredAt,
+		OccurredAt:       ToOccurredAt(occurredAt),
 		DynamicEventType: dynamicEventType,
 	}
 }

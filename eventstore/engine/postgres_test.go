@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -25,16 +26,18 @@ func Test_Append_When_NoEvent_Matches_TheQuery_BeforeAppend(t *testing.T) {
 
 	es := NewPostgresEventStore(connPool)
 
+	fakeClock := time.Unix(0, 0).UTC()
+
 	// arrange
 	CleanUpEvents(t, connPool)
-	GivenSomeOtherEventsWereAppended(t, es, rand.IntN(5)+1, 0)
+	GivenSomeOtherEventsWereAppended(t, es, rand.IntN(5)+1, 0, &fakeClock)
 	bookID := GivenUniqueID(t)
 	filter := FilterAllEventTypesForOneBook(bookID)
 	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, es, filter)
 
 	// act
 	err = es.Append(
-		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID)),
+		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, &fakeClock)),
 		filter,
 		maxSequenceNumberBeforeAppend,
 	)
@@ -51,17 +54,19 @@ func Test_Append_When_SomeEvents_Match_TheQuery_BeforeAppend(t *testing.T) {
 
 	es := NewPostgresEventStore(connPool)
 
+	fakeClock := time.Unix(0, 0).UTC()
+
 	// arrange
 	CleanUpEvents(t, connPool)
-	GivenSomeOtherEventsWereAppended(t, es, rand.IntN(5)+1, 0)
+	GivenSomeOtherEventsWereAppended(t, es, rand.IntN(5)+1, 0, &fakeClock)
 	bookID := GivenUniqueID(t)
-	GivenBookCopyAddedToCirculationWasAppended(t, es, bookID)
+	GivenBookCopyAddedToCirculationWasAppended(t, es, bookID, &fakeClock)
 	filter := FilterAllEventTypesForOneBook(bookID)
 	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, es, filter)
 
 	// act
 	err = es.Append(
-		ToStorable(t, FixtureBookCopyRemovedFromCirculation(bookID)),
+		ToStorable(t, FixtureBookCopyRemovedFromCirculation(bookID, &fakeClock)),
 		filter,
 		maxSequenceNumberBeforeAppend,
 	)
@@ -78,20 +83,22 @@ func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 
 	es := NewPostgresEventStore(connPool)
 
+	fakeClock := time.Unix(0, 0).UTC()
+
 	// arrange
 	CleanUpEvents(t, connPool)
-	GivenSomeOtherEventsWereAppended(t, es, rand.IntN(5)+1, 0)
+	GivenSomeOtherEventsWereAppended(t, es, rand.IntN(5)+1, 0, &fakeClock)
 	bookID := GivenUniqueID(t)
 	readerID := GivenUniqueID(t)
-	GivenBookCopyAddedToCirculationWasAppended(t, es, bookID)
+	GivenBookCopyAddedToCirculationWasAppended(t, es, bookID, &fakeClock)
 	filter := FilterAllEventTypesForOneBook(bookID)
 	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, es, filter)
 
-	GivenBookCopyLentToReaderWasAppended(t, es, bookID, readerID) // concurrent append
+	GivenBookCopyLentToReaderWasAppended(t, es, bookID, readerID, &fakeClock) // concurrent append
 
 	// act
 	err = es.Append(
-		ToStorable(t, FixtureBookCopyRemovedFromCirculation(bookID)),
+		ToStorable(t, FixtureBookCopyRemovedFromCirculation(bookID, &fakeClock)),
 		filter,
 		maxSequenceNumberBeforeAppend,
 	)
@@ -109,12 +116,14 @@ func Test_Append_EventWithMetadata_Works_AsExpected(t *testing.T) {
 
 	es := NewPostgresEventStore(connPool)
 
+	fakeClock := time.Unix(0, 0).UTC()
+
 	// arrange
 	CleanUpEvents(t, connPool)
 	bookID := GivenUniqueID(t)
 	filter := FilterAllEventTypesForOneBook(bookID)
 	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, es, filter)
-	bookCopyAddedToCirculation := FixtureBookCopyAddedToCirculation(bookID)
+	bookCopyAddedToCirculation := FixtureBookCopyAddedToCirculation(bookID, &fakeClock)
 
 	messageID := GivenUniqueID(t)
 	causationID := GivenUniqueID(t)
@@ -151,26 +160,28 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 
 	es := NewPostgresEventStore(connPool)
 
+	fakeClock := time.Unix(0, 0).UTC()
+
 	// arrange
 	CleanUpEvents(t, connPool)
 	numOtherEvents := 10
-	GivenSomeOtherEventsWereAppended(t, es, numOtherEvents, 0)
+	GivenSomeOtherEventsWereAppended(t, es, numOtherEvents, 0, &fakeClock)
 
 	bookID1 := GivenUniqueID(t)
 	bookID2 := GivenUniqueID(t)
 	readerID1 := GivenUniqueID(t)
 	readerID2 := GivenUniqueID(t)
 
-	bookCopy1AddedToCirculationBook := GivenBookCopyAddedToCirculationWasAppended(t, es, bookID1)
-	bookCopy1LentToReader1 := GivenBookCopyLentToReaderWasAppended(t, es, bookID1, readerID1)
-	bookCopy1ReturnedByReader1 := GivenBookCopyReturnedByReaderWasAppended(t, es, bookID1, readerID1)
-	bookCopy1RemovedFromCirculationBook := GivenBookCopyRemovedFromCirculationWasAppended(t, es, bookID1)
+	bookCopy1AddedToCirculationBook := GivenBookCopyAddedToCirculationWasAppended(t, es, bookID1, &fakeClock)
+	bookCopy1LentToReader1 := GivenBookCopyLentToReaderWasAppended(t, es, bookID1, readerID1, &fakeClock)
+	bookCopy1ReturnedByReader1 := GivenBookCopyReturnedByReaderWasAppended(t, es, bookID1, readerID1, &fakeClock)
+	bookCopy1RemovedFromCirculationBook := GivenBookCopyRemovedFromCirculationWasAppended(t, es, bookID1, &fakeClock)
 
-	bookCopy2AddedToCirculationBook := GivenBookCopyAddedToCirculationWasAppended(t, es, bookID2)
-	bookCopy2LentToReader2 := GivenBookCopyLentToReaderWasAppended(t, es, bookID2, readerID2)
-	bookCopy2ReturnedByReader2 := GivenBookCopyReturnedByReaderWasAppended(t, es, bookID2, readerID2)
-	bookCopy2LentToReader1 := GivenBookCopyLentToReaderWasAppended(t, es, bookID2, readerID1)
-	bookCopy2ReturnedByReader1 := GivenBookCopyReturnedByReaderWasAppended(t, es, bookID2, readerID1)
+	bookCopy2AddedToCirculationBook := GivenBookCopyAddedToCirculationWasAppended(t, es, bookID2, &fakeClock)
+	bookCopy2LentToReader2 := GivenBookCopyLentToReaderWasAppended(t, es, bookID2, readerID2, &fakeClock)
+	bookCopy2ReturnedByReader2 := GivenBookCopyReturnedByReaderWasAppended(t, es, bookID2, readerID2, &fakeClock)
+	bookCopy2LentToReader1 := GivenBookCopyLentToReaderWasAppended(t, es, bookID2, readerID1, &fakeClock)
+	bookCopy2ReturnedByReader1 := GivenBookCopyReturnedByReaderWasAppended(t, es, bookID2, readerID1, &fakeClock)
 
 	/******************************/
 
@@ -367,7 +378,6 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 				OrMatching().
 				AnyPredicateOf(P("BookID", bookID2.String())).
 				AndAnyEventTypeOf(core.BookCopyReturnedByReaderEventType).
-				// only works because it's impossible that multiple events are appended in the same microsecond - forgive me :D
 				OccurredFrom(bookCopy2ReturnedByReader2.HasOccurredAt()).
 				Finalize(),
 			expectedNumEvents: 2,
@@ -384,7 +394,6 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 				OrMatching().
 				AnyPredicateOf(P("BookID", bookID2.String())).
 				AndAnyEventTypeOf(core.BookCopyReturnedByReaderEventType).
-				// only works because it's impossible that multiple events are appended in the same microsecond - forgive me :D
 				OccurredUntil(bookCopy2ReturnedByReader2.HasOccurredAt()).
 				Finalize(),
 			expectedNumEvents: 2,
@@ -401,7 +410,6 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 				OrMatching().
 				AnyPredicateOf(P("BookID", bookID2.String())).
 				AndAnyEventTypeOf(core.BookCopyReturnedByReaderEventType).
-				// only works because it's impossible that multiple events are appended in the same microsecond - forgive me :D
 				OccurredFrom(bookCopy2ReturnedByReader2.HasOccurredAt()).
 				AndOccurredUntil(bookCopy2ReturnedByReader2.HasOccurredAt()).
 				Finalize(),

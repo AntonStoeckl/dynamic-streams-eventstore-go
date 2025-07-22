@@ -61,7 +61,9 @@ func FilterAllEventTypesForOneBookOrReader(bookID uuid.UUID, readerID uuid.UUID)
 	return filter
 }
 
-func FixtureBookCopyAddedToCirculation(bookID uuid.UUID) core.DomainEvent {
+func FixtureBookCopyAddedToCirculation(bookID uuid.UUID, fakeClock *time.Time) core.DomainEvent {
+	*fakeClock = fakeClock.Add(time.Second)
+
 	return core.BuildBookCopyAddedToCirculation(
 		bookID,
 		"978-1-098-10013-1",
@@ -70,20 +72,26 @@ func FixtureBookCopyAddedToCirculation(bookID uuid.UUID) core.DomainEvent {
 		"First Edition",
 		"O'Reilly Media, Inc.",
 		2021,
-		time.Now(),
+		*fakeClock,
 	)
 }
 
-func FixtureBookCopyRemovedFromCirculation(bookID uuid.UUID) core.DomainEvent {
-	return core.BuildBookCopyRemovedFromCirculation(bookID, time.Now())
+func FixtureBookCopyRemovedFromCirculation(bookID uuid.UUID, fakeClock *time.Time) core.DomainEvent {
+	*fakeClock = fakeClock.Add(time.Second)
+
+	return core.BuildBookCopyRemovedFromCirculation(bookID, *fakeClock)
 }
 
-func FixtureBookCopyLentToReader(bookID uuid.UUID, readerID uuid.UUID) core.DomainEvent {
-	return core.BuildBookCopyLentToReader(bookID, readerID, time.Now())
+func FixtureBookCopyLentToReader(bookID uuid.UUID, readerID uuid.UUID, fakeClock *time.Time) core.DomainEvent {
+	*fakeClock = fakeClock.Add(time.Second)
+
+	return core.BuildBookCopyLentToReader(bookID, readerID, *fakeClock)
 }
 
-func FixtureBookCopyReturnedByReader(bookID uuid.UUID, readerID uuid.UUID) core.DomainEvent {
-	return core.BuildBookCopyReturnedFromReader(bookID, readerID, time.Now())
+func FixtureBookCopyReturnedByReader(bookID uuid.UUID, readerID uuid.UUID, fakeClock *time.Time) core.DomainEvent {
+	*fakeClock = fakeClock.Add(time.Second)
+
+	return core.BuildBookCopyReturnedFromReader(bookID, readerID, *fakeClock)
 }
 
 func ToStorable(t testing.TB, domainEvent core.DomainEvent) StorableEvent {
@@ -100,43 +108,43 @@ func ToStorableWithMetadata(t testing.TB, domainEvent core.DomainEvent, eventMet
 	return storableEvent
 }
 
-func GivenBookCopyAddedToCirculationWasAppended(t testing.TB, es PostgresEventStore, bookID uuid.UUID) core.DomainEvent {
+func GivenBookCopyAddedToCirculationWasAppended(t testing.TB, es PostgresEventStore, bookID uuid.UUID, fakeClock *time.Time) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBook(bookID)
-	event := FixtureBookCopyAddedToCirculation(bookID)
+	event := FixtureBookCopyAddedToCirculation(bookID, fakeClock)
 	err := es.Append(ToStorable(t, event), filter, QueryMaxSequenceNumberBeforeAppend(t, es, filter))
 	assert.NoError(t, err, "error in arranging test data")
 
 	return event
 }
 
-func GivenBookCopyRemovedFromCirculationWasAppended(t testing.TB, es PostgresEventStore, bookID uuid.UUID) core.DomainEvent {
+func GivenBookCopyRemovedFromCirculationWasAppended(t testing.TB, es PostgresEventStore, bookID uuid.UUID, fakeClock *time.Time) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBook(bookID)
-	event := FixtureBookCopyRemovedFromCirculation(bookID)
+	event := FixtureBookCopyRemovedFromCirculation(bookID, fakeClock)
 	err := es.Append(ToStorable(t, event), filter, QueryMaxSequenceNumberBeforeAppend(t, es, filter))
 	assert.NoError(t, err, "error in arranging test data")
 
 	return event
 }
 
-func GivenBookCopyLentToReaderWasAppended(t testing.TB, es PostgresEventStore, bookID uuid.UUID, readerID uuid.UUID) core.DomainEvent {
+func GivenBookCopyLentToReaderWasAppended(t testing.TB, es PostgresEventStore, bookID uuid.UUID, readerID uuid.UUID, fakeClock *time.Time) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBookOrReader(bookID, readerID)
-	event := FixtureBookCopyLentToReader(bookID, readerID)
+	event := FixtureBookCopyLentToReader(bookID, readerID, fakeClock)
 	err := es.Append(ToStorable(t, event), filter, QueryMaxSequenceNumberBeforeAppend(t, es, filter))
 	assert.NoError(t, err, "error in arranging test data")
 
 	return event
 }
 
-func GivenBookCopyReturnedByReaderWasAppended(t testing.TB, es PostgresEventStore, bookID uuid.UUID, readerID uuid.UUID) core.DomainEvent {
+func GivenBookCopyReturnedByReaderWasAppended(t testing.TB, es PostgresEventStore, bookID uuid.UUID, readerID uuid.UUID, fakeClock *time.Time) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBookOrReader(bookID, readerID)
-	event := FixtureBookCopyReturnedByReader(bookID, readerID)
+	event := FixtureBookCopyReturnedByReader(bookID, readerID, fakeClock)
 	err := es.Append(ToStorable(t, event), filter, QueryMaxSequenceNumberBeforeAppend(t, es, filter))
 	assert.NoError(t, err, "error in arranging test data")
 
 	return event
 }
 
-func GivenSomeOtherEventsWereAppended(t testing.TB, es PostgresEventStore, numEvents int, startFrom MaxSequenceNumberUint) {
+func GivenSomeOtherEventsWereAppended(t testing.TB, es PostgresEventStore, numEvents int, startFrom MaxSequenceNumberUint, fakeClock *time.Time) {
 	maxSequenceNumber := startFrom
 	totalEvent := 0
 	eventPostfix := 0
@@ -145,10 +153,12 @@ func GivenSomeOtherEventsWereAppended(t testing.TB, es PostgresEventStore, numEv
 		id, err := uuid.NewV7()
 		assert.NoError(t, err, "error in arranging test data")
 
+		*fakeClock = fakeClock.Add(time.Second)
+
 		event := core.BuildSomethingHasHappened(
 			id.String(),
 			"lorem ipsum dolor sit amet: "+id.String(),
-			time.Now().UTC().Truncate(time.Microsecond),
+			*fakeClock,
 			core.SomethingHasHappenedEventTypePrefix+strconv.Itoa(eventPostfix))
 
 		amountOfSameEvents := rand.IntN(3) + 1

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -25,8 +26,10 @@ func Benchmark_Append_With_Many_Events_InTheStore(b *testing.B) {
 
 	es := NewPostgresEventStore(connPool)
 
+	fakeClock := time.Unix(0, 0).UTC()
+
 	// arrange
-	appendFixtureEvents(b, connPool, es, factor)
+	appendFixtureEvents(b, connPool, es, &fakeClock, factor)
 
 	bookID := GivenUniqueID(b)
 	filter := FilterAllEventTypesForOneBook(bookID)
@@ -41,7 +44,7 @@ func Benchmark_Append_With_Many_Events_InTheStore(b *testing.B) {
 			b.StartTimer()
 
 			err = es.Append(
-				ToStorable(b, FixtureBookCopyAddedToCirculation(bookID)),
+				ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, &fakeClock)),
 				filter,
 				maxSequenceNumberBeforeAppend,
 			)
@@ -75,8 +78,10 @@ func Benchmark_Query_With_Many_Events_InTheStore(b *testing.B) {
 
 	es := NewPostgresEventStore(connPool)
 
+	fakeClock := time.Unix(0, 0).UTC()
+
 	// arrange
-	appendFixtureEvents(b, connPool, es, factor)
+	appendFixtureEvents(b, connPool, es, &fakeClock, factor)
 
 	row := connPool.QueryRow(
 		context.Background(),
@@ -109,8 +114,10 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 
 	es := NewPostgresEventStore(connPool)
 
+	fakeClock := time.Unix(0, 0).UTC()
+
 	// arrange
-	appendFixtureEvents(b, connPool, es, factor)
+	appendFixtureEvents(b, connPool, es, &fakeClock, factor)
 
 	bookID := GivenUniqueID(b)
 	readerID := GivenUniqueID(b)
@@ -123,8 +130,8 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
 
-			GivenBookCopyAddedToCirculationWasAppended(b, es, bookID)
-			GivenBookCopyLentToReaderWasAppended(b, es, bookID, readerID)
+			GivenBookCopyAddedToCirculationWasAppended(b, es, bookID, &fakeClock)
+			GivenBookCopyLentToReaderWasAppended(b, es, bookID, readerID, &fakeClock)
 
 			b.StartTimer()
 
@@ -160,7 +167,7 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 			b.StartTimer()
 
 			err = es.Append(
-				ToStorable(b, FixtureBookCopyReturnedByReader(bookID, readerID)),
+				ToStorable(b, FixtureBookCopyReturnedByReader(bookID, readerID, &fakeClock)),
 				filter,
 				maxSequenceNumberBeforeAppend,
 			)
@@ -185,7 +192,7 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 	})
 }
 
-func appendFixtureEvents(b *testing.B, connPool *pgxpool.Pool, es PostgresEventStore, factor int) {
+func appendFixtureEvents(b *testing.B, connPool *pgxpool.Pool, es PostgresEventStore, fakeClock *time.Time, factor int) {
 	row := connPool.QueryRow(context.Background(), `SELECT count(*) FROM events`)
 	var cnt int
 	err := row.Scan(&cnt)
@@ -195,16 +202,16 @@ func appendFixtureEvents(b *testing.B, connPool *pgxpool.Pool, es PostgresEventS
 	if cnt < 1000*factor {
 		fmt.Println("DomainEvent setup will run")
 		CleanUpEvents(b, connPool)
-		GivenSomeOtherEventsWereAppended(b, es, 900*factor, 0)
+		GivenSomeOtherEventsWereAppended(b, es, 900*factor, 0, fakeClock)
 
 		var totalEvents int
 		for i := 0; i < 10*factor; i++ {
 			bookID := GivenUniqueID(b)
 
 			for j := 0; j < 5; j++ {
-				GivenBookCopyAddedToCirculationWasAppended(b, es, bookID)
+				GivenBookCopyAddedToCirculationWasAppended(b, es, bookID, fakeClock)
 				totalEvents++
-				GivenBookCopyRemovedFromCirculationWasAppended(b, es, bookID)
+				GivenBookCopyRemovedFromCirculationWasAppended(b, es, bookID, fakeClock)
 				totalEvents++
 
 				if totalEvents%5000 == 0 {
