@@ -139,9 +139,7 @@ type filterBuilder struct {
 	currentFilterItem FilterItem
 }
 
-/*
-BuildEventFilter creates a FilterBuilder which must eventually be finalized with Finalize() or MatchingAnyEvent().
-*/
+// BuildEventFilter creates a FilterBuilder which must eventually be finalized with Finalize() or MatchingAnyEvent().
 func BuildEventFilter() FilterBuilder {
 	return filterBuilder{}
 }
