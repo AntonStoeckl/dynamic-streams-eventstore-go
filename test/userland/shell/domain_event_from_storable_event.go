@@ -26,11 +26,11 @@ func DomainEventsFrom(storableEvents eventstore.StorableEvents) (core.DomainEven
 }
 
 func DomainEventFrom(storableEvent eventstore.StorableEvent) (core.DomainEvent, error) {
-	switch storableEvent.EventType() {
+	switch storableEvent.EventType {
 	case core.BookCopyAddedToCirculationEventType:
 		payload := new(core.BookCopyAddedToCirculation)
 
-		err := jsoniter.ConfigFastest.Unmarshal(storableEvent.PayloadJSON(), &payload)
+		err := jsoniter.ConfigFastest.Unmarshal(storableEvent.PayloadJSON, &payload)
 		if err != nil {
 			return core.BookCopyAddedToCirculation{}, err
 		}
@@ -43,61 +43,60 @@ func DomainEventFrom(storableEvent eventstore.StorableEvent) (core.DomainEvent, 
 			Edition:         payload.Edition,
 			Publisher:       payload.Publisher,
 			PublicationYear: payload.PublicationYear,
+			OccurredAt:      payload.OccurredAt,
 		}, nil
 
 	case core.BookCopyRemovedFromCirculationEventType:
 		payload := new(core.BookCopyRemovedFromCirculation)
 
-		err := jsoniter.ConfigFastest.Unmarshal(storableEvent.PayloadJSON(), &payload)
+		err := jsoniter.ConfigFastest.Unmarshal(storableEvent.PayloadJSON, &payload)
 		if err != nil {
 			return core.BookCopyRemovedFromCirculation{}, err
 		}
 
 		return core.BookCopyRemovedFromCirculation{
-			BookID: payload.BookID,
+			BookID:     payload.BookID,
+			OccurredAt: payload.OccurredAt,
 		}, nil
 
 	case core.BookCopyLentToReaderEventType:
 		payload := new(core.BookCopyLentToReader)
 
-		err := jsoniter.ConfigFastest.Unmarshal(storableEvent.PayloadJSON(), &payload)
+		err := jsoniter.ConfigFastest.Unmarshal(storableEvent.PayloadJSON, &payload)
 		if err != nil {
 			return core.BookCopyLentToReader{}, err
 		}
 
 		return core.BookCopyLentToReader{
-			BookID:   payload.BookID,
-			ReaderID: payload.ReaderID,
+			BookID:     payload.BookID,
+			ReaderID:   payload.ReaderID,
+			OccurredAt: payload.OccurredAt,
 		}, nil
 
 	case core.BookCopyReturnedByReaderEventType:
 		payload := new(core.BookCopyReturnedByReader)
 
-		err := jsoniter.ConfigFastest.Unmarshal(storableEvent.PayloadJSON(), &payload)
+		err := jsoniter.ConfigFastest.Unmarshal(storableEvent.PayloadJSON, &payload)
 		if err != nil {
 			return core.BookCopyReturnedByReader{}, err
 		}
 
 		return core.BookCopyReturnedByReader{
-			BookID:   payload.BookID,
-			ReaderID: payload.ReaderID,
+			BookID:     payload.BookID,
+			ReaderID:   payload.ReaderID,
+			OccurredAt: payload.OccurredAt,
 		}, nil
 
 	default:
-		if strings.Contains(storableEvent.EventType(), core.SomethingHasHappenedEventTypePrefix) {
+		if strings.Contains(storableEvent.EventType, core.SomethingHasHappenedEventTypePrefix) {
 			payload := new(core.SomethingHasHappened)
 
-			err := jsoniter.ConfigFastest.Unmarshal(storableEvent.PayloadJSON(), &payload)
+			err := jsoniter.ConfigFastest.Unmarshal(storableEvent.PayloadJSON, &payload)
 			if err != nil {
 				return core.BookCopyReturnedByReader{}, err
 			}
 
-			core.BuildSomethingHasHappened(payload.ID, payload.SomeInformation, payload.DynamicEventType)
-
-			return core.SomethingHasHappened{
-				ID:              payload.ID,
-				SomeInformation: payload.SomeInformation,
-			}, nil
+			return core.BuildSomethingHasHappened(payload.ID, payload.SomeInformation, payload.OccurredAt, payload.DynamicEventType), nil
 
 		}
 	}

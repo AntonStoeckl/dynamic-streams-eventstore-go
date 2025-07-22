@@ -41,7 +41,7 @@ func Benchmark_Append_With_Many_Events_InTheStore(b *testing.B) {
 			b.StartTimer()
 
 			err = es.Append(
-				ToStorable(b, BuildBookCopyAddedToCirculation(bookID)),
+				ToStorable(b, FixtureBookCopyAddedToCirculation(bookID)),
 				filter,
 				maxSequenceNumberBeforeAppend,
 			)
@@ -160,7 +160,7 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 			b.StartTimer()
 
 			err = es.Append(
-				ToStorable(b, BuildBookCopyReturnedFromReader(bookID, readerID)),
+				ToStorable(b, FixtureBookCopyReturnedByReader(bookID, readerID)),
 				filter,
 				maxSequenceNumberBeforeAppend,
 			)

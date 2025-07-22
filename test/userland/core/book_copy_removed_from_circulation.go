@@ -1,15 +1,31 @@
 package core
 
-const BookCopyRemovedFromCirculationEventType = EventTypeString("BookCopyRemovedFromCirculation")
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
+
+const BookCopyRemovedFromCirculationEventType = "BookCopyRemovedFromCirculation"
 
 type BookCopyRemovedFromCirculation struct {
-	BookID BookIDString
+	BookID     BookIDString
+	OccurredAt OccurredAt
 }
 
-func (e BookCopyRemovedFromCirculation) EventType() EventTypeString {
+func BuildBookCopyRemovedFromCirculation(bookID uuid.UUID, occurredAt time.Time) DomainEvent {
+	event := BookCopyRemovedFromCirculation{
+		BookID:     bookID.String(),
+		OccurredAt: ToOccurredAt(occurredAt),
+	}
+
+	return event
+}
+
+func (e BookCopyRemovedFromCirculation) EventType() string {
 	return BookCopyRemovedFromCirculationEventType
 }
 
-func (e BookCopyRemovedFromCirculation) IsDomainEvent() bool {
-	return true
+func (e BookCopyRemovedFromCirculation) HasOccurredAt() time.Time {
+	return e.OccurredAt
 }

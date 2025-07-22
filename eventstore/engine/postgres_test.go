@@ -34,7 +34,7 @@ func Test_Append_When_NoEvent_Matches_TheQuery_BeforeAppend(t *testing.T) {
 
 	// act
 	err = es.Append(
-		ToStorable(t, BuildBookCopyAddedToCirculation(bookID)),
+		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID)),
 		filter,
 		maxSequenceNumberBeforeAppend,
 	)
@@ -61,7 +61,7 @@ func Test_Append_When_SomeEvents_Match_TheQuery_BeforeAppend(t *testing.T) {
 
 	// act
 	err = es.Append(
-		ToStorable(t, BuildBookCopyRemovedFromCirculation(bookID)),
+		ToStorable(t, FixtureBookCopyRemovedFromCirculation(bookID)),
 		filter,
 		maxSequenceNumberBeforeAppend,
 	)
@@ -91,7 +91,7 @@ func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 
 	// act
 	err = es.Append(
-		ToStorable(t, BuildBookCopyRemovedFromCirculation(bookID)),
+		ToStorable(t, FixtureBookCopyRemovedFromCirculation(bookID)),
 		filter,
 		maxSequenceNumberBeforeAppend,
 	)

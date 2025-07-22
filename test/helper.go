@@ -2,10 +2,10 @@ package test
 
 import (
 	"context"
-	"encoding/json"
 	"math/rand/v2"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -14,6 +14,7 @@ import (
 	. "dynamic-streams-eventstore/eventstore"
 	. "dynamic-streams-eventstore/eventstore/engine"
 	"dynamic-streams-eventstore/test/userland/core"
+	"dynamic-streams-eventstore/test/userland/shell"
 )
 
 func GivenUniqueID(t testing.TB) uuid.UUID {
@@ -60,58 +61,41 @@ func FilterAllEventTypesForOneBookOrReader(bookID uuid.UUID, readerID uuid.UUID)
 	return filter
 }
 
-func BuildBookCopyAddedToCirculation(bookID uuid.UUID) core.DomainEvent {
-	event := core.BookCopyAddedToCirculation{
-		BookID:          bookID.String(),
-		ISBN:            "978-1-098-10013-1",
-		Title:           "Learning Domain-Driven Design",
-		Authors:         "Vlad Khononov",
-		Edition:         "First Edition",
-		Publisher:       "O'Reilly Media, Inc.",
-		PublicationYear: 2021,
-	}
-
-	return event
+func FixtureBookCopyAddedToCirculation(bookID uuid.UUID) core.DomainEvent {
+	return core.BuildBookCopyAddedToCirculation(
+		bookID,
+		"978-1-098-10013-1",
+		"Learning Domain-Driven Design",
+		"Vlad Khononov",
+		"First Edition",
+		"O'Reilly Media, Inc.",
+		2021,
+		time.Now(),
+	)
 }
 
-func BuildBookCopyRemovedFromCirculation(bookID uuid.UUID) core.DomainEvent {
-	event := core.BookCopyRemovedFromCirculation{
-		BookID: bookID.String(),
-	}
-
-	return event
+func FixtureBookCopyRemovedFromCirculation(bookID uuid.UUID) core.DomainEvent {
+	return core.BuildBookCopyRemovedFromCirculation(bookID, time.Now())
 }
 
-func BuildBookCopyLentToReader(bookID uuid.UUID, readerID uuid.UUID) core.DomainEvent {
-	event := core.BookCopyLentToReader{
-		BookID:   bookID.String(),
-		ReaderID: readerID.String(),
-	}
-
-	return event
+func FixtureBookCopyLentToReader(bookID uuid.UUID, readerID uuid.UUID) core.DomainEvent {
+	return core.BuildBookCopyLentToReader(bookID, readerID, time.Now())
 }
 
-func BuildBookCopyReturnedFromReader(bookID uuid.UUID, readerID uuid.UUID) core.DomainEvent {
-	event := core.BookCopyReturnedByReader{
-		BookID:   bookID.String(),
-		ReaderID: readerID.String(),
-	}
-
-	return event
+func FixtureBookCopyReturnedByReader(bookID uuid.UUID, readerID uuid.UUID) core.DomainEvent {
+	return core.BuildBookCopyReturnedFromReader(bookID, readerID, time.Now())
 }
 
-func ToStorable(t testing.TB, event core.DomainEvent) StorableEvent {
-	payloadJSON, err := json.Marshal(event)
+func ToStorable(t testing.TB, domainEvent core.DomainEvent) StorableEvent {
+	storableEvent, err := shell.StorableEventFrom(domainEvent)
 	assert.NoError(t, err, "error in arranging test data")
 
-	esEvent := BuildStorableEvent(event.EventType(), payloadJSON)
-
-	return esEvent
+	return storableEvent
 }
 
 func GivenBookCopyAddedToCirculationWasAppended(t testing.TB, es PostgresEventStore, bookID uuid.UUID) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBook(bookID)
-	event := BuildBookCopyAddedToCirculation(bookID)
+	event := FixtureBookCopyAddedToCirculation(bookID)
 	err := es.Append(ToStorable(t, event), filter, QueryMaxSequenceNumberBeforeAppend(t, es, filter))
 	assert.NoError(t, err, "error in arranging test data")
 
@@ -120,7 +104,7 @@ func GivenBookCopyAddedToCirculationWasAppended(t testing.TB, es PostgresEventSt
 
 func GivenBookCopyRemovedFromCirculationWasAppended(t testing.TB, es PostgresEventStore, bookID uuid.UUID) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBook(bookID)
-	event := BuildBookCopyRemovedFromCirculation(bookID)
+	event := FixtureBookCopyRemovedFromCirculation(bookID)
 	err := es.Append(ToStorable(t, event), filter, QueryMaxSequenceNumberBeforeAppend(t, es, filter))
 	assert.NoError(t, err, "error in arranging test data")
 
@@ -129,7 +113,7 @@ func GivenBookCopyRemovedFromCirculationWasAppended(t testing.TB, es PostgresEve
 
 func GivenBookCopyLentToReaderWasAppended(t testing.TB, es PostgresEventStore, bookID uuid.UUID, readerID uuid.UUID) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBookOrReader(bookID, readerID)
-	event := BuildBookCopyLentToReader(bookID, readerID)
+	event := FixtureBookCopyLentToReader(bookID, readerID)
 	err := es.Append(ToStorable(t, event), filter, QueryMaxSequenceNumberBeforeAppend(t, es, filter))
 	assert.NoError(t, err, "error in arranging test data")
 
@@ -138,7 +122,7 @@ func GivenBookCopyLentToReaderWasAppended(t testing.TB, es PostgresEventStore, b
 
 func GivenBookCopyReturnedByReaderWasAppended(t testing.TB, es PostgresEventStore, bookID uuid.UUID, readerID uuid.UUID) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBookOrReader(bookID, readerID)
-	event := BuildBookCopyReturnedFromReader(bookID, readerID)
+	event := FixtureBookCopyReturnedByReader(bookID, readerID)
 	err := es.Append(ToStorable(t, event), filter, QueryMaxSequenceNumberBeforeAppend(t, es, filter))
 	assert.NoError(t, err, "error in arranging test data")
 
@@ -157,6 +141,7 @@ func GivenSomeOtherEventsWereAppended(t testing.TB, es PostgresEventStore, numEv
 		event := core.BuildSomethingHasHappened(
 			id.String(),
 			"lorem ipsum dolor sit amet: "+id.String(),
+			time.Now().UTC().Truncate(time.Microsecond),
 			core.SomethingHasHappenedEventTypePrefix+strconv.Itoa(eventPostfix))
 
 		amountOfSameEvents := rand.IntN(3) + 1

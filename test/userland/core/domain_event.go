@@ -1,12 +1,12 @@
 package core
 
-type EventTypeString = string
+import (
+	"time"
+)
+
 type DomainEvents = []DomainEvent
 
-type BookIDString = string
-type ReaderIDString = string
-
 type DomainEvent interface {
-	EventType() EventTypeString
-	IsDomainEvent() bool
+	EventType() string
+	HasOccurredAt() time.Time
 }

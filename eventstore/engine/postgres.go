@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/doug-martin/goqu/v9"
 	_ "github.com/doug-martin/goqu/v9/dialect/postgres"
@@ -24,6 +25,7 @@ type PostgresEventStore struct {
 type queryResultRow struct {
 	eventType         string
 	payload           []byte
+	occurredAt        time.Time
 	maxSequenceNumber MaxSequenceNumberUint
 }
 
@@ -53,12 +55,20 @@ func (es PostgresEventStore) Query(filter Filter) (StorableEvents, MaxSequenceNu
 	maxSequenceNumber := MaxSequenceNumberUint(0)
 
 	for rows.Next() {
-		rowScanErr := rows.Scan(&result.eventType, &result.payload, &result.maxSequenceNumber)
+		rowScanErr := rows.Scan(&result.eventType, &result.payload, &result.occurredAt, &result.maxSequenceNumber)
 		if rowScanErr != nil {
 			return empty, 0, errors.Join(errors.New("scanning db row failed"), rowScanErr)
 		}
 
-		eventStream = append(eventStream, BuildStorableEvent(result.eventType, result.payload))
+		eventStream = append(
+			eventStream,
+			StorableEvent{
+				EventType:   result.eventType,
+				OccurredAt:  result.occurredAt,
+				PayloadJSON: result.payload,
+			},
+		)
+
 		maxSequenceNumber = result.maxSequenceNumber
 	}
 
@@ -93,7 +103,7 @@ func (es PostgresEventStore) Append(
 func (es PostgresEventStore) buildSelectQuery(filter Filter) (sqlQueryString, error) {
 	selectStmt := goqu.Dialect("postgres").
 		From("events").
-		Select("event_type", "payload", "sequence_number").
+		Select("event_type", "payload", "occurred_at", "sequence_number").
 		Order(goqu.I("sequence_number").Asc())
 
 	selectStmt = es.addWhereClause(filter, selectStmt)
@@ -124,13 +134,13 @@ func (es PostgresEventStore) buildInsertQuery(
 	// Define the SELECT for the INSERT
 	selectStmt := builder.
 		From("context").
-		Select(goqu.V(event.EventType()), goqu.V(event.PayloadJSON())).
+		Select(goqu.V(event.EventType), goqu.V(event.OccurredAt), goqu.V(event.PayloadJSON)).
 		Where(goqu.COALESCE(goqu.C("max_seq"), 0).Eq(goqu.V(expectedMaxSequenceNumber)))
 
 	// Finalize the full INSERT query
 	insertStmt := builder.
 		Insert("events").
-		Cols("event_type", "payload").
+		Cols("event_type", "occurred_at", "payload").
 		FromQuery(selectStmt).
 		With("context", cteStmt)
 

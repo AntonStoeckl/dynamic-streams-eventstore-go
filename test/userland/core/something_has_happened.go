@@ -1,25 +1,31 @@
 package core
 
-const SomethingHasHappenedEventTypePrefix = EventTypeString("SomethingHasHappened")
+import (
+	"time"
+)
+
+const SomethingHasHappenedEventTypePrefix = "SomethingHasHappened"
 
 type SomethingHasHappened struct {
 	ID               string
 	SomeInformation  string
-	DynamicEventType EventTypeString
+	OccurredAt       OccurredAt
+	DynamicEventType string
 }
 
-func BuildSomethingHasHappened(id string, someInformation string, dynamicEventType string) SomethingHasHappened {
+func BuildSomethingHasHappened(id string, someInformation string, occurredAt time.Time, dynamicEventType string) SomethingHasHappened {
 	return SomethingHasHappened{
 		ID:               id,
 		SomeInformation:  someInformation,
+		OccurredAt:       occurredAt,
 		DynamicEventType: dynamicEventType,
 	}
 }
 
-func (e SomethingHasHappened) EventType() EventTypeString {
+func (e SomethingHasHappened) EventType() string {
 	return e.DynamicEventType
 }
 
-func (e SomethingHasHappened) IsDomainEvent() bool {
-	return true
+func (e SomethingHasHappened) HasOccurredAt() time.Time {
+	return e.OccurredAt
 }
