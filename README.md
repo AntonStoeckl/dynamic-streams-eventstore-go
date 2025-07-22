@@ -336,7 +336,7 @@ The results are from my Linux Laptop with an 8-core i7 and 16GB memory.
 The results naturally vary, I'm showing some "typical" results below.  
 I'm running them with `--count 8` which means eight repetitions.
 
-```shell
+```txt
 goos: linux  
 goarch: amd64  
 pkg: dynamic-streams-eventstore/eventstore/engine  
@@ -350,7 +350,7 @@ Benchmark_Append_With_Many_Events_InTheStore/append-8 441 2556536 ns/op
 Benchmark_Append_With_Many_Events_InTheStore/append-8 505 2605083 ns/op
 Benchmark_Append_With_Many_Events_InTheStore/append-8 442 2623357 ns/op
 ```
-```shell
+```txt
 goos: linux  
 goarch: amd64  
 pkg: dynamic-streams-eventstore/eventstore/engine  
@@ -366,7 +366,7 @@ Benchmark_Query_With_Many_Events_InTheStore/query-8 5571 193981 ns/op
 Benchmark_Query_With_Many_Events_InTheStore/query-8 6292 194154 ns/op
 Benchmark_Query_With_Many_Events_InTheStore/query-8 5716 210545 ns/op
 ```
-```shell
+```txt
 goos: linux  
 goarch: amd64  
 pkg: dynamic-streams-eventstore/eventstore/engine  
