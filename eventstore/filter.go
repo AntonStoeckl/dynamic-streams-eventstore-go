@@ -100,19 +100,30 @@ type EmptyFilterItemBuilder interface {
 	//	- removing duplicate FilterPredicate(s)
 	AnyPredicateOf(predicate FilterPredicate, predicates ...FilterPredicate) FilterItemBuilderLackingEventTypes
 
-	AllPredicatesOf(predicate FilterPredicate, predicates ...FilterPredicate) FilterItemBuilderLackingEventTypes
-}
-
-type FilterItemBuilderLackingPredicates interface {
-	// AndAnyPredicateOf adds one or multiple FilterPredicate(s) to the current FilterItem.
+	// AllPredicatesOf adds one or multiple FilterPredicate(s) to the current FilterItem expecting ALL predicates to match.
 	//
 	// It sanitizes the input:
 	//	- removing empty/partial FilterPredicate(s) (key or val is "")
 	//	- sorting the FilterPredicate(s)
 	//	- removing duplicate FilterPredicate(s)
+	AllPredicatesOf(predicate FilterPredicate, predicates ...FilterPredicate) FilterItemBuilderLackingEventTypes
+}
 
+type FilterItemBuilderLackingPredicates interface {
+	// AndAnyPredicateOf adds one or multiple FilterPredicate(s) to the current FilterItem expecting ANY predicate to match.
+	//
+	// It sanitizes the input:
+	//	- removing empty/partial FilterPredicate(s) (key or val is "")
+	//	- sorting the FilterPredicate(s)
+	//	- removing duplicate FilterPredicate(s)
 	AndAnyPredicateOf(predicate FilterPredicate, predicates ...FilterPredicate) CompletedFilterItemBuilder
 
+	// AndAllPredicatesOf adds one or multiple FilterPredicate(s) to the current FilterItem expecting ALL predicates to match.
+	//
+	// It sanitizes the input:
+	//	- removing empty/partial FilterPredicate(s) (key or val is "")
+	//	- sorting the FilterPredicate(s)
+	//	- removing duplicate FilterPredicate(s)
 	AndAllPredicatesOf(predicate FilterPredicate, predicates ...FilterPredicate) CompletedFilterItemBuilder
 
 	// OrMatching finalizes the current FilterItem and starts a new one.
