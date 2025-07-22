@@ -242,6 +242,19 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 				bookCopy2ReturnedByReader1},
 		},
 		{
+			description: "(Predicate AND Predicate...)",
+			filter: BuildEventFilter().
+				Matching().
+				AllPredicatesOf(
+					P("BookID", bookID1.String()),
+					P("ReaderID", readerID1.String())).
+				Finalize(),
+			expectedNumEvents: 2,
+			expectedEvents: core.DomainEvents{
+				bookCopy1LentToReader1,
+				bookCopy1ReturnedByReader1},
+		},
+		{
 			description: "(EventType AND Predicate)",
 			filter: BuildEventFilter().
 				Matching().
@@ -258,12 +271,26 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 			filter: BuildEventFilter().
 				Matching().
 				AnyEventTypeOf(core.BookCopyLentToReaderEventType).
-				AndAnyPredicateOf(P("BookID", bookID1.String()), P("ReaderID", readerID2.String())).
+				AndAnyPredicateOf(
+					P("BookID", bookID1.String()),
+					P("ReaderID", readerID2.String())).
 				Finalize(),
 			expectedNumEvents: 2,
 			expectedEvents: core.DomainEvents{
 				bookCopy1LentToReader1,
 				bookCopy2LentToReader2},
+		},
+		{
+			description: "(EventType AND (Predicate AND Predicate...))",
+			filter: BuildEventFilter().
+				Matching().
+				AnyEventTypeOf(core.BookCopyLentToReaderEventType).
+				AndAllPredicatesOf(
+					P("BookID", bookID2.String()),
+					P("ReaderID", readerID1.String())).
+				Finalize(),
+			expectedNumEvents: 1,
+			expectedEvents:    core.DomainEvents{bookCopy2LentToReader1},
 		},
 		{
 			description: "((EventType OR EventType...) AND Predicate...)",
@@ -296,6 +323,22 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 				bookCopy1ReturnedByReader1,
 				bookCopy2LentToReader2,
 				bookCopy2ReturnedByReader2,
+				bookCopy2LentToReader1,
+				bookCopy2ReturnedByReader1},
+		},
+		{
+			description: "((EventType OR EventType...) AND (Predicate AND Predicate...))",
+			filter: BuildEventFilter().
+				Matching().
+				AnyEventTypeOf(
+					core.BookCopyLentToReaderEventType,
+					core.BookCopyReturnedByReaderEventType).
+				AndAllPredicatesOf(
+					P("BookID", bookID2.String()),
+					P("ReaderID", readerID1.String())).
+				Finalize(),
+			expectedNumEvents: 2,
+			expectedEvents: core.DomainEvents{
 				bookCopy2LentToReader1,
 				bookCopy2ReturnedByReader1},
 		},

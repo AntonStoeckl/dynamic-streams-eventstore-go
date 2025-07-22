@@ -21,8 +21,9 @@ func (f Filter) Items() []FilterItem {
 /***** FilterItem *****/
 
 type FilterItem struct {
-	eventTypes []FilterEventTypeString
-	predicates []FilterPredicate
+	eventTypes             []FilterEventTypeString
+	predicates             []FilterPredicate
+	allPredicatesMustMatch bool
 }
 
 func (fi FilterItem) EventTypes() []FilterEventTypeString {
@@ -31,6 +32,10 @@ func (fi FilterItem) EventTypes() []FilterEventTypeString {
 
 func (fi FilterItem) Predicates() []FilterPredicate {
 	return fi.predicates
+}
+
+func (fi FilterItem) AllPredicatesMustMatch() bool {
+	return fi.allPredicatesMustMatch
 }
 
 /***** FilterPredicate *****/
@@ -63,9 +68,12 @@ func (fp FilterPredicate) Val() FilterValString {
 //   - (eventType OR eventType...)
 //   - (predicate)
 //   - (predicate OR predicate...)
+//   - (predicate AND predicate...)
 //   - (eventType AND predicate)
 //   - (eventType AND (predicate OR predicate...))
+//   - (eventType AND (predicate AND predicate...))
 //   - ((eventType OR eventType...) AND (predicate OR predicate...))
+//   - ((eventType OR eventType...) AND (predicate AND predicate...))
 //   - ((eventType AND predicate) OR (eventType AND predicate)...) -> multiple FilterItem(s)
 type FilterBuilder interface {
 	// Matching starts a new FilterItem.
@@ -91,6 +99,8 @@ type EmptyFilterItemBuilder interface {
 	//	- sorting the FilterPredicate(s)
 	//	- removing duplicate FilterPredicate(s)
 	AnyPredicateOf(predicate FilterPredicate, predicates ...FilterPredicate) FilterItemBuilderLackingEventTypes
+
+	AllPredicatesOf(predicate FilterPredicate, predicates ...FilterPredicate) FilterItemBuilderLackingEventTypes
 }
 
 type FilterItemBuilderLackingPredicates interface {
@@ -100,7 +110,10 @@ type FilterItemBuilderLackingPredicates interface {
 	//	- removing empty/partial FilterPredicate(s) (key or val is "")
 	//	- sorting the FilterPredicate(s)
 	//	- removing duplicate FilterPredicate(s)
+
 	AndAnyPredicateOf(predicate FilterPredicate, predicates ...FilterPredicate) CompletedFilterItemBuilder
+
+	AndAllPredicatesOf(predicate FilterPredicate, predicates ...FilterPredicate) CompletedFilterItemBuilder
 
 	// OrMatching finalizes the current FilterItem and starts a new one.
 	OrMatching() EmptyFilterItemBuilder
@@ -151,7 +164,7 @@ func (fb filterBuilder) Matching() EmptyFilterItemBuilder {
 	return fb
 }
 
-// AnyEventTypeOf adds one or multiple EventTypes to the current FilterItem.
+// AnyEventTypeOf adds one or multiple EventTypes to the current FilterItem expecting ANY EventType to match.
 //
 // It sanitizes the input:
 //   - removing empty EventTypes ("")
@@ -170,7 +183,7 @@ func (fb filterBuilder) AnyEventTypeOf(
 	return fb
 }
 
-// AndAnyEventTypeOf adds one or multiple EventTypes to the current FilterItem.
+// AndAnyEventTypeOf adds one or multiple EventTypes to the current FilterItem expecting ANY EventType to match.
 //
 // It sanitizes the input:
 //   - removing empty EventTypes ("")
@@ -202,7 +215,7 @@ func (fb filterBuilder) sanitizeEventTypes(
 	return allEventTypes
 }
 
-// AnyPredicateOf adds one or multiple FilterPredicate(s) to the current FilterItem.
+// AnyPredicateOf adds one or multiple FilterPredicate(s) to the current FilterItem expecting ANY predicate to match.
 //
 // It sanitizes the input:
 //   - removing empty/partial FilterPredicate(s) (key or val is "")
@@ -221,7 +234,7 @@ func (fb filterBuilder) AnyPredicateOf(
 	return fb
 }
 
-// AndAnyPredicateOf adds one or multiple FilterPredicate(s) to the current FilterItem.
+// AndAnyPredicateOf adds one or multiple FilterPredicate(s) to the current FilterItem expecting ANY predicate to match.
 //
 // It sanitizes the input:
 //   - removing empty/partial FilterPredicate(s) (key or val is "")
@@ -233,6 +246,41 @@ func (fb filterBuilder) AndAnyPredicateOf(
 ) CompletedFilterItemBuilder {
 
 	return fb.AnyPredicateOf(predicate, predicates...)
+}
+
+// AllPredicatesOf adds one or multiple FilterPredicate(s) to the current FilterItem expecting ALL predicates to match.
+//
+// It sanitizes the input:
+//   - removing empty/partial FilterPredicate(s) (key or val is "")
+//   - sorting the FilterPredicate(s)
+//   - removing duplicate FilterPredicate(s)
+func (fb filterBuilder) AllPredicatesOf(
+	predicate FilterPredicate,
+	predicates ...FilterPredicate,
+) FilterItemBuilderLackingEventTypes {
+
+	fb.currentFilterItem.allPredicatesMustMatch = true
+
+	fb.currentFilterItem.predicates = append(
+		fb.currentFilterItem.predicates,
+		fb.sanitizePredicates(predicate, predicates...)...,
+	)
+
+	return fb
+}
+
+// AndAllPredicatesOf adds one or multiple FilterPredicate(s) to the current FilterItem expecting ALL predicates to match.
+//
+// It sanitizes the input:
+//   - removing empty/partial FilterPredicate(s) (key or val is "")
+//   - sorting the FilterPredicate(s)
+//   - removing duplicate FilterPredicate(s)
+func (fb filterBuilder) AndAllPredicatesOf(
+	predicate FilterPredicate,
+	predicates ...FilterPredicate,
+) CompletedFilterItemBuilder {
+
+	return fb.AllPredicatesOf(predicate, predicates...)
 }
 
 func (fb filterBuilder) sanitizePredicates(

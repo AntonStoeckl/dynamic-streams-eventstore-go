@@ -130,10 +130,8 @@ I'll show an example under "Quick start for using it in an application" below.
 
 #### Currently missing
 
-The table name (_events_) is currently hardcoded in the postgres engine implementation.  
-The FilterBuilder does not support concatenating predicates with OR (more below).  
-
-More storage engines, like MongoDB, might follow ...
+- The table name (_events_) is currently hardcoded in the postgres engine implementation
+- More storage engines, like MongoDB, might follow ...
 
 ## Tech Stack
 

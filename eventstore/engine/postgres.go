@@ -8,6 +8,7 @@ import (
 
 	"github.com/doug-martin/goqu/v9"
 	_ "github.com/doug-martin/goqu/v9/dialect/postgres"
+	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	. "dynamic-streams-eventstore/eventstore"
@@ -172,6 +173,9 @@ func (es PostgresEventStore) addWhereClause(filter Filter, selectStmt *goqu.Sele
 			)
 		}
 
+		// eventTypes must always be filtered with OR ;-)
+		eventTypesExpressionList := goqu.Or(eventTypeExpressions...)
+
 		for _, predicate := range item.Predicates() {
 			predicateExpressions = append(
 				predicateExpressions,
@@ -179,12 +183,18 @@ func (es PostgresEventStore) addWhereClause(filter Filter, selectStmt *goqu.Sele
 			)
 		}
 
+		var predicatesExpressionList exp.ExpressionList
+
+		if item.AllPredicatesMustMatch() {
+			predicatesExpressionList = goqu.And(predicateExpressions...)
+		} else {
+			predicatesExpressionList = goqu.Or(predicateExpressions...)
+		}
+
 		itemsExpressions = append(
 			itemsExpressions,
-			goqu.And(
-				goqu.Or(eventTypeExpressions...),
-				goqu.Or(predicateExpressions...),
-			))
+			goqu.And(eventTypesExpressionList, predicatesExpressionList),
+		)
 	}
 
 	selectStmt = selectStmt.Where(goqu.Or(itemsExpressions...))
