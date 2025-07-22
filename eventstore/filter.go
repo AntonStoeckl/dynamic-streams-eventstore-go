@@ -54,21 +54,19 @@ func (fp FilterPredicate) Val() FilterValString {
 
 /***** FilterBuilder *****/
 
-/*
-FilterBuilder builds a generic event filter to be used in DB type specific eventstore implementations to build queries for
-the specific query language, e.g.: Postgres, Mysql, MongoDB, ...
-It is designed with the idea to only allow "useful" filter combinations for event-sourced workflows:
-
-  - empty filter
-  - (eventType)
-  - (eventType OR eventType...)
-  - (predicate)
-  - (predicate OR predicate...)
-  - (eventType AND predicate)
-  - (eventType AND (predicate OR predicate...))
-  - ((eventType OR eventType...) AND (predicate OR predicate...))
-  - ((eventType AND predicate) OR (eventType AND predicate)...) -> multiple FilterItem(s)
-*/
+// FilterBuilder builds a generic event filter to be used in DB type-specific eventstore implementations to build queries for
+// the specific query language, e.g.: Postgres, Mysql, MongoDB, ...
+// It is designed with the idea to only allow "useful" filter combinations for event-sourced workflows:
+//
+//   - empty filter
+//   - (eventType)
+//   - (eventType OR eventType...)
+//   - (predicate)
+//   - (predicate OR predicate...)
+//   - (eventType AND predicate)
+//   - (eventType AND (predicate OR predicate...))
+//   - ((eventType OR eventType...) AND (predicate OR predicate...))
+//   - ((eventType AND predicate) OR (eventType AND predicate)...) -> multiple FilterItem(s)
 type FilterBuilder interface {
 	// Matching starts a new FilterItem.
 	Matching() EmptyFilterItemBuilder
@@ -78,36 +76,30 @@ type FilterBuilder interface {
 }
 
 type EmptyFilterItemBuilder interface {
-	/*
-		AnyEventTypeOf adds one or multiple EventTypes to the current FilterItem.
-
-		It sanitizes the input:
-			- removing empty EventTypes ("")
-			- sorting the EventTypes
-			- removing duplicate EventTypes
-	*/
+	// AnyEventTypeOf adds one or multiple EventTypes to the current FilterItem.
+	//
+	// It sanitizes the input:
+	//	- removing empty EventTypes ("")
+	//	- sorting the EventTypes
+	//	- removing duplicate EventTypes
 	AnyEventTypeOf(eventType FilterEventTypeString, eventTypes ...FilterEventTypeString) FilterItemBuilderLackingPredicates
 
-	/*
-		AnyPredicateOf adds one or multiple FilterPredicate(s) to the current FilterItem.
-
-		It sanitizes the input:
-			- removing empty/partial FilterPredicate(s) (key or val is "")
-			- sorting the FilterPredicate(s)
-			- removing duplicate FilterPredicate(s)
-	*/
+	// AnyPredicateOf adds one or multiple FilterPredicate(s) to the current FilterItem.
+	//
+	// It sanitizes the input:
+	//	- removing empty/partial FilterPredicate(s) (key or val is "")
+	//	- sorting the FilterPredicate(s)
+	//	- removing duplicate FilterPredicate(s)
 	AnyPredicateOf(predicate FilterPredicate, predicates ...FilterPredicate) FilterItemBuilderLackingEventTypes
 }
 
 type FilterItemBuilderLackingPredicates interface {
-	/*
-		AndAnyPredicateOf adds one or multiple FilterPredicate(s) to the current FilterItem.
-
-		It sanitizes the input:
-			- removing empty/partial FilterPredicate(s) (key or val is "")
-			- sorting the FilterPredicate(s)
-			- removing duplicate FilterPredicate(s)
-	*/
+	// AndAnyPredicateOf adds one or multiple FilterPredicate(s) to the current FilterItem.
+	//
+	// It sanitizes the input:
+	//	- removing empty/partial FilterPredicate(s) (key or val is "")
+	//	- sorting the FilterPredicate(s)
+	//	- removing duplicate FilterPredicate(s)
 	AndAnyPredicateOf(predicate FilterPredicate, predicates ...FilterPredicate) CompletedFilterItemBuilder
 
 	// OrMatching finalizes the current FilterItem and starts a new one.
@@ -118,14 +110,12 @@ type FilterItemBuilderLackingPredicates interface {
 }
 
 type FilterItemBuilderLackingEventTypes interface {
-	/*
-		AndAnyEventTypeOf adds one or multiple EventTypes to the current FilterItem.
-
-		It sanitizes the input:
-			- removing empty EventTypes ("")
-			- sorting the EventTypes
-			- removing duplicate EventTypes
-	*/
+	// AndAnyEventTypeOf adds one or multiple EventTypes to the current FilterItem.
+	//
+	// It sanitizes the input:
+	//	- removing empty EventTypes ("")
+	//	- sorting the EventTypes
+	//	- removing duplicate EventTypes
 	AndAnyEventTypeOf(eventType FilterEventTypeString, eventTypes ...FilterEventTypeString) CompletedFilterItemBuilder
 
 	// OrMatching finalizes the current FilterItem and starts a new one.
@@ -143,9 +133,7 @@ type CompletedFilterItemBuilder interface {
 	Finalize() Filter
 }
 
-/*
-filterBuilder implements all the interfaces of FilterBuilder
-*/
+// filterBuilder implements all the interfaces of FilterBuilder
 type filterBuilder struct {
 	filter            Filter
 	currentFilterItem FilterItem
@@ -158,23 +146,19 @@ func BuildEventFilter() FilterBuilder {
 	return filterBuilder{}
 }
 
-/*
-Matching starts a new FilterItem.
-*/
+// Matching starts a new FilterItem.
 func (fb filterBuilder) Matching() EmptyFilterItemBuilder {
 	fb.currentFilterItem = FilterItem{}
 
 	return fb
 }
 
-/*
-AnyEventTypeOf adds one or multiple EventTypes to the current FilterItem.
-
-It sanitizes the input:
-  - removing empty EventTypes ("")
-  - sorting the EventTypes
-  - removing duplicate EventTypes
-*/
+// AnyEventTypeOf adds one or multiple EventTypes to the current FilterItem.
+//
+// It sanitizes the input:
+//   - removing empty EventTypes ("")
+//   - sorting the EventTypes
+//   - removing duplicate EventTypes
 func (fb filterBuilder) AnyEventTypeOf(
 	eventType FilterEventTypeString,
 	eventTypes ...FilterEventTypeString,
@@ -188,14 +172,12 @@ func (fb filterBuilder) AnyEventTypeOf(
 	return fb
 }
 
-/*
-AndAnyEventTypeOf adds one or multiple EventTypes to the current FilterItem.
-
-It sanitizes the input:
-  - removing empty EventTypes ("")
-  - sorting the EventTypes
-  - removing duplicate EventTypes
-*/
+// AndAnyEventTypeOf adds one or multiple EventTypes to the current FilterItem.
+//
+// It sanitizes the input:
+//   - removing empty EventTypes ("")
+//   - sorting the EventTypes
+//   - removing duplicate EventTypes
 func (fb filterBuilder) AndAnyEventTypeOf(
 	eventType FilterEventTypeString,
 	eventTypes ...FilterEventTypeString,
@@ -222,14 +204,12 @@ func (fb filterBuilder) sanitizeEventTypes(
 	return allEventTypes
 }
 
-/*
-AnyPredicateOf adds one or multiple FilterPredicate(s) to the current FilterItem.
-
-It sanitizes the input:
-  - removing empty/partial FilterPredicate(s) (key or val is "")
-  - sorting the FilterPredicate(s)
-  - removing duplicate FilterPredicate(s)
-*/
+// AnyPredicateOf adds one or multiple FilterPredicate(s) to the current FilterItem.
+//
+// It sanitizes the input:
+//   - removing empty/partial FilterPredicate(s) (key or val is "")
+//   - sorting the FilterPredicate(s)
+//   - removing duplicate FilterPredicate(s)
 func (fb filterBuilder) AnyPredicateOf(
 	predicate FilterPredicate,
 	predicates ...FilterPredicate,
@@ -243,14 +223,12 @@ func (fb filterBuilder) AnyPredicateOf(
 	return fb
 }
 
-/*
-AndAnyPredicateOf adds one or multiple FilterPredicate(s) to the current FilterItem.
-
-It sanitizes the input:
-  - removing empty/partial FilterPredicate(s) (key or val is "")
-  - sorting the FilterPredicate(s)
-  - removing duplicate FilterPredicate(s)
-*/
+// AndAnyPredicateOf adds one or multiple FilterPredicate(s) to the current FilterItem.
+//
+// It sanitizes the input:
+//   - removing empty/partial FilterPredicate(s) (key or val is "")
+//   - sorting the FilterPredicate(s)
+//   - removing duplicate FilterPredicate(s)
 func (fb filterBuilder) AndAnyPredicateOf(
 	predicate FilterPredicate,
 	predicates ...FilterPredicate,
@@ -286,9 +264,7 @@ func (fb filterBuilder) sanitizePredicates(
 	return allPredicates
 }
 
-/*
-OrMatching finalizes the current FilterItem and starts a new one.
-*/
+// OrMatching finalizes the current FilterItem and starts a new one.
 func (fb filterBuilder) OrMatching() EmptyFilterItemBuilder {
 	fb.filter.items = append(fb.filter.items, fb.currentFilterItem)
 	fb.currentFilterItem = FilterItem{}
@@ -296,16 +272,12 @@ func (fb filterBuilder) OrMatching() EmptyFilterItemBuilder {
 	return fb
 }
 
-/*
-MatchingAnyEvent directly creates an empty filter.
-*/
+// MatchingAnyEvent directly creates an empty filter.
 func (fb filterBuilder) MatchingAnyEvent() Filter {
 	return fb.filter
 }
 
-/*
-Finish returns the Filter once it has at least one FilterItem with at least one EventType OR one Predicate.
-*/
+// Finalize returns the Filter once it has at least one FilterItem with at least one EventType OR one Predicate.
 func (fb filterBuilder) Finalize() Filter {
 	fb.filter.items = append(fb.filter.items, fb.currentFilterItem)
 
