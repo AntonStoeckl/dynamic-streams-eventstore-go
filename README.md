@@ -119,6 +119,7 @@ since then, no rows will be inserted (the guard). Which will then be mapped to a
 So it's crucial that the same where clause is used in **Query** and **Append** (as mentioned above).  
 I'll show an example under "Quick start for using it in an application" below.
 
+
 ## Features
 
 ### Production
@@ -132,6 +133,7 @@ I'll show an example under "Quick start for using it in an application" below.
 
 - The table name (_events_) is currently hardcoded in the postgres engine implementation
 - More storage engines, like MongoDB, might follow ...
+
 
 ## Tech Stack
 
@@ -178,6 +180,7 @@ Both services include automatic database initialization from the `initdb/` direc
    ```bash
    go test -bench=. ./eventstore/engine/
    ```
+
 
 ## Quick Start for using it in an application
 
@@ -311,6 +314,7 @@ The other files contain concrete domain event implementations.
 
 Contains functions to unmarshal those domain events from **StorableEvent**(s).
 
+
 ## Benchmarks
 
 When you run any benchmark for the first time, it will prime the DB with **one million events**, which runs
@@ -385,6 +389,7 @@ The "typical workload" benchmark does a full cycle of:
 
 In other words, what a real application would do (minus http request, emitting events, ...).  
 The average of those 8 "workloads" is around **4.6 ms**, which I consider decent on my hardware.
+
 
 ## License
 
