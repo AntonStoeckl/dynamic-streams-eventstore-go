@@ -15,7 +15,9 @@ import (
 
 var ErrConcurrencyConflict = errors.New("concurrency error, no rows were affected")
 
+// MaxSequenceNumberUint is a type alias for uint, representing the maximum sequence number for a "dynamic event stream".
 type MaxSequenceNumberUint = uint
+
 type sqlQueryString = string
 
 type PostgresEventStore struct {
@@ -34,6 +36,9 @@ func NewPostgresEventStore(db *pgxpool.Pool) PostgresEventStore {
 	return PostgresEventStore{db: db}
 }
 
+// Query retrieves events from the Postgres event store based on the provided eventstore.Filter criteria
+// and returns them as eventstore.StorableEvents
+// as well as the MaxSequenceNumberUint for this "dynamic event stream" at the time of the query.
 func (es PostgresEventStore) Query(filter Filter) (StorableEvents, MaxSequenceNumberUint, error) {
 	empty := make(StorableEvents, 0)
 
@@ -72,6 +77,10 @@ func (es PostgresEventStore) Query(filter Filter) (StorableEvents, MaxSequenceNu
 	return eventStream, maxSequenceNumber, nil
 }
 
+// Append attempts to append an eventstore.StorableEvent onto the Postgres event store respecting concurrency constraints
+// for this "dynamic event stream" based on the provided eventstore.Filter criteria and the expected MaxSequenceNumberUint.
+//
+// The provided eventstore.Filter criteria should be the same as the ones used for the Query before making the business decisions.
 func (es PostgresEventStore) Append(
 	event StorableEvent,
 	filter Filter,
