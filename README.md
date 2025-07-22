@@ -41,7 +41,7 @@ that affect the **BookCopy** or the **Reader**. We might want to be able to answ
 
 ### Core ideas of this concrete implementation with Go and PostgreSQL
 
-Standing on the shoulder of giants (as usual), I was inspired and got the core idea about how to implement **Append**  
+Standing on the shoulder of giants (as usual), I was inspired and got the core idea about how to implement **Append** 
 in one atomic operation with optimistic locking by [Rico Fritsche](https://www.linkedin.com/in/ricofritzsche/).  
 Specifically, from this article: https://ricofritzsche.me/how-i-built-an-aggregateless-event-store-with-typescript-and-postgresql/  
 I share a lot of ideas with Rico, especially about _**Event Sourcing**_, _**Vertical Slices**_ and why OOP, CRUD, too much
