@@ -57,7 +57,7 @@ The **Append** command uses the same where conditions that the **Query** used be
 The **Query** to read the dynamic event stream:
 
 ```postgresql
-SELECT "event_type", "payload", "sequence_number"  
+SELECT "event_type", "payload", "metadata", "occurred_at", "sequence_number"  
 FROM "events"  
 WHERE (
     (
@@ -97,8 +97,9 @@ WITH context AS --- CTE starts here
     )
 ) --- CTE ends here
 
-INSERT INTO "events" ("event_type", "payload")  
+INSERT INTO "events" ("event_type", "occurred_at", "payload", "metadata")  
 SELECT 'BookCopyAddedToCirculation',
+       '2025-07-22T10:28:50.382428Z',
        '{
          "BookID":"0198223b-12f8-74af-ada1-12ac0687b922",
          "ISBN":"978-1-098-10013-1",
@@ -106,10 +107,22 @@ SELECT 'BookCopyAddedToCirculation',
          "Authors":"Vlad Khononov",
          "Edition":"First Edition",
          "Publisher":"O''Reilly Media, Inc.",
-         "PublicationYear":2021
-       }'  
+         "PublicationYear":2021,
+         "OccurredAt":"2025-07-22T10:28:50.382428Z"
+       }',
+      '{"MessageID": "019831b5-a89b-7acd-84dc-866b984d2548", "CausationID": "019831b5-a89b-7acf-9fca-55ce950a4e5d", "CorrelationID": "019831b5-a89b-7ad0-8e89-9144002139c7"}'
 FROM context WHERE (COALESCE("max_seq", 0) = 6)
 ```
+
+
+
+SELECT "event_type", "payload", "metadata", "occurred_at", "sequence_number" FROM "events" WHERE ((("event_type" = 'BookCopyAddedToCirculation') OR ("event_type" = 'BookCopyLentToReader') OR ("event_type" = 'BookCopyRemovedFromCirculation') OR ("event_type" = 'BookCopyReturnedByReader')) AND payload @> '{"BookID": "019831ad-cc4c-7229-b520-235c023633b6"}') ORDER BY "sequence_number" ASC
+WITH context AS (SELECT MAX("sequence_number") AS "max_seq" FROM "events" WHERE ((("event_type" = 'BookCopyAddedToCirculation') OR ("event_type" = 'BookCopyLentToReader') OR ("event_type" = 'BookCopyRemovedFromCirculation') OR ("event_type" = 'BookCopyReturnedByReader')) AND payload @> '{"BookID": "019831ad-cc4c-7229-b520-235c023633b6"}')) 
+INSERT INTO "events" ("event_type", "occurred_at", "payload", "metadata") SELECT 'BookCopyRemovedFromCirculation', '2025-07-22T10:28:50.382428Z', '{"BookID":"019831ad-cc4c-7229-b520-235c023633b6","OccurredAt":"2025-07-22T10:28:50.382428Z"}', '{}' FROM "context" WHERE (COALESCE("max_seq", 0) = 2)
+
+
+
+
 
 If you look close, you will notice that the where clause is the same in the **Query** and the **CTE**!  
 
