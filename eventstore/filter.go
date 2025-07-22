@@ -97,6 +97,14 @@ type FilterBuilder interface {
 
 	// MatchingAnyEvent directly creates an empty Filter.
 	MatchingAnyEvent() Filter
+
+	// OccurredFrom sets the lower boundary for occurredAt (including this timestamp) for the whole Filter.
+	OccurredFrom(occurredAtFrom time.Time) CompletedFilterItemBuilderWithOccurredFrom
+
+	// OccurredUntil sets the upper boundary for occurredAt (including this timestamp) for the whole Filter.
+	//
+	// Currently, there is NO check if OccurredUntil is later than OccurredFrom!
+	OccurredUntil(occurredAtUntil time.Time) CompletedFilterItemBuilderWithOccurredUntil
 }
 
 type EmptyFilterItemBuilder interface {

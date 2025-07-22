@@ -195,7 +195,32 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 			description:       "empty filter",
 			filter:            BuildEventFilter().MatchingAnyEvent(),
 			expectedNumEvents: numOtherEvents + 9,
-			expectedEvents:    core.DomainEvents{}, // we don't want to assert the random "something has happened" events
+			expectedEvents:    core.DomainEvents{}, // we don't want to assert the concrete events here
+		},
+		{
+			description: "only (occurredFrom)",
+			filter: BuildEventFilter().
+				OccurredFrom(bookCopy2AddedToCirculationBook.HasOccurredAt()).
+				Finalize(),
+			expectedNumEvents: 5,
+			expectedEvents:    core.DomainEvents{}, // we don't want to assert the concrete events here
+		},
+		{
+			description: "only (occurredUntil)",
+			filter: BuildEventFilter().
+				OccurredUntil(bookCopy1AddedToCirculationBook.HasOccurredAt()).
+				Finalize(),
+			expectedNumEvents: numOtherEvents + 1,
+			expectedEvents:    core.DomainEvents{}, // we don't want to assert the concrete events here
+		},
+		{
+			description: "only (occurredFrom to occurredUntil)",
+			filter: BuildEventFilter().
+				OccurredFrom(bookCopy1LentToReader1.HasOccurredAt()).
+				AndOccurredUntil(bookCopy2ReturnedByReader2.HasOccurredAt()).
+				Finalize(),
+			expectedNumEvents: 6,
+			expectedEvents:    core.DomainEvents{}, // we don't want to assert the concrete events here
 		},
 		{
 			description: "(EventType)",
@@ -370,7 +395,7 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 				bookCopy2ReturnedByReader1},
 		},
 		{
-			description: "Time based filtering (occurredFrom)",
+			description: "... (occurredFrom)",
 			filter: BuildEventFilter().
 				Matching().
 				AnyPredicateOf(P("BookID", bookID1.String())).
@@ -386,7 +411,7 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 				bookCopy2ReturnedByReader1},
 		},
 		{
-			description: "Time based filtering (occurredUntil)",
+			description: "... (occurredUntil)",
 			filter: BuildEventFilter().
 				Matching().
 				AnyPredicateOf(P("BookID", bookID1.String())).
@@ -402,7 +427,7 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 				bookCopy2ReturnedByReader2},
 		},
 		{
-			description: "Time based filtering (occurredFrom to occurredUntil)",
+			description: "... (occurredFrom to occurredUntil)",
 			filter: BuildEventFilter().
 				Matching().
 				AnyPredicateOf(P("BookID", bookID1.String())).
@@ -417,6 +442,8 @@ func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 			expectedEvents:    core.DomainEvents{bookCopy2ReturnedByReader2},
 		},
 	}
+
+	BuildEventFilter().OccurredFrom(time.Now()).AndOccurredUntil(time.Now()).Finalize()
 
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
