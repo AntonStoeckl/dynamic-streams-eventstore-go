@@ -130,7 +130,6 @@ I'll show an example under "Quick start for using it in an application" below.
 
 #### Currently missing
 
-The _OccurredAt_ timestamp is currently created in the DB, this should be passed-in from the application.  
 The table name (_events_) is currently hardcoded in the postgres engine implementation.  
 No support for _metadata_ yet.  
 The FilterBuilder does not support concatenating predicates with OR (more below).  
