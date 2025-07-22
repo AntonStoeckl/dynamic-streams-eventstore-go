@@ -187,7 +187,8 @@ Both services include automatic database initialization from the `initdb/` direc
 
 ## Quick Start for using it in an application
 
-Install the dependency in your Go application via go get (todo).
+Install the dependency in your Go application via  
+`go get github.com/AntonStoeckl/dynamic-streams-eventstore-go`
 
 Check **test/initdb/init.sql** on how to set up tables and indexes.  
 If you want to dockerize the event store DB, you can copy from **test/docker-compose.yml**.
