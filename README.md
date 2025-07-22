@@ -331,9 +331,9 @@ This is quite a naive implementation, but "good enough" for me at the moment.
 
 ### My benchmark results
 
-I'm running this on an 8-core i7 with 16GB ram.  
+The results are from my Linux Laptop with an 8-core i7 and 16GB memory.  
 The results naturally vary, I'm showing some "typical" results below.  
-I'm running them with `--count 8` which means 8 repetitions.
+I'm running them with `--count 8` which means eight repetitions.
 
 ```shell
 goos: linux  
