@@ -72,7 +72,7 @@ func (fp FilterPredicate) Val() FilterValString {
 
 // FilterBuilder builds a generic event filter to be used in DB type-specific eventstore implementations to build queries for
 // the specific query language, e.g.: Postgres, Mysql, MongoDB, ...
-// It is designed with the idea to only allow "useful" filter combinations for event-sourced workflows:
+// It is designed with the idea to only allow "useful" Filter combinations for event-sourced workflows:
 //
 //   - empty filter
 //   - (eventType)
@@ -86,6 +86,11 @@ func (fp FilterPredicate) Val() FilterValString {
 //   - ((eventType OR eventType...) AND (predicate OR predicate...))
 //   - ((eventType OR eventType...) AND (predicate AND predicate...))
 //   - ((eventType AND predicate) OR (eventType AND predicate)...) -> multiple FilterItem(s)
+//
+// If occurredFrom or/and occurredUntil are added to the Filter, this will be AND concatenated to the whole Filter, e.g.:
+//
+//   - ((eventType AND (predicate OR predicate...)) AND (occurredAt >= _timestamp_))
+//   - ((eventType AND (predicate OR predicate...)) AND ((occurredAt >= occurredFrom) AND (occurredAt <= occurredUntil)))
 type FilterBuilder interface {
 	// Matching starts a new FilterItem.
 	Matching() EmptyFilterItemBuilder
