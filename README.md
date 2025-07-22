@@ -49,7 +49,7 @@ abstraction, "clean" architecture(s), ... often create more problems than they s
 Rico is a much more productive writer than me, so make sure to check out his other [articles](https://ricofritzsche.me/)!
 
 Long story short: the basics for this implementation are _**Guard Clauses**_ implemented with **_Common Table Expressions_** (CTE).  
-The **Append** command uses the same where conditions that the **Query** used before, and with a CTE it guards that the  
+The **Append** command uses the same where conditions that the **Query** used before, and with a CTE it guards that the
 "dynamic stream" has not changed between **Query** and **Append**.
 
 #### An example says more than 1000 words ...
