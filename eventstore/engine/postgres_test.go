@@ -101,6 +101,48 @@ func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 	assert.ErrorContains(t, err, ErrConcurrencyConflict.Error())
 }
 
+func Test_Append_EventWithMetadata_Works_AsExpected(t *testing.T) {
+	// setup
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
+	assert.NoError(t, err, "error connecting to DB pool in test setup")
+	defer connPool.Close()
+
+	es := NewPostgresEventStore(connPool)
+
+	// arrange
+	CleanUpEvents(t, connPool)
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, es, filter)
+	bookCopyAddedToCirculation := FixtureBookCopyAddedToCirculation(bookID)
+
+	messageID := GivenUniqueID(t)
+	causationID := GivenUniqueID(t)
+	correlationID := GivenUniqueID(t)
+	eventMetadata := shell.BuildEventMetadata(messageID, causationID, correlationID)
+
+	// act (append)
+	err = es.Append(
+		ToStorableWithMetadata(t, bookCopyAddedToCirculation, eventMetadata),
+		filter,
+		maxSequenceNumberBeforeAppend,
+	)
+
+	// assert (append)
+	assert.NoError(t, err, "error in appending the event")
+
+	// act (query)
+	actualEvents, _, queryErr := es.Query(filter)
+
+	// assert (query)
+	assert.NoError(t, queryErr, "error in querying the events")
+	assert.Len(t, actualEvents, 1, "there should be exactly 1 event")
+	actualEventEnvelopes, mappingFooErr := shell.EventEnvelopesFrom(actualEvents)
+	assert.NoError(t, mappingFooErr, "error in mapping the storable events to event envelopes")
+	assert.Equal(t, bookCopyAddedToCirculation, actualEventEnvelopes[0].DomainEvent, "the queried domain event should be equal to the appended event")
+	assert.Equal(t, eventMetadata, actualEventEnvelopes[0].EventMetadata, "the queried event metadata should be equal to the appended event")
+}
+
 func Test_Querying_With_Filter_Works_As_Expected(t *testing.T) {
 	// setup
 	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())

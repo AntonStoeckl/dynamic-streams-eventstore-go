@@ -13,7 +13,7 @@ import (
 	. "dynamic-streams-eventstore/eventstore"
 )
 
-var ErrConcurrencyConflict = errors.New("no rows were affected")
+var ErrConcurrencyConflict = errors.New("concurrency error, no rows were affected")
 
 type MaxSequenceNumberUint = uint
 type sqlQueryString = string
@@ -25,6 +25,7 @@ type PostgresEventStore struct {
 type queryResultRow struct {
 	eventType         string
 	payload           []byte
+	metadata          []byte
 	occurredAt        time.Time
 	maxSequenceNumber MaxSequenceNumberUint
 }
@@ -55,18 +56,14 @@ func (es PostgresEventStore) Query(filter Filter) (StorableEvents, MaxSequenceNu
 	maxSequenceNumber := MaxSequenceNumberUint(0)
 
 	for rows.Next() {
-		rowScanErr := rows.Scan(&result.eventType, &result.payload, &result.occurredAt, &result.maxSequenceNumber)
+		rowScanErr := rows.Scan(&result.eventType, &result.payload, &result.metadata, &result.occurredAt, &result.maxSequenceNumber)
 		if rowScanErr != nil {
 			return empty, 0, errors.Join(errors.New("scanning db row failed"), rowScanErr)
 		}
 
 		eventStream = append(
 			eventStream,
-			StorableEvent{
-				EventType:   result.eventType,
-				OccurredAt:  result.occurredAt,
-				PayloadJSON: result.payload,
-			},
+			BuildStorableEvent(result.eventType, result.occurredAt, result.payload, result.metadata),
 		)
 
 		maxSequenceNumber = result.maxSequenceNumber
@@ -103,7 +100,7 @@ func (es PostgresEventStore) Append(
 func (es PostgresEventStore) buildSelectQuery(filter Filter) (sqlQueryString, error) {
 	selectStmt := goqu.Dialect("postgres").
 		From("events").
-		Select("event_type", "payload", "occurred_at", "sequence_number").
+		Select("event_type", "payload", "metadata", "occurred_at", "sequence_number").
 		Order(goqu.I("sequence_number").Asc())
 
 	selectStmt = es.addWhereClause(filter, selectStmt)
@@ -134,13 +131,13 @@ func (es PostgresEventStore) buildInsertQuery(
 	// Define the SELECT for the INSERT
 	selectStmt := builder.
 		From("context").
-		Select(goqu.V(event.EventType), goqu.V(event.OccurredAt), goqu.V(event.PayloadJSON)).
+		Select(goqu.V(event.EventType), goqu.V(event.OccurredAt), goqu.V(event.PayloadJSON), goqu.V(event.MetadataJSON)).
 		Where(goqu.COALESCE(goqu.C("max_seq"), 0).Eq(goqu.V(expectedMaxSequenceNumber)))
 
 	// Finalize the full INSERT query
 	insertStmt := builder.
 		Insert("events").
-		Cols("event_type", "occurred_at", "payload").
+		Cols("event_type", "occurred_at", "payload", "metadata").
 		FromQuery(selectStmt).
 		With("context", cteStmt)
 

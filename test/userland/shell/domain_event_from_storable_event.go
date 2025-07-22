@@ -10,6 +10,9 @@ import (
 	"dynamic-streams-eventstore/test/userland/core"
 )
 
+var ErrMappingToDomainEventFailed = errors.New("mapping to domain event failed")
+var ErrMappingToDomainEventUnknownEventType = errors.New("unknown event type")
+
 func DomainEventsFrom(storableEvents eventstore.StorableEvents) (core.DomainEvents, error) {
 	domainEvents := make(core.DomainEvents, 0)
 
@@ -32,7 +35,7 @@ func DomainEventFrom(storableEvent eventstore.StorableEvent) (core.DomainEvent, 
 
 		err := jsoniter.ConfigFastest.Unmarshal(storableEvent.PayloadJSON, &payload)
 		if err != nil {
-			return core.BookCopyAddedToCirculation{}, err
+			return core.BookCopyAddedToCirculation{}, errors.Join(ErrMappingToDomainEventFailed, err)
 		}
 
 		return core.BookCopyAddedToCirculation{
@@ -51,7 +54,7 @@ func DomainEventFrom(storableEvent eventstore.StorableEvent) (core.DomainEvent, 
 
 		err := jsoniter.ConfigFastest.Unmarshal(storableEvent.PayloadJSON, &payload)
 		if err != nil {
-			return core.BookCopyRemovedFromCirculation{}, err
+			return core.BookCopyRemovedFromCirculation{}, errors.Join(ErrMappingToDomainEventFailed, err)
 		}
 
 		return core.BookCopyRemovedFromCirculation{
@@ -64,7 +67,7 @@ func DomainEventFrom(storableEvent eventstore.StorableEvent) (core.DomainEvent, 
 
 		err := jsoniter.ConfigFastest.Unmarshal(storableEvent.PayloadJSON, &payload)
 		if err != nil {
-			return core.BookCopyLentToReader{}, err
+			return core.BookCopyLentToReader{}, errors.Join(ErrMappingToDomainEventFailed, err)
 		}
 
 		return core.BookCopyLentToReader{
@@ -78,7 +81,7 @@ func DomainEventFrom(storableEvent eventstore.StorableEvent) (core.DomainEvent, 
 
 		err := jsoniter.ConfigFastest.Unmarshal(storableEvent.PayloadJSON, &payload)
 		if err != nil {
-			return core.BookCopyReturnedByReader{}, err
+			return core.BookCopyReturnedByReader{}, errors.Join(ErrMappingToDomainEventFailed, err)
 		}
 
 		return core.BookCopyReturnedByReader{
@@ -93,7 +96,7 @@ func DomainEventFrom(storableEvent eventstore.StorableEvent) (core.DomainEvent, 
 
 			err := jsoniter.ConfigFastest.Unmarshal(storableEvent.PayloadJSON, &payload)
 			if err != nil {
-				return core.BookCopyReturnedByReader{}, err
+				return core.BookCopyReturnedByReader{}, errors.Join(ErrMappingToDomainEventFailed, err)
 			}
 
 			return core.BuildSomethingHasHappened(payload.ID, payload.SomeInformation, payload.OccurredAt, payload.DynamicEventType), nil
@@ -101,5 +104,5 @@ func DomainEventFrom(storableEvent eventstore.StorableEvent) (core.DomainEvent, 
 		}
 	}
 
-	return nil, errors.New("unknown event type")
+	return nil, errors.Join(ErrMappingToDomainEventFailed, ErrMappingToDomainEventUnknownEventType)
 }

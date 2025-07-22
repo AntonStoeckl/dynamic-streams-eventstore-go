@@ -87,7 +87,14 @@ func FixtureBookCopyReturnedByReader(bookID uuid.UUID, readerID uuid.UUID) core.
 }
 
 func ToStorable(t testing.TB, domainEvent core.DomainEvent) StorableEvent {
-	storableEvent, err := shell.StorableEventFrom(domainEvent)
+	storableEvent, err := shell.StorableEventWithEmptyMetadataFrom(domainEvent)
+	assert.NoError(t, err, "error in arranging test data")
+
+	return storableEvent
+}
+
+func ToStorableWithMetadata(t testing.TB, domainEvent core.DomainEvent, eventMetadata shell.EventMetadata) StorableEvent {
+	storableEvent, err := shell.StorableEventFrom(domainEvent, eventMetadata)
 	assert.NoError(t, err, "error in arranging test data")
 
 	return storableEvent
