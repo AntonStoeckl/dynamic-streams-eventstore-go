@@ -57,7 +57,7 @@ The **Append** command uses the same where conditions that the **Query** used be
 The **Query** to read the dynamic event stream:
 
 ```postgresql
-SELECT "event_type", "payload", "metadata", "occurred_at", "sequence_number"  
+SELECT "event_type", "occurred_at", "payload", "metadata", "sequence_number"  
 FROM "events"  
 WHERE (
     (

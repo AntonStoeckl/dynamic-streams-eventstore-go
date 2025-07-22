@@ -62,7 +62,7 @@ func (es PostgresEventStore) Query(filter Filter) (StorableEvents, MaxSequenceNu
 	maxSequenceNumber := MaxSequenceNumberUint(0)
 
 	for rows.Next() {
-		rowScanErr := rows.Scan(&result.eventType, &result.payload, &result.metadata, &result.occurredAt, &result.maxSequenceNumber)
+		rowScanErr := rows.Scan(&result.eventType, &result.occurredAt, &result.payload, &result.metadata, &result.maxSequenceNumber)
 		if rowScanErr != nil {
 			return empty, 0, errors.Join(errors.New("scanning db row failed"), rowScanErr)
 		}
@@ -110,7 +110,7 @@ func (es PostgresEventStore) Append(
 func (es PostgresEventStore) buildSelectQuery(filter Filter) (sqlQueryString, error) {
 	selectStmt := goqu.Dialect("postgres").
 		From("events").
-		Select("event_type", "payload", "metadata", "occurred_at", "sequence_number").
+		Select("event_type", "occurred_at", "payload", "metadata", "sequence_number").
 		Order(goqu.I("sequence_number").Asc())
 
 	selectStmt = es.addWhereClause(filter, selectStmt)
