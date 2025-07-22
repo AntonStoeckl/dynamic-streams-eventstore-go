@@ -114,16 +114,6 @@ SELECT 'BookCopyAddedToCirculation',
 FROM context WHERE (COALESCE("max_seq", 0) = 6)
 ```
 
-
-
-SELECT "event_type", "payload", "metadata", "occurred_at", "sequence_number" FROM "events" WHERE ((("event_type" = 'BookCopyAddedToCirculation') OR ("event_type" = 'BookCopyLentToReader') OR ("event_type" = 'BookCopyRemovedFromCirculation') OR ("event_type" = 'BookCopyReturnedByReader')) AND payload @> '{"BookID": "019831ad-cc4c-7229-b520-235c023633b6"}') ORDER BY "sequence_number" ASC
-WITH context AS (SELECT MAX("sequence_number") AS "max_seq" FROM "events" WHERE ((("event_type" = 'BookCopyAddedToCirculation') OR ("event_type" = 'BookCopyLentToReader') OR ("event_type" = 'BookCopyRemovedFromCirculation') OR ("event_type" = 'BookCopyReturnedByReader')) AND payload @> '{"BookID": "019831ad-cc4c-7229-b520-235c023633b6"}')) 
-INSERT INTO "events" ("event_type", "occurred_at", "payload", "metadata") SELECT 'BookCopyRemovedFromCirculation', '2025-07-22T10:28:50.382428Z', '{"BookID":"019831ad-cc4c-7229-b520-235c023633b6","OccurredAt":"2025-07-22T10:28:50.382428Z"}', '{}' FROM "context" WHERE (COALESCE("max_seq", 0) = 2)
-
-
-
-
-
 If you look close, you will notice that the where clause is the same in the **Query** and the **CTE**!  
 
 At the point of the **Query** the highest sequence number of _**relevant events**_ was 6, so if it has changed
