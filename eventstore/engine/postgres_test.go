@@ -24,7 +24,8 @@ func Test_Append_When_NoEvent_Matches_TheQuery_BeforeAppend(t *testing.T) {
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStore(connPool)
+	es, err := NewPostgresEventStoreWithTableName(connPool, "events")
+	assert.NoError(t, err, "creating the event store failed")
 
 	fakeClock := time.Unix(0, 0).UTC()
 

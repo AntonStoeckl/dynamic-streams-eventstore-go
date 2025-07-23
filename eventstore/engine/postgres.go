@@ -15,6 +15,7 @@ import (
 )
 
 var ErrConcurrencyConflict = errors.New("concurrency error, no rows were affected")
+var ErrEmptyTableNameSupplied = errors.New("empty eventTableName supplied")
 
 // MaxSequenceNumberUint is a type alias for uint, representing the maximum sequence number for a "dynamic event stream".
 type MaxSequenceNumberUint = uint
@@ -22,7 +23,8 @@ type MaxSequenceNumberUint = uint
 type sqlQueryString = string
 
 type PostgresEventStore struct {
-	db *pgxpool.Pool
+	db             *pgxpool.Pool
+	eventTableName string
 }
 
 type queryResultRow struct {
@@ -34,7 +36,15 @@ type queryResultRow struct {
 }
 
 func NewPostgresEventStore(db *pgxpool.Pool) PostgresEventStore {
-	return PostgresEventStore{db: db}
+	return PostgresEventStore{db: db, eventTableName: "events"}
+}
+
+func NewPostgresEventStoreWithTableName(db *pgxpool.Pool, eventTableName string) (PostgresEventStore, error) {
+	if eventTableName == "" {
+		return PostgresEventStore{}, ErrEmptyTableNameSupplied
+	}
+
+	return PostgresEventStore{db: db, eventTableName: eventTableName}, nil
 }
 
 // Query retrieves events from the Postgres event store based on the provided eventstore.Filter criteria
@@ -109,7 +119,7 @@ func (es PostgresEventStore) Append(
 
 func (es PostgresEventStore) buildSelectQuery(filter Filter) (sqlQueryString, error) {
 	selectStmt := goqu.Dialect("postgres").
-		From("events").
+		From(es.eventTableName).
 		Select("event_type", "occurred_at", "payload", "metadata", "sequence_number").
 		Order(goqu.I("sequence_number").Asc())
 
@@ -133,7 +143,7 @@ func (es PostgresEventStore) buildInsertQuery(
 
 	// Define the subquery for the CTE
 	cteStmt := builder.
-		From("events").
+		From(es.eventTableName).
 		Select(goqu.MAX("sequence_number").As("max_seq"))
 
 	cteStmt = es.addWhereClause(filter, cteStmt)
@@ -146,7 +156,7 @@ func (es PostgresEventStore) buildInsertQuery(
 
 	// Finalize the full INSERT query
 	insertStmt := builder.
-		Insert("events").
+		Insert(es.eventTableName).
 		Cols("event_type", "occurred_at", "payload", "metadata").
 		FromQuery(selectStmt).
 		With("context", cteStmt)

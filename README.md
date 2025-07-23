@@ -134,7 +134,7 @@ I'll show an example under "Quick start for using it in an application" below.
 
 #### Currently missing
 
-- The table name (_events_) is currently hardcoded in the postgres engine implementation
+- Appending multiple events atomically
 - More storage engines, like MongoDB, might follow ...
 
 
