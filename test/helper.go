@@ -111,7 +111,11 @@ func ToStorableWithMetadata(t testing.TB, domainEvent core.DomainEvent, eventMet
 func GivenBookCopyAddedToCirculationWasAppended(t testing.TB, es PostgresEventStore, bookID uuid.UUID, fakeClock *time.Time) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBook(bookID)
 	event := FixtureBookCopyAddedToCirculation(bookID, fakeClock)
-	err := es.Append(ToStorable(t, event), filter, QueryMaxSequenceNumberBeforeAppend(t, es, filter))
+	err := es.Append(
+		filter,
+		QueryMaxSequenceNumberBeforeAppend(t, es, filter),
+		ToStorable(t, event),
+	)
 	assert.NoError(t, err, "error in arranging test data")
 
 	return event
@@ -120,7 +124,11 @@ func GivenBookCopyAddedToCirculationWasAppended(t testing.TB, es PostgresEventSt
 func GivenBookCopyRemovedFromCirculationWasAppended(t testing.TB, es PostgresEventStore, bookID uuid.UUID, fakeClock *time.Time) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBook(bookID)
 	event := FixtureBookCopyRemovedFromCirculation(bookID, fakeClock)
-	err := es.Append(ToStorable(t, event), filter, QueryMaxSequenceNumberBeforeAppend(t, es, filter))
+	err := es.Append(
+		filter,
+		QueryMaxSequenceNumberBeforeAppend(t, es, filter),
+		ToStorable(t, event),
+	)
 	assert.NoError(t, err, "error in arranging test data")
 
 	return event
@@ -129,7 +137,11 @@ func GivenBookCopyRemovedFromCirculationWasAppended(t testing.TB, es PostgresEve
 func GivenBookCopyLentToReaderWasAppended(t testing.TB, es PostgresEventStore, bookID uuid.UUID, readerID uuid.UUID, fakeClock *time.Time) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBookOrReader(bookID, readerID)
 	event := FixtureBookCopyLentToReader(bookID, readerID, fakeClock)
-	err := es.Append(ToStorable(t, event), filter, QueryMaxSequenceNumberBeforeAppend(t, es, filter))
+	err := es.Append(
+		filter,
+		QueryMaxSequenceNumberBeforeAppend(t, es, filter),
+		ToStorable(t, event),
+	)
 	assert.NoError(t, err, "error in arranging test data")
 
 	return event
@@ -138,7 +150,11 @@ func GivenBookCopyLentToReaderWasAppended(t testing.TB, es PostgresEventStore, b
 func GivenBookCopyReturnedByReaderWasAppended(t testing.TB, es PostgresEventStore, bookID uuid.UUID, readerID uuid.UUID, fakeClock *time.Time) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBookOrReader(bookID, readerID)
 	event := FixtureBookCopyReturnedByReader(bookID, readerID, fakeClock)
-	err := es.Append(ToStorable(t, event), filter, QueryMaxSequenceNumberBeforeAppend(t, es, filter))
+	err := es.Append(
+		filter,
+		QueryMaxSequenceNumberBeforeAppend(t, es, filter),
+		ToStorable(t, event),
+	)
 	assert.NoError(t, err, "error in arranging test data")
 
 	return event
@@ -175,7 +191,11 @@ func GivenSomeOtherEventsWereAppended(t testing.TB, es PostgresEventStore, numEv
 				maxSequenceNumberForThisEventType = 0
 			}
 
-			err = es.Append(ToStorable(t, event), filter, maxSequenceNumberForThisEventType)
+			err = es.Append(
+				filter,
+				maxSequenceNumberForThisEventType,
+				ToStorable(t, event),
+			)
 			assert.NoError(t, err, "error in arranging test data")
 
 			totalEvent++

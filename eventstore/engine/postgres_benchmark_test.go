@@ -44,9 +44,9 @@ func Benchmark_Append_With_Many_Events_InTheStore(b *testing.B) {
 			b.StartTimer()
 
 			err = es.Append(
-				ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, &fakeClock)),
 				filter,
 				maxSequenceNumberBeforeAppend,
+				ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, &fakeClock)),
 			)
 			assert.NoError(b, err, "error in running benchmark action")
 
@@ -167,9 +167,9 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 			b.StartTimer()
 
 			err = es.Append(
-				ToStorable(b, FixtureBookCopyReturnedByReader(bookID, readerID, &fakeClock)),
 				filter,
 				maxSequenceNumberBeforeAppend,
+				ToStorable(b, FixtureBookCopyReturnedByReader(bookID, readerID, &fakeClock)),
 			)
 			assert.NoError(b, err, "error in running benchmark action")
 

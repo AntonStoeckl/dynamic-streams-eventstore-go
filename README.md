@@ -134,7 +134,7 @@ I'll show an example under "Quick start for using it in an application" below.
 
 #### Currently missing
 
-- Appending multiple events atomically
+- Passing context to Append() and Query()
 - More storage engines, like MongoDB, might follow ...
 
 

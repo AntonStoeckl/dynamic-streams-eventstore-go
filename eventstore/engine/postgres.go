@@ -14,8 +14,8 @@ import (
 	. "dynamic-streams-eventstore/eventstore"
 )
 
-var ErrConcurrencyConflict = errors.New("concurrency error, no rows were affected")
 var ErrEmptyTableNameSupplied = errors.New("empty eventTableName supplied")
+var ErrConcurrencyConflict = errors.New("concurrency error, no rows were affected")
 
 // MaxSequenceNumberUint is a type alias for uint, representing the maximum sequence number for a "dynamic event stream".
 type MaxSequenceNumberUint = uint
@@ -50,7 +50,13 @@ func NewPostgresEventStoreWithTableName(db *pgxpool.Pool, eventTableName string)
 // Query retrieves events from the Postgres event store based on the provided eventstore.Filter criteria
 // and returns them as eventstore.StorableEvents
 // as well as the MaxSequenceNumberUint for this "dynamic event stream" at the time of the query.
-func (es PostgresEventStore) Query(filter Filter) (StorableEvents, MaxSequenceNumberUint, error) {
+func (es PostgresEventStore) Query(filter Filter) (
+	StorableEvents,
+	MaxSequenceNumberUint,
+	error,
+) {
+
+	ctx := context.Background()
 	empty := make(StorableEvents, 0)
 
 	sqlQuery, buildQueryErr := es.buildSelectQuery(filter)
@@ -60,7 +66,7 @@ func (es PostgresEventStore) Query(filter Filter) (StorableEvents, MaxSequenceNu
 
 	//fmt.Println(sqlQuery)
 
-	rows, queryErr := es.db.Query(context.Background(), sqlQuery)
+	rows, queryErr := es.db.Query(ctx, sqlQuery)
 	if queryErr != nil {
 		return empty, 0, errors.Join(errors.New("querying events failed"), queryErr)
 	}
@@ -88,29 +94,48 @@ func (es PostgresEventStore) Query(filter Filter) (StorableEvents, MaxSequenceNu
 	return eventStream, maxSequenceNumber, nil
 }
 
-// Append attempts to append an eventstore.StorableEvent onto the Postgres event store respecting concurrency constraints
+// Append attempts to append one or multiple eventstore.StorableEvent(s) onto the Postgres event store respecting concurrency constraints
 // for this "dynamic event stream" based on the provided eventstore.Filter criteria and the expected MaxSequenceNumberUint.
 //
 // The provided eventstore.Filter criteria should be the same as the ones used for the Query before making the business decisions.
+//
+// The insert query to append multiple events atomically is heavier than the one built to append a single event.
+// In event-sourced applications, one command/request should typically only produce one event.
+// Only supply multiple events if you are sure that you need to append multiple events at once!
 func (es PostgresEventStore) Append(
-	event StorableEvent,
 	filter Filter,
 	expectedMaxSequenceNumber MaxSequenceNumberUint,
+	event StorableEvent,
+	additionalEvents ...StorableEvent,
 ) error {
 
-	sqlQuery, buildQueryErr := es.buildInsertQuery(event, filter, expectedMaxSequenceNumber)
+	ctx := context.Background()
+
+	allEvents := StorableEvents{event}
+	allEvents = append(allEvents, additionalEvents...)
+
+	var sqlQuery sqlQueryString
+	var buildQueryErr error
+
+	switch len(allEvents) {
+	case 1:
+		sqlQuery, buildQueryErr = es.buildInsertQueryForSingleEvent(event, filter, expectedMaxSequenceNumber)
+	default:
+		sqlQuery, buildQueryErr = es.buildInsertQueryForMultipleEvents(allEvents, filter, expectedMaxSequenceNumber)
+	}
+
 	if buildQueryErr != nil {
 		return buildQueryErr
 	}
 
 	//fmt.Println(sqlQuery)
 
-	tag, execErr := es.db.Exec(context.Background(), sqlQuery)
+	tag, execErr := es.db.Exec(ctx, sqlQuery)
 	if execErr != nil {
 		return errors.Join(errors.New("appending the event failed"), execErr)
 	}
 
-	if tag.RowsAffected() < 1 {
+	if tag.RowsAffected() < int64(len(allEvents)) {
 		return ErrConcurrencyConflict
 	}
 
@@ -133,7 +158,7 @@ func (es PostgresEventStore) buildSelectQuery(filter Filter) (sqlQueryString, er
 	return sqlQuery, nil
 }
 
-func (es PostgresEventStore) buildInsertQuery(
+func (es PostgresEventStore) buildInsertQueryForSingleEvent(
 	event StorableEvent,
 	filter Filter,
 	expectedMaxSequenceNumber MaxSequenceNumberUint,
@@ -160,6 +185,58 @@ func (es PostgresEventStore) buildInsertQuery(
 		Cols("event_type", "occurred_at", "payload", "metadata").
 		FromQuery(selectStmt).
 		With("context", cteStmt)
+
+	sqlQuery, _, toSqlErr := insertStmt.ToSQL()
+	if toSqlErr != nil {
+		return "", errors.Join(errors.New("building the query failed"), toSqlErr)
+	}
+
+	return sqlQuery, nil
+}
+
+func (es PostgresEventStore) buildInsertQueryForMultipleEvents(
+	events []StorableEvent,
+	filter Filter,
+	expectedMaxSequenceNumber MaxSequenceNumberUint,
+) (sqlQueryString, error) {
+	builder := goqu.Dialect("postgres")
+
+	// Define the subquery for the CTE
+	cteStmt := builder.
+		From(es.eventTableName).
+		Select(goqu.MAX("sequence_number").As("max_seq"))
+
+	cteStmt = es.addWhereClause(filter, cteStmt)
+
+	// Create individual SELECT statements for each event
+	unionStatements := make([]*goqu.SelectDataset, len(events))
+	for i, event := range events {
+		unionStatements[i] = builder.
+			Select(
+				goqu.L("?::text", event.EventType).As("event_type"),
+				goqu.L("?::timestamp with time zone", event.OccurredAt).As("occurred_at"),
+				goqu.L("?::jsonb", event.PayloadJSON).As("payload"),
+				goqu.L("?::jsonb", event.MetadataJSON).As("metadata"),
+			)
+	}
+
+	// Combine all SELECT statements with UNION ALL
+	valuesStmt := unionStatements[0]
+	for i := 1; i < len(unionStatements); i++ {
+		valuesStmt = valuesStmt.UnionAll(unionStatements[i])
+	}
+
+	// Finalize the full INSERT query
+	insertStmt := builder.
+		Insert(es.eventTableName).
+		Cols("event_type", "occurred_at", "payload", "metadata").
+		With("context", cteStmt).
+		With("vals", valuesStmt).
+		FromQuery(
+			builder.From("context", "vals").
+				Select("vals.event_type", "vals.occurred_at", "vals.payload", "vals.metadata").
+				Where(goqu.COALESCE(goqu.C("max_seq"), 0).Eq(goqu.V(expectedMaxSequenceNumber))),
+		)
 
 	sqlQuery, _, toSqlErr := insertStmt.ToSQL()
 	if toSqlErr != nil {
