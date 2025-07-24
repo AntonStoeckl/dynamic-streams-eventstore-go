@@ -75,7 +75,7 @@ WHERE (
 ORDER BY "sequence_number" ASC 
 ```
 
-The **Append** with the **CTE**:
+The **Append** with the **CTE** when appending a single event:
 
 ```postgresql
 WITH context AS --- CTE starts here
@@ -111,8 +111,45 @@ SELECT 'BookCopyAddedToCirculation',
          "OccurredAt":"2025-07-22T10:28:50.382428Z"
        }',
       '{"MessageID": "019831b5-a89b-7acd-84dc-866b984d2548", "CausationID": "019831b5-a89b-7acf-9fca-55ce950a4e5d", "CorrelationID": "019831b5-a89b-7ad0-8e89-9144002139c7"}'
-FROM context WHERE (COALESCE("max_seq", 0) = 6)
+FROM context WHERE (COALESCE("max_seq", 0) = 6);
 ```
+
+The **Append** with the **CTE** when appending multiple events:
+
+```postgresql
+WITH context AS
+(
+    SELECT MAX("sequence_number") AS "max_seq"
+    FROM "events" WHERE (
+        (
+               ("event_type" = 'BookCopyAddedToCirculation')
+            OR ("event_type" = 'BookCopyLentToReader')
+            OR ("event_type" = 'BookCopyRemovedFromCirculation')
+            OR ("event_type" = 'BookCopyReturnedByReader')
+        )
+        AND payload @> '{"BookID": "019839d9-bec3-7139-a704-253f3da13b81"}')
+    ),
+    vals AS (
+        SELECT 'BookCopyLentToReader'::text AS "event_type",
+               '1970-01-01T00:00:04Z'::timestamp with time zone AS "occurred_at",
+               '{"BookID":"019839d9-bec3-7139-a704-253f3da13b81","ReaderID":"019839d9-bec3-713b-9621-9e17535a2bd5","OccurredAt":"1970-01-01T00:00:04Z"}'::jsonb AS "payload",
+               '{"MessageID": "019831b5-a89b-7acd-84dc-866b984d2548", "CausationID": "019831b5-a89b-7acf-9fca-55ce950a4e5d", "CorrelationID": "019831b5-a89b-7ad0-8e89-9144002139c7"}}'::jsonb AS "metadata"
+        UNION ALL (
+        SELECT 'BookCopyReturnedByReader'::text AS "event_type",
+               '1970-01-01T00:00:05Z'::timestamp with time zone AS "occurred_at",
+               '{"BookID":"019839d9-bec3-7139-a704-253f3da13b81","ReaderID":"019839d9-bec3-713b-9621-9e17535a2bd5","OccurredAt":"1970-01-01T00:00:05Z"}'::jsonb AS "payload",
+               '{"MessageID": "019831b5-a89b-7acd-84dc-866b984d2548", "CausationID": "019831b5-a89b-7acf-9fca-55ce950a4e5d", "CorrelationID": "019831b5-a89b-7ad0-8e89-9144002139c7"}}'::jsonb AS "metadata"
+        )
+)
+
+INSERT INTO "events" ("event_type", "occurred_at", "payload", "metadata")
+SELECT "vals"."event_type", "vals"."occurred_at", "vals"."payload", "vals"."metadata"
+FROM "context", "vals" WHERE (COALESCE("max_seq", 0) = 4);
+```
+
+
+
+
 
 If you look close, you will notice that the where clause is the same in the **Query** and the **CTE**!  
 
