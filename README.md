@@ -147,10 +147,6 @@ SELECT "vals"."event_type", "vals"."occurred_at", "vals"."payload", "vals"."meta
 FROM "context", "vals" WHERE (COALESCE("max_seq", 0) = 4);
 ```
 
-
-
-
-
 If you look close, you will notice that the where clause is the same in the **Query** and the **CTE**!  
 
 At the point of the **Query** the highest sequence number of _**relevant events**_ was 6, so if it has changed
