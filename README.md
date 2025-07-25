@@ -376,16 +376,16 @@ pkg: dynamic-streams-eventstore/eventstore/engine
 cpu: Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz
 Benchmark_Query_With_Many_Events_InTheStore
 Benchmark_Query_With_Many_Events_InTheStore/query
-Benchmark_Query_With_Many_Events_InTheStore/query-8                         5794   265519 ns/op  0.2653 ms/query-op
-Benchmark_Query_With_Many_Events_InTheStore/query-8                         5641   208554 ns/op  0.2083 ms/query-op
-Benchmark_Query_With_Many_Events_InTheStore/query-8                         5068   204941 ns/op  0.2048 ms/query-op
-Benchmark_Query_With_Many_Events_InTheStore/query-8                         5894   207301 ns/op  0.2072 ms/query-op
-Benchmark_Query_With_Many_Events_InTheStore/query-8                         4872   211494 ns/op  0.2112 ms/query-op
-Benchmark_Query_With_Many_Events_InTheStore/query-8                         4946   209463 ns/op  0.2093 ms/query-op
-Benchmark_Query_With_Many_Events_InTheStore/query-8                         5695   209657 ns/op  0.2095 ms/query-op
-Benchmark_Query_With_Many_Events_InTheStore/query-8                         5696   223552 ns/op  0.2233 ms/query-op
+Benchmark_Query_With_Many_Events_InTheStore/query-8                        10261   114990 ns/op  0.1148 ms/query-op
+Benchmark_Query_With_Many_Events_InTheStore/query-8                         9030   126038 ns/op  0.1259 ms/query-op
+Benchmark_Query_With_Many_Events_InTheStore/query-8                        10090   119443 ns/op  0.1192 ms/query-op
+Benchmark_Query_With_Many_Events_InTheStore/query-8                         7740   130794 ns/op  0.1306 ms/query-op
+Benchmark_Query_With_Many_Events_InTheStore/query-8                        10024   118945 ns/op  0.1188 ms/query-op
+Benchmark_Query_With_Many_Events_InTheStore/query-8                         8701   126116 ns/op  0.1260 ms/query-op
+Benchmark_Query_With_Many_Events_InTheStore/query-8                        10243   128552 ns/op  0.1284 ms/query-op
+Benchmark_Query_With_Many_Events_InTheStore/query-8                         9056   124445 ns/op  0.1242 ms/query-op
 
-Average: 0.22 ms/query-op
+Average: 0.12 ms/query-op
 ```
 
 ```txt
