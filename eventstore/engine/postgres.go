@@ -11,7 +11,7 @@ import (
 	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/AntonStoeckl/dynamic-streams-eventstore/eventstore"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 )
 
 var ErrEmptyTableNameSupplied = errors.New("empty eventTableName supplied")

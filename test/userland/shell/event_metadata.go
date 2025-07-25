@@ -6,7 +6,7 @@ import (
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 
-	"github.com/AntonStoeckl/dynamic-streams-eventstore/eventstore"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 )
 
 var ErrMappingToEventMetadataFailed = errors.New("mapping to event metadata failed")

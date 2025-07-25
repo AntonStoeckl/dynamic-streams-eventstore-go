@@ -13,12 +13,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore/eventstore"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore/eventstore/engine"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore/test"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore/test/userland/config"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore/test/userland/core"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore/test/userland/shell"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/engine"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/test"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/test/userland/config"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/test/userland/core"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/test/userland/shell"
 )
 
 func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {

@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/AntonStoeckl/dynamic-streams-eventstore/eventstore"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore/test/userland/core"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/test/userland/core"
 )
 
 var ErrMappingToStorableEventFailedForDomainEvent = errors.New("mapping to storable event failed for domain event")
