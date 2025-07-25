@@ -61,9 +61,7 @@ func FilterAllEventTypesForOneBookOrReader(bookID uuid.UUID, readerID uuid.UUID)
 	return filter
 }
 
-func FixtureBookCopyAddedToCirculation(bookID uuid.UUID, fakeClock *time.Time) core.DomainEvent {
-	*fakeClock = fakeClock.Add(time.Second)
-
+func FixtureBookCopyAddedToCirculation(bookID uuid.UUID, fakeClock time.Time) core.DomainEvent {
 	return core.BuildBookCopyAddedToCirculation(
 		bookID,
 		"978-1-098-10013-1",
@@ -72,26 +70,20 @@ func FixtureBookCopyAddedToCirculation(bookID uuid.UUID, fakeClock *time.Time) c
 		"First Edition",
 		"O'Reilly Media, Inc.",
 		2021,
-		*fakeClock,
+		fakeClock,
 	)
 }
 
-func FixtureBookCopyRemovedFromCirculation(bookID uuid.UUID, fakeClock *time.Time) core.DomainEvent {
-	*fakeClock = fakeClock.Add(time.Second)
-
-	return core.BuildBookCopyRemovedFromCirculation(bookID, *fakeClock)
+func FixtureBookCopyRemovedFromCirculation(bookID uuid.UUID, fakeClock time.Time) core.DomainEvent {
+	return core.BuildBookCopyRemovedFromCirculation(bookID, fakeClock)
 }
 
-func FixtureBookCopyLentToReader(bookID uuid.UUID, readerID uuid.UUID, fakeClock *time.Time) core.DomainEvent {
-	*fakeClock = fakeClock.Add(time.Second)
-
-	return core.BuildBookCopyLentToReader(bookID, readerID, *fakeClock)
+func FixtureBookCopyLentToReader(bookID uuid.UUID, readerID uuid.UUID, fakeClock time.Time) core.DomainEvent {
+	return core.BuildBookCopyLentToReader(bookID, readerID, fakeClock)
 }
 
-func FixtureBookCopyReturnedByReader(bookID uuid.UUID, readerID uuid.UUID, fakeClock *time.Time) core.DomainEvent {
-	*fakeClock = fakeClock.Add(time.Second)
-
-	return core.BuildBookCopyReturnedFromReader(bookID, readerID, *fakeClock)
+func FixtureBookCopyReturnedByReader(bookID uuid.UUID, readerID uuid.UUID, fakeClock time.Time) core.DomainEvent {
+	return core.BuildBookCopyReturnedFromReader(bookID, readerID, fakeClock)
 }
 
 func ToStorable(t testing.TB, domainEvent core.DomainEvent) StorableEvent {
@@ -108,7 +100,7 @@ func ToStorableWithMetadata(t testing.TB, domainEvent core.DomainEvent, eventMet
 	return storableEvent
 }
 
-func GivenBookCopyAddedToCirculationWasAppended(t testing.TB, ctx context.Context, es PostgresEventStore, bookID uuid.UUID, fakeClock *time.Time) core.DomainEvent {
+func GivenBookCopyAddedToCirculationWasAppended(t testing.TB, ctx context.Context, es PostgresEventStore, bookID uuid.UUID, fakeClock time.Time) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBook(bookID)
 	event := FixtureBookCopyAddedToCirculation(bookID, fakeClock)
 	err := es.Append(
@@ -122,7 +114,7 @@ func GivenBookCopyAddedToCirculationWasAppended(t testing.TB, ctx context.Contex
 	return event
 }
 
-func GivenBookCopyRemovedFromCirculationWasAppended(t testing.TB, ctx context.Context, es PostgresEventStore, bookID uuid.UUID, fakeClock *time.Time) core.DomainEvent {
+func GivenBookCopyRemovedFromCirculationWasAppended(t testing.TB, ctx context.Context, es PostgresEventStore, bookID uuid.UUID, fakeClock time.Time) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBook(bookID)
 	event := FixtureBookCopyRemovedFromCirculation(bookID, fakeClock)
 	err := es.Append(
@@ -136,7 +128,7 @@ func GivenBookCopyRemovedFromCirculationWasAppended(t testing.TB, ctx context.Co
 	return event
 }
 
-func GivenBookCopyLentToReaderWasAppended(t testing.TB, ctx context.Context, es PostgresEventStore, bookID uuid.UUID, readerID uuid.UUID, fakeClock *time.Time) core.DomainEvent {
+func GivenBookCopyLentToReaderWasAppended(t testing.TB, ctx context.Context, es PostgresEventStore, bookID uuid.UUID, readerID uuid.UUID, fakeClock time.Time) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBookOrReader(bookID, readerID)
 	event := FixtureBookCopyLentToReader(bookID, readerID, fakeClock)
 	err := es.Append(
@@ -150,7 +142,7 @@ func GivenBookCopyLentToReaderWasAppended(t testing.TB, ctx context.Context, es 
 	return event
 }
 
-func GivenBookCopyReturnedByReaderWasAppended(t testing.TB, ctx context.Context, es PostgresEventStore, bookID uuid.UUID, readerID uuid.UUID, fakeClock *time.Time) core.DomainEvent {
+func GivenBookCopyReturnedByReaderWasAppended(t testing.TB, ctx context.Context, es PostgresEventStore, bookID uuid.UUID, readerID uuid.UUID, fakeClock time.Time) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBookOrReader(bookID, readerID)
 	event := FixtureBookCopyReturnedByReader(bookID, readerID, fakeClock)
 	err := es.Append(
@@ -164,7 +156,7 @@ func GivenBookCopyReturnedByReaderWasAppended(t testing.TB, ctx context.Context,
 	return event
 }
 
-func GivenSomeOtherEventsWereAppended(t testing.TB, ctx context.Context, es PostgresEventStore, numEvents int, startFrom MaxSequenceNumberUint, fakeClock *time.Time) {
+func GivenSomeOtherEventsWereAppended(t testing.TB, ctx context.Context, es PostgresEventStore, numEvents int, startFrom MaxSequenceNumberUint, fakeClock time.Time) time.Time {
 	maxSequenceNumber := startFrom
 	totalEvent := 0
 	eventPostfix := 0
@@ -173,12 +165,11 @@ func GivenSomeOtherEventsWereAppended(t testing.TB, ctx context.Context, es Post
 		id, err := uuid.NewV7()
 		assert.NoError(t, err, "error in arranging test data")
 
-		*fakeClock = fakeClock.Add(time.Second)
-
+		fakeClock = fakeClock.Add(time.Second)
 		event := core.BuildSomethingHasHappened(
 			id.String(),
 			"lorem ipsum dolor sit amet: "+id.String(),
-			*fakeClock,
+			fakeClock,
 			core.SomethingHasHappenedEventTypePrefix+strconv.Itoa(eventPostfix))
 
 		amountOfSameEvents := rand.IntN(3) + 1
@@ -223,6 +214,8 @@ func GivenSomeOtherEventsWereAppended(t testing.TB, ctx context.Context, es Post
 	}
 
 	//fmt.Printf("appended %d %s events into the DB\n", totalEvent, core.SomethingHasHappenedEventTypePrefix)
+
+	return fakeClock
 }
 
 func CleanUpEvents(t testing.TB, connPool *pgxpool.Pool) {

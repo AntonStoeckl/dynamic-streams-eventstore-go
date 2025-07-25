@@ -37,17 +37,18 @@ func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
 
 	// arrange
 	CleanUpEvents(t, connPool)
-	GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, &fakeClock)
+	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock)
 	bookID := GivenUniqueID(t)
 	filter := FilterAllEventTypesForOneBook(bookID)
 	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 
 	// act
+	fakeClock = fakeClock.Add(time.Second)
 	err = es.Append(
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, &fakeClock)),
+		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
 	)
 
 	// assert
@@ -69,18 +70,20 @@ func Test_Append_When_SomeEvents_MatchTheQuery_BeforeAppend(t *testing.T) {
 
 	// arrange
 	CleanUpEvents(t, connPool)
-	GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, &fakeClock)
+	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock)
 	bookID := GivenUniqueID(t)
-	GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, &fakeClock)
+	fakeClock = fakeClock.Add(time.Second)
+	GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
 	filter := FilterAllEventTypesForOneBook(bookID)
 	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 
 	// act
+	fakeClock = fakeClock.Add(time.Second)
 	appendErr := es.Append(
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		ToStorable(t, FixtureBookCopyRemovedFromCirculation(bookID, &fakeClock)),
+		ToStorable(t, FixtureBookCopyRemovedFromCirculation(bookID, fakeClock)),
 	)
 
 	// assert
@@ -102,20 +105,23 @@ func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 
 	// arrange
 	CleanUpEvents(t, connPool)
-	GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, &fakeClock)
+	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock)
 	bookID := GivenUniqueID(t)
 	readerID := GivenUniqueID(t)
-	GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, &fakeClock)
+	fakeClock = fakeClock.Add(time.Second)
+	GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
 	filter := FilterAllEventTypesForOneBook(bookID)
 	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
-	GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID, readerID, &fakeClock) // concurrent append
+	fakeClock = fakeClock.Add(time.Second)
+	GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID, readerID, fakeClock) // concurrent append
 
 	// act
+	fakeClock = fakeClock.Add(time.Second)
 	err = es.Append(
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		ToStorable(t, FixtureBookCopyRemovedFromCirculation(bookID, &fakeClock)),
+		ToStorable(t, FixtureBookCopyRemovedFromCirculation(bookID, fakeClock)),
 	)
 
 	// assert
@@ -138,20 +144,22 @@ func Test_AppendMultiple(t *testing.T) {
 
 	// arrange
 	CleanUpEvents(t, connPool)
-	GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, &fakeClock)
+	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock)
 	bookID := GivenUniqueID(t)
 	readerID := GivenUniqueID(t)
-	GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, &fakeClock)
+	fakeClock = fakeClock.Add(time.Second)
+	GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
 	filter := FilterAllEventTypesForOneBook(bookID)
 	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 
 	// act
+	fakeClock = fakeClock.Add(time.Second)
 	appendErr := es.Append(
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		ToStorable(t, FixtureBookCopyLentToReader(bookID, readerID, &fakeClock)),
-		ToStorable(t, FixtureBookCopyReturnedByReader(bookID, readerID, &fakeClock)),
+		ToStorable(t, FixtureBookCopyLentToReader(bookID, readerID, fakeClock)),
+		ToStorable(t, FixtureBookCopyReturnedByReader(bookID, readerID, fakeClock)),
 	)
 
 	// assert
@@ -176,21 +184,24 @@ func Test_AppendMultiple_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 
 	// arrange
 	CleanUpEvents(t, connPool)
-	GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, &fakeClock)
+	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock)
 	bookID := GivenUniqueID(t)
 	readerID := GivenUniqueID(t)
-	GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, &fakeClock)
+	fakeClock = fakeClock.Add(time.Second)
+	GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
 	filter := FilterAllEventTypesForOneBook(bookID)
 	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
-	GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID, readerID, &fakeClock) // concurrent append
+	fakeClock = fakeClock.Add(time.Second)
+	GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID, readerID, fakeClock) // concurrent append
 
 	// act
+	fakeClock = fakeClock.Add(time.Second)
 	appendErr := es.Append(
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		ToStorable(t, FixtureBookCopyLentToReader(bookID, readerID, &fakeClock)),
-		ToStorable(t, FixtureBookCopyReturnedByReader(bookID, readerID, &fakeClock)),
+		ToStorable(t, FixtureBookCopyLentToReader(bookID, readerID, fakeClock)),
+		ToStorable(t, FixtureBookCopyReturnedByReader(bookID, readerID, fakeClock)),
 	)
 
 	// assert
@@ -243,7 +254,7 @@ func Test_Append_Concurrent(t *testing.T) {
 						ctxWithTimeout,
 						filter,
 						maxSeq,
-						ToStorable(t, FixtureBookCopyLentToReader(bookID, readerID, &fakeClock)),
+						ToStorable(t, FixtureBookCopyLentToReader(bookID, readerID, fakeClock)),
 					)
 					if err == nil {
 						successCountSingle.Add(1)
@@ -255,12 +266,14 @@ func Test_Append_Concurrent(t *testing.T) {
 					}
 				} else {
 					// Multiple events
+					event1 := ToStorable(t, FixtureBookCopyLentToReader(bookID, readerID, fakeClock))
+					event2 := ToStorable(t, FixtureBookCopyReturnedByReader(bookID, readerID, fakeClock))
 					err := es.Append(
 						ctxWithTimeout,
 						filter,
 						maxSeq,
-						ToStorable(t, FixtureBookCopyLentToReader(bookID, readerID, &fakeClock)),
-						ToStorable(t, FixtureBookCopyReturnedByReader(bookID, readerID, &fakeClock)),
+						event1,
+						event2,
 					)
 					if err == nil {
 						successCountMultiple.Add(1)
@@ -312,7 +325,8 @@ func Test_Append_EventWithMetadata(t *testing.T) {
 	bookID := GivenUniqueID(t)
 	filter := FilterAllEventTypesForOneBook(bookID)
 	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
-	bookCopyAddedToCirculation := FixtureBookCopyAddedToCirculation(bookID, &fakeClock)
+	fakeClock = fakeClock.Add(time.Second)
+	bookCopyAddedToCirculation := FixtureBookCopyAddedToCirculation(bookID, fakeClock)
 
 	messageID := GivenUniqueID(t)
 	causationID := GivenUniqueID(t)
@@ -358,23 +372,32 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 	// arrange
 	CleanUpEvents(t, connPool)
 	numOtherEvents := 10
-	GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, numOtherEvents, 0, &fakeClock)
+	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, numOtherEvents, 0, fakeClock)
 
 	bookID1 := GivenUniqueID(t)
 	bookID2 := GivenUniqueID(t)
 	readerID1 := GivenUniqueID(t)
 	readerID2 := GivenUniqueID(t)
 
-	bookCopy1AddedToCirculationBook := GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID1, &fakeClock)
-	bookCopy1LentToReader1 := GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID1, readerID1, &fakeClock)
-	bookCopy1ReturnedByReader1 := GivenBookCopyReturnedByReaderWasAppended(t, ctxWithTimeout, es, bookID1, readerID1, &fakeClock)
-	bookCopy1RemovedFromCirculationBook := GivenBookCopyRemovedFromCirculationWasAppended(t, ctxWithTimeout, es, bookID1, &fakeClock)
+	fakeClock = fakeClock.Add(time.Second)
+	bookCopy1AddedToCirculationBook := GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID1, fakeClock)
+	fakeClock = fakeClock.Add(time.Second)
+	bookCopy1LentToReader1 := GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID1, readerID1, fakeClock)
+	fakeClock = fakeClock.Add(time.Second)
+	bookCopy1ReturnedByReader1 := GivenBookCopyReturnedByReaderWasAppended(t, ctxWithTimeout, es, bookID1, readerID1, fakeClock)
+	fakeClock = fakeClock.Add(time.Second)
+	bookCopy1RemovedFromCirculationBook := GivenBookCopyRemovedFromCirculationWasAppended(t, ctxWithTimeout, es, bookID1, fakeClock)
 
-	bookCopy2AddedToCirculationBook := GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID2, &fakeClock)
-	bookCopy2LentToReader2 := GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID2, &fakeClock)
-	bookCopy2ReturnedByReader2 := GivenBookCopyReturnedByReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID2, &fakeClock)
-	bookCopy2LentToReader1 := GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID1, &fakeClock)
-	bookCopy2ReturnedByReader1 := GivenBookCopyReturnedByReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID1, &fakeClock)
+	fakeClock = fakeClock.Add(time.Second)
+	bookCopy2AddedToCirculationBook := GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID2, fakeClock)
+	fakeClock = fakeClock.Add(time.Second)
+	bookCopy2LentToReader2 := GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID2, fakeClock)
+	fakeClock = fakeClock.Add(time.Second)
+	bookCopy2ReturnedByReader2 := GivenBookCopyReturnedByReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID2, fakeClock)
+	fakeClock = fakeClock.Add(time.Second)
+	bookCopy2LentToReader1 := GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID1, fakeClock)
+	fakeClock = fakeClock.Add(time.Second)
+	bookCopy2ReturnedByReader1 := GivenBookCopyReturnedByReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID1, fakeClock)
 
 	/******************************/
 
@@ -677,11 +700,12 @@ func Test_Append_When_Context_Is_Cancelled(t *testing.T) {
 
 	// act
 	cancel()
+	fakeClock = fakeClock.Add(time.Second)
 	err = es.Append(
 		ctxWithCancel,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, &fakeClock)),
+		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
 	)
 
 	// assert
@@ -714,11 +738,12 @@ func Test_Append_When_Context_Times_out(t *testing.T) {
 	time.Sleep(5 * time.Microsecond) // Give the context time to expire
 
 	// act
+	fakeClock = fakeClock.Add(time.Second)
 	err = es.Append(
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, &fakeClock)),
+		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
 	)
 
 	// assert
@@ -742,7 +767,8 @@ func Test_Query_When_Context_Is_Cancelled(t *testing.T) {
 	CleanUpEvents(t, connPool)
 	bookID := GivenUniqueID(t)
 
-	GivenBookCopyAddedToCirculationWasAppended(t, context.Background(), es, bookID, &fakeClock)
+	fakeClock = fakeClock.Add(time.Second)
+	GivenBookCopyAddedToCirculationWasAppended(t, context.Background(), es, bookID, fakeClock)
 
 	filter := FilterAllEventTypesForOneBook(bookID)
 
@@ -772,7 +798,8 @@ func Test_Query_When_Context_Times_Out(t *testing.T) {
 	CleanUpEvents(t, connPool)
 	bookID := GivenUniqueID(t)
 
-	GivenBookCopyAddedToCirculationWasAppended(t, context.Background(), es, bookID, &fakeClock)
+	fakeClock = fakeClock.Add(time.Second)
+	GivenBookCopyAddedToCirculationWasAppended(t, context.Background(), es, bookID, fakeClock)
 
 	filter := FilterAllEventTypesForOneBook(bookID)
 

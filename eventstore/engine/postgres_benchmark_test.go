@@ -30,7 +30,7 @@ func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 
 	// arrange
 	factor := 1000 // multiplied by 1000 -> total num of fixture events
-	appendFixtureEvents(b, ctx, connPool, es, &fakeClock, factor)
+	fakeClock = appendFixtureEvents(b, ctx, connPool, es, fakeClock, factor)
 
 	bookID := GivenUniqueID(b)
 	filter := FilterAllEventTypesForOneBook(bookID)
@@ -44,13 +44,16 @@ func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 			b.StopTimer()
 			maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(b, ctx, es, filter)
 
+			fakeClock = fakeClock.Add(time.Second)
+			event := ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, fakeClock))
+
 			b.StartTimer()
 			start := time.Now()
 			err = es.Append(
 				ctx,
 				filter,
 				maxSequenceNumberBeforeAppend,
-				ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, &fakeClock)),
+				event,
 			)
 			appendTime += time.Since(start)
 			b.StopTimer()
@@ -87,7 +90,7 @@ func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 
 	// arrange
 	factor := 1000 // multiplied by 1000 -> total num of fixture events
-	appendFixtureEvents(b, ctx, connPool, es, &fakeClock, factor)
+	fakeClock = appendFixtureEvents(b, ctx, connPool, es, fakeClock, factor)
 
 	bookID := GivenUniqueID(b)
 	filter := FilterAllEventTypesForOneBook(bookID)
@@ -102,17 +105,24 @@ func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 
 			maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(b, ctx, es, filter)
 
+			fakeClock = fakeClock.Add(time.Second)
+			event1 := ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, fakeClock))
+			fakeClock = fakeClock.Add(time.Second)
+			event2 := ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, fakeClock))
+			fakeClock = fakeClock.Add(time.Second)
+			event3 := ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, fakeClock))
+			fakeClock = fakeClock.Add(time.Second)
+			event4 := ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, fakeClock))
+			fakeClock = fakeClock.Add(time.Second)
+			event5 := ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, fakeClock))
+
 			b.StartTimer()
 			start := time.Now()
 			err = es.Append(
 				ctx,
 				filter,
 				maxSequenceNumberBeforeAppend,
-				ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, &fakeClock)),
-				ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, &fakeClock)),
-				ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, &fakeClock)),
-				ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, &fakeClock)),
-				ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, &fakeClock)),
+				event1, event2, event3, event4, event5,
 			)
 			appendTime += time.Since(start)
 			b.StopTimer()
@@ -149,7 +159,7 @@ func Benchmark_Query_With_Many_Events_InTheStore(b *testing.B) {
 
 	// arrange
 	factor := 1000 // multiplied by 1000 -> total num of fixture events
-	appendFixtureEvents(b, ctx, connPool, es, &fakeClock, factor)
+	appendFixtureEvents(b, ctx, connPool, es, fakeClock, factor)
 
 	row := connPool.QueryRow(
 		context.Background(),
@@ -194,7 +204,7 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 
 	// arrange
 	factor := 1000 // multiplied by 1000 -> total num of fixture events
-	appendFixtureEvents(b, ctx, connPool, es, &fakeClock, factor)
+	fakeClock = appendFixtureEvents(b, ctx, connPool, es, fakeClock, factor)
 
 	bookID := GivenUniqueID(b)
 	filter := FilterAllEventTypesForOneBook(bookID)
@@ -207,7 +217,8 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
 
-			GivenBookCopyAddedToCirculationWasAppended(b, ctx, es, bookID, &fakeClock)
+			fakeClock = fakeClock.Add(time.Second)
+			GivenBookCopyAddedToCirculationWasAppended(b, ctx, es, bookID, fakeClock)
 
 			b.StartTimer()
 			start := time.Now()
@@ -243,13 +254,17 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 
 			assert.True(b, bookExists, "book should exist")
 
+			fakeClock = fakeClock.Add(time.Second)
+			event := ToStorable(b, FixtureBookCopyRemovedFromCirculation(bookID, fakeClock))
+
 			b.StartTimer()
 			start = time.Now()
+
 			err = es.Append(
 				ctx,
 				filter,
 				maxSequenceNumberBeforeAppend,
-				ToStorable(b, FixtureBookCopyRemovedFromCirculation(bookID, &fakeClock)),
+				event,
 			)
 			appendTime += time.Since(start)
 			b.StopTimer()
@@ -277,7 +292,7 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 	})
 }
 
-func appendFixtureEvents(b *testing.B, ctx context.Context, connPool *pgxpool.Pool, es PostgresEventStore, fakeClock *time.Time, factor int) {
+func appendFixtureEvents(b *testing.B, ctx context.Context, connPool *pgxpool.Pool, es PostgresEventStore, fakeClock time.Time, factor int) time.Time {
 	row := connPool.QueryRow(context.Background(), `SELECT count(*) FROM events`)
 	var cnt int
 	err := row.Scan(&cnt)
@@ -287,15 +302,17 @@ func appendFixtureEvents(b *testing.B, ctx context.Context, connPool *pgxpool.Po
 	if cnt < 1000*factor {
 		fmt.Println("DomainEvent setup will run")
 		CleanUpEvents(b, connPool)
-		GivenSomeOtherEventsWereAppended(b, ctx, es, 900*factor, 0, fakeClock)
+		fakeClock = GivenSomeOtherEventsWereAppended(b, ctx, es, 900*factor, 0, fakeClock)
 
 		var totalEvents int
 		for i := 0; i < 10*factor; i++ {
 			bookID := GivenUniqueID(b)
 
 			for j := 0; j < 5; j++ {
+				fakeClock = fakeClock.Add(time.Second)
 				GivenBookCopyAddedToCirculationWasAppended(b, ctx, es, bookID, fakeClock)
 				totalEvents++
+				fakeClock = fakeClock.Add(time.Second)
 				GivenBookCopyRemovedFromCirculationWasAppended(b, ctx, es, bookID, fakeClock)
 				totalEvents++
 
@@ -309,4 +326,6 @@ func appendFixtureEvents(b *testing.B, ctx context.Context, connPool *pgxpool.Po
 	} else {
 		//fmt.Println("DomainEvent setup will NOT run")
 	}
+
+	return fakeClock
 }
