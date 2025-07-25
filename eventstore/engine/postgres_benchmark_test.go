@@ -17,7 +17,7 @@ import (
 	"dynamic-streams-eventstore/test/userland/shell"
 )
 
-func Benchmark_Append_With_Many_Events_InTheStore(b *testing.B) {
+func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 	// setup
 	factor := 1000 // multiplied by 1000 -> total num of fixture events
 	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresBenchmarkConfig())
@@ -35,22 +35,25 @@ func Benchmark_Append_With_Many_Events_InTheStore(b *testing.B) {
 	filter := FilterAllEventTypesForOneBook(bookID)
 
 	// act
-	b.Run("append", func(b *testing.B) {
+	b.Run("append 1 event", func(b *testing.B) {
 		b.ResetTimer()
+		var appendTime time.Duration
 
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
 			maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(b, es, filter)
-			b.StartTimer()
 
+			b.StartTimer()
+			start := time.Now()
 			err = es.Append(
 				filter,
 				maxSequenceNumberBeforeAppend,
 				ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, &fakeClock)),
 			)
-			assert.NoError(b, err, "error in running benchmark action")
-
+			appendTime += time.Since(start)
 			b.StopTimer()
+
+			assert.NoError(b, err, "error in running benchmark action")
 
 			cmdTag, dbErr := connPool.Exec(
 				context.Background(),
@@ -63,9 +66,69 @@ func Benchmark_Append_With_Many_Events_InTheStore(b *testing.B) {
 				_, dbErr = connPool.Exec(context.Background(), `vacuum analyze events`)
 				assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
 			}
+		}
+
+		b.ReportMetric(float64(appendTime.Milliseconds())/float64(b.N), "ms/append-op")
+	})
+}
+
+func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
+	// setup
+	factor := 1000 // multiplied by 1000 -> total num of fixture events
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresBenchmarkConfig())
+	defer connPool.Close()
+	assert.NoError(b, err, "error connecting to DB pool in test setup")
+
+	es := NewPostgresEventStore(connPool)
+
+	fakeClock := time.Unix(0, 0).UTC()
+
+	// arrange
+	appendFixtureEvents(b, connPool, es, &fakeClock, factor)
+
+	bookID := GivenUniqueID(b)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// act
+	b.Run("append 5 events", func(b *testing.B) {
+		b.ResetTimer()
+		var appendTime time.Duration
+
+		for i := 0; i < b.N; i++ {
+			b.StopTimer()
+
+			maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(b, es, filter)
 
 			b.StartTimer()
+			start := time.Now()
+			err = es.Append(
+				filter,
+				maxSequenceNumberBeforeAppend,
+				ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, &fakeClock)),
+				ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, &fakeClock)),
+				ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, &fakeClock)),
+				ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, &fakeClock)),
+				ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, &fakeClock)),
+			)
+			appendTime += time.Since(start)
+			b.StopTimer()
+
+			assert.NoError(b, err, "error in running benchmark action")
+
+			cmdTag, dbErr := connPool.Exec(
+				context.Background(),
+				fmt.Sprintf(`DELETE FROM events WHERE payload @> '{"BookID": "%s"}'`, bookID.String()),
+			)
+			assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
+			assert.Equal(b, 5, int(cmdTag.RowsAffected()))
+
+			if i%100 == 0 {
+				_, dbErr = connPool.Exec(context.Background(), `vacuum analyze events`)
+				assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
+			}
 		}
+
+		b.ReportMetric(float64(appendTime.Milliseconds())/float64(b.N), "ms/append-op")
 	})
 }
 
@@ -98,10 +161,18 @@ func Benchmark_Query_With_Many_Events_InTheStore(b *testing.B) {
 	// act
 	b.Run("query", func(b *testing.B) {
 		b.ResetTimer()
+		var queryTime time.Duration
 
 		for i := 0; i < b.N; i++ {
-			QueryMaxSequenceNumberBeforeAppend(b, es, filter)
+			b.StartTimer()
+			start := time.Now()
+			_, _, queryErr := es.Query(filter)
+			queryTime += time.Since(start)
+			b.StopTimer()
+			assert.NoError(b, queryErr, "error in running benchmark action")
 		}
+
+		b.ReportMetric(float64(queryTime.Milliseconds())/float64(b.N), "ms/query-op")
 	})
 }
 
@@ -124,8 +195,9 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 	filter := FilterAllEventTypesForOneBookOrReader(bookID, readerID)
 
 	// act
-	b.Run("append", func(b *testing.B) {
+	b.Run("query decide append", func(b *testing.B) {
 		b.ResetTimer()
+		var queryTime, appendTime, unmarshalTime, bizTime time.Duration
 
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
@@ -134,13 +206,23 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 			GivenBookCopyLentToReaderWasAppended(b, es, bookID, readerID, &fakeClock)
 
 			b.StartTimer()
-
+			start := time.Now()
 			storableEvents, maxSequenceNumberBeforeAppend, queryErr := es.Query(filter)
+			queryTime += time.Since(start)
+			b.StopTimer()
+
 			assert.NoError(b, queryErr, "error in running benchmark query")
+
+			b.StartTimer()
+			start = time.Now()
 			domainEvents, mappingErr := shell.DomainEventsFrom(storableEvents)
+			unmarshalTime += time.Since(start)
+			b.StopTimer()
 			assert.NoError(b, mappingErr, "error in mapping events for benchmark")
 
 			// business logic for this feature/use-case
+			b.StartTimer()
+			start = time.Now()
 			bookExists := false
 			bookCurrentlyLentOutByThisReader := false
 			for _, domainEvent := range domainEvents {
@@ -160,25 +242,29 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 					bookCurrentlyLentOutByThisReader = actualEvent.ReaderID == readerID.String()
 				}
 			}
+			bizTime += time.Since(start)
+			b.StopTimer()
 
 			assert.True(b, bookExists, "book should exist")
 			assert.True(b, bookCurrentlyLentOutByThisReader, "book should be lent out by this reader")
 
 			b.StartTimer()
-
+			start = time.Now()
 			err = es.Append(
 				filter,
 				maxSequenceNumberBeforeAppend,
 				ToStorable(b, FixtureBookCopyReturnedByReader(bookID, readerID, &fakeClock)),
 			)
-			assert.NoError(b, err, "error in running benchmark action")
-
+			appendTime += time.Since(start)
 			b.StopTimer()
+
+			assert.NoError(b, err, "error in running benchmark action")
 
 			cmdTag, dbErr := connPool.Exec(
 				context.Background(),
 				fmt.Sprintf(`DELETE FROM events WHERE payload @> '{"BookID": "%s"}'`, bookID.String()),
 			)
+
 			assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
 			assert.Equal(b, 3, int(cmdTag.RowsAffected()))
 
@@ -186,9 +272,12 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 				_, dbErr = connPool.Exec(context.Background(), `vacuum analyze events`)
 				assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
 			}
-
-			b.StartTimer()
 		}
+
+		totalTime := queryTime + appendTime + unmarshalTime + bizTime
+		b.ReportMetric(float64(totalTime.Milliseconds())/float64(b.N), "ms/total-op")
+		b.ReportMetric(float64(appendTime.Milliseconds())/float64(b.N), "ms/append-op")
+		b.ReportMetric(float64(queryTime.Milliseconds())/float64(b.N), "ms/query-op")
 	})
 }
 
