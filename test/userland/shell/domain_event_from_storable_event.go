@@ -6,8 +6,8 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
-	"dynamic-streams-eventstore/eventstore"
-	"dynamic-streams-eventstore/test/userland/core"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore/eventstore"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore/test/userland/core"
 )
 
 var ErrMappingToDomainEventFailed = errors.New("mapping to domain event failed")

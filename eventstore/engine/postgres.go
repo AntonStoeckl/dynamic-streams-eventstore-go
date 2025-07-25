@@ -11,7 +11,7 @@ import (
 	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	. "dynamic-streams-eventstore/eventstore"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore/eventstore"
 )
 
 var ErrEmptyTableNameSupplied = errors.New("empty eventTableName supplied")
@@ -50,13 +50,13 @@ func NewPostgresEventStoreWithTableName(db *pgxpool.Pool, eventTableName string)
 // Query retrieves events from the Postgres event store based on the provided eventstore.Filter criteria
 // and returns them as eventstore.StorableEvents
 // as well as the MaxSequenceNumberUint for this "dynamic event stream" at the time of the query.
-func (es PostgresEventStore) Query(ctx context.Context, filter Filter) (
-	StorableEvents,
+func (es PostgresEventStore) Query(ctx context.Context, filter eventstore.Filter) (
+	eventstore.StorableEvents,
 	MaxSequenceNumberUint,
 	error,
 ) {
 
-	empty := make(StorableEvents, 0)
+	empty := make(eventstore.StorableEvents, 0)
 
 	sqlQuery, buildQueryErr := es.buildSelectQuery(filter)
 	if buildQueryErr != nil {
@@ -73,7 +73,7 @@ func (es PostgresEventStore) Query(ctx context.Context, filter Filter) (
 	defer rows.Close()
 
 	result := queryResultRow{}
-	eventStream := make(StorableEvents, 0)
+	eventStream := make(eventstore.StorableEvents, 0)
 	maxSequenceNumber := MaxSequenceNumberUint(0)
 
 	for rows.Next() {
@@ -84,7 +84,7 @@ func (es PostgresEventStore) Query(ctx context.Context, filter Filter) (
 
 		eventStream = append(
 			eventStream,
-			BuildStorableEvent(result.eventType, result.occurredAt, result.payload, result.metadata),
+			eventstore.BuildStorableEvent(result.eventType, result.occurredAt, result.payload, result.metadata),
 		)
 
 		maxSequenceNumber = result.maxSequenceNumber
@@ -103,13 +103,13 @@ func (es PostgresEventStore) Query(ctx context.Context, filter Filter) (
 // Only supply multiple events if you are sure that you need to append multiple events at once!
 func (es PostgresEventStore) Append(
 	ctx context.Context,
-	filter Filter,
+	filter eventstore.Filter,
 	expectedMaxSequenceNumber MaxSequenceNumberUint,
-	event StorableEvent,
-	additionalEvents ...StorableEvent,
+	event eventstore.StorableEvent,
+	additionalEvents ...eventstore.StorableEvent,
 ) error {
 
-	allEvents := StorableEvents{event}
+	allEvents := eventstore.StorableEvents{event}
 	allEvents = append(allEvents, additionalEvents...)
 
 	var sqlQuery sqlQueryString
@@ -140,7 +140,7 @@ func (es PostgresEventStore) Append(
 	return nil
 }
 
-func (es PostgresEventStore) buildSelectQuery(filter Filter) (sqlQueryString, error) {
+func (es PostgresEventStore) buildSelectQuery(filter eventstore.Filter) (sqlQueryString, error) {
 	selectStmt := goqu.Dialect("postgres").
 		From(es.eventTableName).
 		Select("event_type", "occurred_at", "payload", "metadata", "sequence_number").
@@ -157,8 +157,8 @@ func (es PostgresEventStore) buildSelectQuery(filter Filter) (sqlQueryString, er
 }
 
 func (es PostgresEventStore) buildInsertQueryForSingleEvent(
-	event StorableEvent,
-	filter Filter,
+	event eventstore.StorableEvent,
+	filter eventstore.Filter,
 	expectedMaxSequenceNumber MaxSequenceNumberUint,
 ) (sqlQueryString, error) {
 
@@ -193,8 +193,8 @@ func (es PostgresEventStore) buildInsertQueryForSingleEvent(
 }
 
 func (es PostgresEventStore) buildInsertQueryForMultipleEvents(
-	events []StorableEvent,
-	filter Filter,
+	events []eventstore.StorableEvent,
+	filter eventstore.Filter,
 	expectedMaxSequenceNumber MaxSequenceNumberUint,
 ) (sqlQueryString, error) {
 	builder := goqu.Dialect("postgres")
@@ -244,7 +244,7 @@ func (es PostgresEventStore) buildInsertQueryForMultipleEvents(
 	return sqlQuery, nil
 }
 
-func (es PostgresEventStore) addWhereClause(filter Filter, selectStmt *goqu.SelectDataset) *goqu.SelectDataset {
+func (es PostgresEventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.SelectDataset) *goqu.SelectDataset {
 	itemsExpressions := make([]goqu.Expression, 0)
 
 	for _, item := range filter.Items() {

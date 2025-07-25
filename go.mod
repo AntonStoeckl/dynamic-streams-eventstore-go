@@ -1,4 +1,4 @@
-module dynamic-streams-eventstore
+module github.com/AntonStoeckl/dynamic-streams-eventstore
 
 go 1.24
 

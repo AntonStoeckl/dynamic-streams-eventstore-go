@@ -3,8 +3,8 @@ package shell
 import (
 	"errors"
 
-	"dynamic-streams-eventstore/eventstore"
-	"dynamic-streams-eventstore/test/userland/core"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore/eventstore"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore/test/userland/core"
 )
 
 var ErrEventEnvelopeFromStorableEventFailed = errors.New("event envelope from storable event failed")
