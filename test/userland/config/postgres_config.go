@@ -8,10 +8,10 @@ import (
 )
 
 func PostgresTestConfig() *pgxpool.Config {
-	const defaultMaxConnections = int32(4)
-	const defaultMinConnections = int32(0)
+	const defaultMaxConnections = int32(8)
+	const defaultMinConnections = int32(2)
 	const defaultMaxConnLifetime = time.Hour
-	const defaultMaxConnIdleTime = time.Minute * 30
+	const defaultMaxConnIdleTime = time.Minute * 5
 	const defaultHealthCheckPeriod = time.Minute
 	const defaultConnectTimeout = time.Second * 5
 
@@ -34,10 +34,10 @@ func PostgresTestConfig() *pgxpool.Config {
 }
 
 func PostgresBenchmarkConfig() *pgxpool.Config {
-	const defaultMaxConnections = int32(4)
-	const defaultMinConnections = int32(0)
+	const defaultMaxConnections = int32(8)
+	const defaultMinConnections = int32(2)
 	const defaultMaxConnLifetime = time.Hour
-	const defaultMaxConnIdleTime = time.Minute * 30
+	const defaultMaxConnIdleTime = time.Minute * 5
 	const defaultHealthCheckPeriod = time.Minute
 	const defaultConnectTimeout = time.Second * 5
 
