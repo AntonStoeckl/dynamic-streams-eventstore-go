@@ -370,62 +370,90 @@ The results naturally vary, I'm showing some "typical" results below.
 I'm running them with `--count 8` which means eight repetitions.
 
 ```txt
-goos: linux  
-goarch: amd64  
-pkg: dynamic-streams-eventstore/eventstore/engine  
-cpu: Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz  
-Benchmark_Append_With_Many_Events_InTheStore/append-8 535 2211224 ns/op
-Benchmark_Append_With_Many_Events_InTheStore/append-8 588 2494717 ns/op
-Benchmark_Append_With_Many_Events_InTheStore/append-8 484 2560869 ns/op
-Benchmark_Append_With_Many_Events_InTheStore/append-8 480 2566933 ns/op
-Benchmark_Append_With_Many_Events_InTheStore/append-8 480 2477165 ns/op
-Benchmark_Append_With_Many_Events_InTheStore/append-8 441 2556536 ns/op
-Benchmark_Append_With_Many_Events_InTheStore/append-8 505 2605083 ns/op
-Benchmark_Append_With_Many_Events_InTheStore/append-8 442 2623357 ns/op
+goos: linux
+goarch: amd64
+pkg: dynamic-streams-eventstore/eventstore/engine
+cpu: Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz
+Benchmark_Query_With_Many_Events_InTheStore
+Benchmark_Query_With_Many_Events_InTheStore/query
+Benchmark_Query_With_Many_Events_InTheStore/query-8                         5794   265519 ns/op  0.2653 ms/query-op
+Benchmark_Query_With_Many_Events_InTheStore/query-8                         5641   208554 ns/op  0.2083 ms/query-op
+Benchmark_Query_With_Many_Events_InTheStore/query-8                         5068   204941 ns/op  0.2048 ms/query-op
+Benchmark_Query_With_Many_Events_InTheStore/query-8                         5894   207301 ns/op  0.2072 ms/query-op
+Benchmark_Query_With_Many_Events_InTheStore/query-8                         4872   211494 ns/op  0.2112 ms/query-op
+Benchmark_Query_With_Many_Events_InTheStore/query-8                         4946   209463 ns/op  0.2093 ms/query-op
+Benchmark_Query_With_Many_Events_InTheStore/query-8                         5695   209657 ns/op  0.2095 ms/query-op
+Benchmark_Query_With_Many_Events_InTheStore/query-8                         5696   223552 ns/op  0.2233 ms/query-op
+
+Average: 0.22 ms/query-op
 ```
+
 ```txt
-goos: linux  
-goarch: amd64  
-pkg: dynamic-streams-eventstore/eventstore/engine  
-cpu: Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz  
-Benchmark_Query_With_Many_Events_InTheStore/query-8 5818 197042 ns/op
-Benchmark_Query_With_Many_Events_InTheStore/query-8 5202 204716 ns/op
-Benchmark_Query_With_Many_Events_InTheStore/query-8 5222 192455 ns/op
-Benchmark_Query_With_Many_Events_InTheStore/query-8 6264 190324 ns/op
-Benchmark_Query_With_Many_Events_InTheStore/query-8 6236 192805 ns/op
-Benchmark_Query_With_Many_Events_InTheStore/query-8 5370 209709 ns/op
-Benchmark_Query_With_Many_Events_InTheStore/query-8 5589 204389 ns/op
-Benchmark_Query_With_Many_Events_InTheStore/query-8 5571 193981 ns/op
-Benchmark_Query_With_Many_Events_InTheStore/query-8 6292 194154 ns/op
-Benchmark_Query_With_Many_Events_InTheStore/query-8 5716 210545 ns/op
+goos: linux
+goarch: amd64
+pkg: dynamic-streams-eventstore/eventstore/engine
+cpu: Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz
+Benchmark_SingleAppend_With_Many_Events_InTheStore
+Benchmark_SingleAppend_With_Many_Events_InTheStore/append_1_event
+Benchmark_SingleAppend_With_Many_Events_InTheStore/append_1_event-8          604  2398214 ns/op  2.397 ms/append-op
+Benchmark_SingleAppend_With_Many_Events_InTheStore/append_1_event-8          416  2569135 ns/op  2.567 ms/append-op
+Benchmark_SingleAppend_With_Many_Events_InTheStore/append_1_event-8          489  2463899 ns/op  2.462 ms/append-op
+Benchmark_SingleAppend_With_Many_Events_InTheStore/append_1_event-8          439  2581829 ns/op  2.581 ms/append-op
+Benchmark_SingleAppend_With_Many_Events_InTheStore/append_1_event-8          466  2566893 ns/op  2.567 ms/append-op
+Benchmark_SingleAppend_With_Many_Events_InTheStore/append_1_event-8          434  2608802 ns/op  2.608 ms/append-op
+Benchmark_SingleAppend_With_Many_Events_InTheStore/append_1_event-8          409  2632468 ns/op  2.631 ms/append-op
+Benchmark_SingleAppend_With_Many_Events_InTheStore/append_1_event-8          488  2576727 ns/op  2.576 ms/append-op
+
+Average: 2.55 ms/append-op
 ```
+
 ```txt
-goos: linux  
-goarch: amd64  
-pkg: dynamic-streams-eventstore/eventstore/engine  
-cpu: Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz  
-Benchmark_TypicalWorkload_With_Many_Events_InTheStore  
-Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append  
-Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append
-Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append-8 302 3586976 ns/op
-Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append-8 339 3466188 ns/op
-Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append-8 331 3863671 ns/op
-Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append-8 290 4714235 ns/op
-Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append-8 226 4830584 ns/op
-Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append-8 267 5173156 ns/op
-Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append-8 217 5728742 ns/op
-Benchmark_TypicalWorkload_With_Many_Events_InTheStore/append-8 204 5705906 ns/op
+goos: linux
+goarch: amd64
+pkg: dynamic-streams-eventstore/eventstore/engine
+cpu: Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz
+Benchmark_MultipleAppend_With_Many_Events_InTheStore
+Benchmark_MultipleAppend_With_Many_Events_InTheStore/append_5_events
+Benchmark_MultipleAppend_With_Many_Events_InTheStore/append_5_events-8       322  3115535 ns/op  3.115 ms/append-op
+Benchmark_MultipleAppend_With_Many_Events_InTheStore/append_5_events-8       414  2877847 ns/op  2.877 ms/append-op
+Benchmark_MultipleAppend_With_Many_Events_InTheStore/append_5_events-8       475  2787917 ns/op  2.787 ms/append-op
+Benchmark_MultipleAppend_With_Many_Events_InTheStore/append_5_events-8       427  2956877 ns/op  2.956 ms/append-op
+Benchmark_MultipleAppend_With_Many_Events_InTheStore/append_5_events-8       391  3014475 ns/op  3.013 ms/append-op
+Benchmark_MultipleAppend_With_Many_Events_InTheStore/append_5_events-8       402  3303100 ns/op  3.301 ms/append-op
+Benchmark_MultipleAppend_With_Many_Events_InTheStore/append_5_events-8       348  3676320 ns/op  3.675 ms/append-op
+Benchmark_MultipleAppend_With_Many_Events_InTheStore/append_5_events-8       318  3606493 ns/op  3.604 ms/append-op
+
+Average: 3.17 ms/append-op
+```
+
+```txt
+goos: linux
+goarch: amd64
+pkg: dynamic-streams-eventstore/eventstore/engine
+cpu: Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz
+Benchmark_TypicalWorkload_With_Many_Events_InTheStore
+Benchmark_TypicalWorkload_With_Many_Events_InTheStore/query_decide_append
+Benchmark_TypicalWorkload_With_Many_Events_InTheStore/query_decide_append-8  326  3775438 ns/op  2.761 ms/append-op  0.988 ms/query-op  3.773 ms/total-op
+Benchmark_TypicalWorkload_With_Many_Events_InTheStore/query_decide_append-8  349  3848403 ns/op  2.725 ms/append-op  1.097 ms/query-op  3.845 ms/total-op
+Benchmark_TypicalWorkload_With_Many_Events_InTheStore/query_decide_append-8  381  3426990 ns/op  2.415 ms/append-op  0.992 ms/query-op  3.425 ms/total-op
+Benchmark_TypicalWorkload_With_Many_Events_InTheStore/query_decide_append-8  361  3001814 ns/op  2.144 ms/append-op  0.845 ms/query-op  3.000 ms/total-op
+Benchmark_TypicalWorkload_With_Many_Events_InTheStore/query_decide_append-8  382  3343397 ns/op  2.322 ms/append-op  1.008 ms/query-op  3.340 ms/total-op
+Benchmark_TypicalWorkload_With_Many_Events_InTheStore/query_decide_append-8  313  3511982 ns/op  2.399 ms/append-op  1.099 ms/query-op  3.508 ms/total-op
+Benchmark_TypicalWorkload_With_Many_Events_InTheStore/query_decide_append-8  304  3723476 ns/op  2.510 ms/append-op  1.197 ms/query-op  3.720 ms/total-op
+Benchmark_TypicalWorkload_With_Many_Events_InTheStore/query_decide_append-8  284  3847230 ns/op  2.570 ms/append-op  1.261 ms/query-op  3.845 ms/total-op
+
+Average: 3.56 ms/total-op
 ```
 
 The "typical workload" benchmark does a full cycle of:
 * Query events
 * Unserialize events
 * Apply business logic and make a decision
-* Serialize event
-* Append event
+* Serialize (single) event
+* Append (single) event
 
-In other words, what a real application would do (minus http request, emitting events, ...).  
-The average of those 8 "workloads" is around **4.6 ms**, which I consider decent on my hardware.
+Queries are slower in the "typical workload" benchmark as there is much more write-load on the DB.  
+Serialization and business logic execution times are irrelevant in this benchmark.
 
 
 ## License
