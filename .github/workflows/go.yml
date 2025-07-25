@@ -31,6 +31,8 @@ jobs:
 
       - name: Set up Go
         uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
 
       - name: Install dependencies
         run: go mod download
@@ -40,7 +42,7 @@ jobs:
           PGPASSWORD=test psql -h localhost -U test -d eventstore -f test/initdb/init.sql
 
       - name: Run tests
-        run: go test -race -coverprofile=coverage.out -covermode=atomic $(go list ./... | grep -v '/test')
+        run: go test -race -coverprofile=coverage.out -coverpkg=./eventstore,./eventstore/engine -covermode=atomic $(go list ./... | grep -v '/test')
 
       - name: Upload results to Codecov
         uses: codecov/codecov-action@v5
