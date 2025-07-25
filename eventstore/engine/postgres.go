@@ -50,13 +50,12 @@ func NewPostgresEventStoreWithTableName(db *pgxpool.Pool, eventTableName string)
 // Query retrieves events from the Postgres event store based on the provided eventstore.Filter criteria
 // and returns them as eventstore.StorableEvents
 // as well as the MaxSequenceNumberUint for this "dynamic event stream" at the time of the query.
-func (es PostgresEventStore) Query(filter Filter) (
+func (es PostgresEventStore) Query(ctx context.Context, filter Filter) (
 	StorableEvents,
 	MaxSequenceNumberUint,
 	error,
 ) {
 
-	ctx := context.Background()
 	empty := make(StorableEvents, 0)
 
 	sqlQuery, buildQueryErr := es.buildSelectQuery(filter)
@@ -103,13 +102,12 @@ func (es PostgresEventStore) Query(filter Filter) (
 // In event-sourced applications, one command/request should typically only produce one event.
 // Only supply multiple events if you are sure that you need to append multiple events at once!
 func (es PostgresEventStore) Append(
+	ctx context.Context,
 	filter Filter,
 	expectedMaxSequenceNumber MaxSequenceNumberUint,
 	event StorableEvent,
 	additionalEvents ...StorableEvent,
 ) error {
-
-	ctx := context.Background()
 
 	allEvents := StorableEvents{event}
 	allEvents = append(allEvents, additionalEvents...)

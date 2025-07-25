@@ -23,6 +23,9 @@ import (
 
 func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
 	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
@@ -34,13 +37,14 @@ func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
 
 	// arrange
 	CleanUpEvents(t, connPool)
-	GivenSomeOtherEventsWereAppended(t, es, rand.IntN(5)+1, 0, &fakeClock)
+	GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, &fakeClock)
 	bookID := GivenUniqueID(t)
 	filter := FilterAllEventTypesForOneBook(bookID)
-	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, es, filter)
+	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 
 	// act
 	err = es.Append(
+		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
 		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, &fakeClock)),
@@ -52,6 +56,9 @@ func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
 
 func Test_Append_When_SomeEvents_MatchTheQuery_BeforeAppend(t *testing.T) {
 	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
@@ -62,14 +69,15 @@ func Test_Append_When_SomeEvents_MatchTheQuery_BeforeAppend(t *testing.T) {
 
 	// arrange
 	CleanUpEvents(t, connPool)
-	GivenSomeOtherEventsWereAppended(t, es, rand.IntN(5)+1, 0, &fakeClock)
+	GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, &fakeClock)
 	bookID := GivenUniqueID(t)
-	GivenBookCopyAddedToCirculationWasAppended(t, es, bookID, &fakeClock)
+	GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, &fakeClock)
 	filter := FilterAllEventTypesForOneBook(bookID)
-	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, es, filter)
+	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 
 	// act
 	appendErr := es.Append(
+		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
 		ToStorable(t, FixtureBookCopyRemovedFromCirculation(bookID, &fakeClock)),
@@ -81,6 +89,9 @@ func Test_Append_When_SomeEvents_MatchTheQuery_BeforeAppend(t *testing.T) {
 
 func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
@@ -91,16 +102,17 @@ func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 
 	// arrange
 	CleanUpEvents(t, connPool)
-	GivenSomeOtherEventsWereAppended(t, es, rand.IntN(5)+1, 0, &fakeClock)
+	GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, &fakeClock)
 	bookID := GivenUniqueID(t)
 	readerID := GivenUniqueID(t)
-	GivenBookCopyAddedToCirculationWasAppended(t, es, bookID, &fakeClock)
+	GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, &fakeClock)
 	filter := FilterAllEventTypesForOneBook(bookID)
-	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, es, filter)
-	GivenBookCopyLentToReaderWasAppended(t, es, bookID, readerID, &fakeClock) // concurrent append
+	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
+	GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID, readerID, &fakeClock) // concurrent append
 
 	// act
 	err = es.Append(
+		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
 		ToStorable(t, FixtureBookCopyRemovedFromCirculation(bookID, &fakeClock)),
@@ -113,6 +125,9 @@ func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 
 func Test_AppendMultiple(t *testing.T) {
 	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
@@ -123,15 +138,16 @@ func Test_AppendMultiple(t *testing.T) {
 
 	// arrange
 	CleanUpEvents(t, connPool)
-	GivenSomeOtherEventsWereAppended(t, es, rand.IntN(5)+1, 0, &fakeClock)
+	GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, &fakeClock)
 	bookID := GivenUniqueID(t)
 	readerID := GivenUniqueID(t)
-	GivenBookCopyAddedToCirculationWasAppended(t, es, bookID, &fakeClock)
+	GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, &fakeClock)
 	filter := FilterAllEventTypesForOneBook(bookID)
-	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, es, filter)
+	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 
 	// act
 	appendErr := es.Append(
+		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
 		ToStorable(t, FixtureBookCopyLentToReader(bookID, readerID, &fakeClock)),
@@ -140,13 +156,16 @@ func Test_AppendMultiple(t *testing.T) {
 
 	// assert
 	assert.NoError(t, appendErr, "error in appending the event")
-	actualEvents, _, queryErr := es.Query(filter)
+	actualEvents, _, queryErr := es.Query(ctxWithTimeout, filter)
 	assert.NoError(t, queryErr, "error in querying the appended events back")
 	assert.Len(t, actualEvents, 3, "there should be exactly 3 events") // 1 in arrange and 2 in act
 }
 
 func Test_AppendMultiple_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
@@ -157,16 +176,17 @@ func Test_AppendMultiple_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 
 	// arrange
 	CleanUpEvents(t, connPool)
-	GivenSomeOtherEventsWereAppended(t, es, rand.IntN(5)+1, 0, &fakeClock)
+	GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, &fakeClock)
 	bookID := GivenUniqueID(t)
 	readerID := GivenUniqueID(t)
-	GivenBookCopyAddedToCirculationWasAppended(t, es, bookID, &fakeClock)
+	GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, &fakeClock)
 	filter := FilterAllEventTypesForOneBook(bookID)
-	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, es, filter)
-	GivenBookCopyLentToReaderWasAppended(t, es, bookID, readerID, &fakeClock) // concurrent append
+	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
+	GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID, readerID, &fakeClock) // concurrent append
 
 	// act
 	appendErr := es.Append(
+		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
 		ToStorable(t, FixtureBookCopyLentToReader(bookID, readerID, &fakeClock)),
@@ -180,7 +200,10 @@ func Test_AppendMultiple_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 
 func Test_Append_Concurrent(t *testing.T) {
 	// setup
-	connPool, configErr := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	connPool, configErr := pgxpool.NewWithConfig(ctxWithTimeout, config.PostgresTestConfig())
 	defer connPool.Close()
 	assert.NoError(t, configErr, "error connecting to DB pool in test setup")
 
@@ -211,12 +234,13 @@ func Test_Append_Concurrent(t *testing.T) {
 
 			for j := 0; j < operationsPerGoroutine; j++ {
 				filter := FilterAllEventTypesForOneBookOrReader(bookID, readerID)
-				maxSeq := QueryMaxSequenceNumberBeforeAppend(t, es, filter)
+				maxSeq := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 
 				// Randomly choose between appending single and multiple event(s)
 				if rand.IntN(2)%2 == 0 {
 					// Single event
 					err := es.Append(
+						ctxWithTimeout,
 						filter,
 						maxSeq,
 						ToStorable(t, FixtureBookCopyLentToReader(bookID, readerID, &fakeClock)),
@@ -232,6 +256,7 @@ func Test_Append_Concurrent(t *testing.T) {
 				} else {
 					// Multiple events
 					err := es.Append(
+						ctxWithTimeout,
 						filter,
 						maxSeq,
 						ToStorable(t, FixtureBookCopyLentToReader(bookID, readerID, &fakeClock)),
@@ -253,23 +278,27 @@ func Test_Append_Concurrent(t *testing.T) {
 	wg.Wait()
 
 	// assert
-	t.Logf("Successful appends (single event): %d", successCountSingle.Load())
-	t.Logf("Successful appends (multiple events): %d", successCountMultiple.Load())
-	t.Logf("Concurrency conflicts (single event): %d", conflictCountSingle.Load())
-	t.Logf("Concurrency conflicts (multiple events): %d", conflictCountMultiple.Load())
-	t.Logf("Total events added: %d", eventCount.Load())
-
 	assert.Greater(t, successCountSingle.Load(), int32(0))
 	assert.Greater(t, successCountMultiple.Load(), int32(0))
 	assert.Greater(t, conflictCountSingle.Load(), int32(0))
 	assert.Greater(t, conflictCountMultiple.Load(), int32(0))
-	events, _, err := es.Query(FilterAllEventTypesForOneBookOrReader(bookID, readerID))
+
+	events, _, err := es.Query(ctxWithTimeout, FilterAllEventTypesForOneBookOrReader(bookID, readerID))
 	assert.NoError(t, err)
 	assert.Equal(t, int(eventCount.Load()), len(events))
+
+	//t.Logf("Successful appends (single event): %d", successCountSingle.Load())
+	//t.Logf("Successful appends (multiple events): %d", successCountMultiple.Load())
+	//t.Logf("Concurrency conflicts (single event): %d", conflictCountSingle.Load())
+	//t.Logf("Concurrency conflicts (multiple events): %d", conflictCountMultiple.Load())
+	//t.Logf("Total events added: %d", eventCount.Load())
 }
 
 func Test_Append_EventWithMetadata(t *testing.T) {
 	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 	defer connPool.Close()
@@ -282,7 +311,7 @@ func Test_Append_EventWithMetadata(t *testing.T) {
 	CleanUpEvents(t, connPool)
 	bookID := GivenUniqueID(t)
 	filter := FilterAllEventTypesForOneBook(bookID)
-	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, es, filter)
+	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 	bookCopyAddedToCirculation := FixtureBookCopyAddedToCirculation(bookID, &fakeClock)
 
 	messageID := GivenUniqueID(t)
@@ -292,6 +321,7 @@ func Test_Append_EventWithMetadata(t *testing.T) {
 
 	// act (append)
 	err = es.Append(
+		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
 		ToStorableWithMetadata(t, bookCopyAddedToCirculation, eventMetadata),
@@ -301,7 +331,7 @@ func Test_Append_EventWithMetadata(t *testing.T) {
 	assert.NoError(t, err, "error in appending the event")
 
 	// act (query)
-	actualEvents, _, queryErr := es.Query(filter)
+	actualEvents, _, queryErr := es.Query(ctxWithTimeout, filter)
 
 	// assert (query)
 	assert.NoError(t, queryErr, "error in querying the events")
@@ -314,6 +344,9 @@ func Test_Append_EventWithMetadata(t *testing.T) {
 
 func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 	defer connPool.Close()
@@ -325,23 +358,23 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 	// arrange
 	CleanUpEvents(t, connPool)
 	numOtherEvents := 10
-	GivenSomeOtherEventsWereAppended(t, es, numOtherEvents, 0, &fakeClock)
+	GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, numOtherEvents, 0, &fakeClock)
 
 	bookID1 := GivenUniqueID(t)
 	bookID2 := GivenUniqueID(t)
 	readerID1 := GivenUniqueID(t)
 	readerID2 := GivenUniqueID(t)
 
-	bookCopy1AddedToCirculationBook := GivenBookCopyAddedToCirculationWasAppended(t, es, bookID1, &fakeClock)
-	bookCopy1LentToReader1 := GivenBookCopyLentToReaderWasAppended(t, es, bookID1, readerID1, &fakeClock)
-	bookCopy1ReturnedByReader1 := GivenBookCopyReturnedByReaderWasAppended(t, es, bookID1, readerID1, &fakeClock)
-	bookCopy1RemovedFromCirculationBook := GivenBookCopyRemovedFromCirculationWasAppended(t, es, bookID1, &fakeClock)
+	bookCopy1AddedToCirculationBook := GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID1, &fakeClock)
+	bookCopy1LentToReader1 := GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID1, readerID1, &fakeClock)
+	bookCopy1ReturnedByReader1 := GivenBookCopyReturnedByReaderWasAppended(t, ctxWithTimeout, es, bookID1, readerID1, &fakeClock)
+	bookCopy1RemovedFromCirculationBook := GivenBookCopyRemovedFromCirculationWasAppended(t, ctxWithTimeout, es, bookID1, &fakeClock)
 
-	bookCopy2AddedToCirculationBook := GivenBookCopyAddedToCirculationWasAppended(t, es, bookID2, &fakeClock)
-	bookCopy2LentToReader2 := GivenBookCopyLentToReaderWasAppended(t, es, bookID2, readerID2, &fakeClock)
-	bookCopy2ReturnedByReader2 := GivenBookCopyReturnedByReaderWasAppended(t, es, bookID2, readerID2, &fakeClock)
-	bookCopy2LentToReader1 := GivenBookCopyLentToReaderWasAppended(t, es, bookID2, readerID1, &fakeClock)
-	bookCopy2ReturnedByReader1 := GivenBookCopyReturnedByReaderWasAppended(t, es, bookID2, readerID1, &fakeClock)
+	bookCopy2AddedToCirculationBook := GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID2, &fakeClock)
+	bookCopy2LentToReader2 := GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID2, &fakeClock)
+	bookCopy2ReturnedByReader2 := GivenBookCopyReturnedByReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID2, &fakeClock)
+	bookCopy2LentToReader1 := GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID1, &fakeClock)
+	bookCopy2ReturnedByReader1 := GivenBookCopyReturnedByReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID1, &fakeClock)
 
 	/******************************/
 
@@ -608,7 +641,7 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
 			// act
-			actualEvents, _, queryErr := es.Query(tc.filter)
+			actualEvents, _, queryErr := es.Query(ctxWithTimeout, tc.filter)
 
 			// assert
 			assert.NoError(t, queryErr, "error in querying the events")
