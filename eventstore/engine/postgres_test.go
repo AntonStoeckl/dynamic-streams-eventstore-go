@@ -656,3 +656,137 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 		})
 	}
 }
+
+func Test_Append_When_Context_Is_Cancelled(t *testing.T) {
+	// setup
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
+	defer connPool.Close()
+	assert.NoError(t, err, "error connecting to DB pool in test setup")
+
+	es := NewPostgresEventStore(connPool)
+	fakeClock := time.Unix(0, 0).UTC()
+
+	// arrange
+	CleanUpEvents(t, connPool)
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, context.Background(), es, filter)
+
+	ctxWithCancel, cancel := context.WithCancel(context.Background())
+
+	// act
+	cancel()
+	err = es.Append(
+		ctxWithCancel,
+		filter,
+		maxSequenceNumberBeforeAppend,
+		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, &fakeClock)),
+	)
+
+	// assert
+	assert.Error(t, err, "expected error due to cancelled context")
+	assert.Contains(t, err.Error(), "context canceled")
+	events, _, queryErr := es.Query(context.Background(), filter)
+	assert.NoError(t, queryErr, "verification query should succeed")
+	assert.Empty(t, events, "no events should have been inserted when context was cancelled")
+}
+
+func Test_Append_When_Context_Times_out(t *testing.T) {
+	// setup
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
+	defer connPool.Close()
+	assert.NoError(t, err, "error connecting to DB pool in test setup")
+
+	es := NewPostgresEventStore(connPool)
+	fakeClock := time.Unix(0, 0).UTC()
+
+	// arrange
+	CleanUpEvents(t, connPool)
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, context.Background(), es, filter)
+
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), time.Microsecond)
+	defer cancel()
+
+	time.Sleep(5 * time.Microsecond) // Give the context time to expire
+
+	// act
+	err = es.Append(
+		ctxWithTimeout,
+		filter,
+		maxSequenceNumberBeforeAppend,
+		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, &fakeClock)),
+	)
+
+	// assert
+	assert.Error(t, err, "expected error due to context timeout")
+	assert.Contains(t, err.Error(), "context deadline exceeded")
+	events, _, queryErr := es.Query(context.Background(), filter)
+	assert.NoError(t, queryErr, "verification query should succeed")
+	assert.Empty(t, events, "no events should have been inserted when context was cancelled")
+}
+
+func Test_Query_When_Context_Is_Cancelled(t *testing.T) {
+	// setup
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
+	defer connPool.Close()
+	assert.NoError(t, err, "error connecting to DB pool in test setup")
+
+	es := NewPostgresEventStore(connPool)
+	fakeClock := time.Unix(0, 0).UTC()
+
+	// arrange
+	CleanUpEvents(t, connPool)
+	bookID := GivenUniqueID(t)
+
+	GivenBookCopyAddedToCirculationWasAppended(t, context.Background(), es, bookID, &fakeClock)
+
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	ctxWithCancel, cancel := context.WithCancel(context.Background())
+
+	// act
+	cancel()
+	events, maxSeq, err := es.Query(ctxWithCancel, filter)
+
+	// assert
+	assert.Error(t, err, "expected error due to cancelled context")
+	assert.Contains(t, err.Error(), "context canceled")
+	assert.Empty(t, events, "no events should be returned when context is cancelled")
+	assert.Equal(t, MaxSequenceNumberUint(0), maxSeq, "max sequence should be 0 when context is cancelled")
+}
+
+func Test_Query_When_Context_Times_Out(t *testing.T) {
+	// setup
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
+	defer connPool.Close()
+	assert.NoError(t, err, "error connecting to DB pool in test setup")
+
+	es := NewPostgresEventStore(connPool)
+	fakeClock := time.Unix(0, 0).UTC()
+
+	// arrange
+	CleanUpEvents(t, connPool)
+	bookID := GivenUniqueID(t)
+
+	GivenBookCopyAddedToCirculationWasAppended(t, context.Background(), es, bookID, &fakeClock)
+
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), time.Microsecond)
+	defer cancel()
+
+	time.Sleep(5 * time.Microsecond) // Give the context time to expire
+
+	// act
+	events, maxSeq, err := es.Query(ctxWithTimeout, filter)
+
+	// assert
+	assert.Error(t, err, "expected error due to context timeout")
+	assert.Contains(t, err.Error(), "context deadline exceeded")
+	assert.Empty(t, events, "no events should be returned when context times out")
+	assert.Equal(t, MaxSequenceNumberUint(0), maxSeq, "max sequence should be 0 when context times out")
+}
