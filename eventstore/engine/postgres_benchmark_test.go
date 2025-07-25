@@ -191,8 +191,7 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 	appendFixtureEvents(b, connPool, es, &fakeClock, factor)
 
 	bookID := GivenUniqueID(b)
-	readerID := GivenUniqueID(b)
-	filter := FilterAllEventTypesForOneBookOrReader(bookID, readerID)
+	filter := FilterAllEventTypesForOneBook(bookID)
 
 	// act
 	b.Run("query decide append", func(b *testing.B) {
@@ -203,7 +202,6 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 			b.StopTimer()
 
 			GivenBookCopyAddedToCirculationWasAppended(b, es, bookID, &fakeClock)
-			GivenBookCopyLentToReaderWasAppended(b, es, bookID, readerID, &fakeClock)
 
 			b.StartTimer()
 			start := time.Now()
@@ -224,7 +222,6 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 			b.StartTimer()
 			start = time.Now()
 			bookExists := false
-			bookCurrentlyLentOutByThisReader := false
 			for _, domainEvent := range domainEvents {
 				switch domainEvent.EventType() {
 				case core.BookCopyAddedToCirculationEventType:
@@ -233,27 +230,19 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 				case core.BookCopyRemovedFromCirculationEventType:
 					bookExists = false
 
-				case core.BookCopyLentToReaderEventType:
-					actualEvent := domainEvent.(core.BookCopyLentToReader)
-					bookCurrentlyLentOutByThisReader = actualEvent.ReaderID == readerID.String()
-
-				case core.BookCopyReturnedByReaderEventType:
-					actualEvent := domainEvent.(core.BookCopyReturnedByReader)
-					bookCurrentlyLentOutByThisReader = actualEvent.ReaderID == readerID.String()
 				}
 			}
 			bizTime += time.Since(start)
 			b.StopTimer()
 
 			assert.True(b, bookExists, "book should exist")
-			assert.True(b, bookCurrentlyLentOutByThisReader, "book should be lent out by this reader")
 
 			b.StartTimer()
 			start = time.Now()
 			err = es.Append(
 				filter,
 				maxSequenceNumberBeforeAppend,
-				ToStorable(b, FixtureBookCopyReturnedByReader(bookID, readerID, &fakeClock)),
+				ToStorable(b, FixtureBookCopyRemovedFromCirculation(bookID, &fakeClock)),
 			)
 			appendTime += time.Since(start)
 			b.StopTimer()
@@ -266,7 +255,7 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 			)
 
 			assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
-			assert.Equal(b, 3, int(cmdTag.RowsAffected()))
+			assert.Equal(b, 2, int(cmdTag.RowsAffected()))
 
 			if i%100 == 0 {
 				_, dbErr = connPool.Exec(context.Background(), `vacuum analyze events`)
