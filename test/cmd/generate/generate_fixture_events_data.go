@@ -20,15 +20,37 @@ const (
 	hundredThousand = tenThousand * 10
 	million         = hundredThousand * 10
 
-	NumSomethingHappenedEvents = 7 * million // Number of "Something has happened" events to be created - adapt these as needed
-	NumBookCopyEvents          = 3 * million // Number of BookCopy events to be created - adapt these as needed
+	// NumSomethingHappenedEvents - Number of "Something has happened" events to be created - adapt these as needed
+	//
+	// WARNING
+	//
+	// 10 Million fixture events in total create 3.9GB (CSV and SQL each) files which are mounted into a Docker volume.
+	// The generation itself should take less than a minute.
+	// The import takes maybe 2 minutes in total if done from the CSV in the DB with dropped indexes.
+	// Importing this via SQL already takes ages.
+	// If you go to 100 Million events, you might be in trouble ...
+	NumSomethingHappenedEvents = 9 * million
 
-	WriteSQLFileEnabled = false
+	// NumBookCopyEvents - Number of "BookCopy..." events to be created - adapt these as needed
+	//
+	// WARNING
+	//
+	// 10 Million fixture events in total create 3.9GB (CSV and SQL each) files which are mounted into a Docker volume.
+	// The generation itself should take less than a minute.
+	// The import takes maybe 2 minutes in total if done from the CSV in the DB with dropped indexes.
+	// Importing this via SQL already takes ages.
+	// If you go to 100 Million events, you might be in trouble ...
+	NumBookCopyEvents = 1 * million
+
+	// WriteCSVFileEnabled determines whether the fixtures are written to a CSV file (recommended, see above).
 	WriteCSVFileEnabled = true
 
-	OutputDir     = "test/fixtures" // the directory to put the fixture data into - should be fine as is
-	OutputSQLFile = "events.sql"    // the SQL file to put the fixture data into - should be fine as is
-	OutputCSVFile = "events.csv"    // the CSV file to put the fixture data into - should be fine as is
+	// WriteSQLFileEnabled determines whether the fixtures are written to a SQL file (not recommended, see above).
+	WriteSQLFileEnabled = false
+
+	OutputDir     = "test/fixtures" // The directory to put the fixture data into - should be fine as is.
+	OutputSQLFile = "events.sql"    // The SQL file to put the fixture data into - should be fine as is.
+	OutputCSVFile = "events.csv"    // The CSV file to put the fixture data into - should be fine as is.
 )
 
 type EventData struct {
@@ -239,7 +261,7 @@ func generateSomethingHappenedEvents(writers *Writers, numEvents int, fakeClock 
 		id, _ := uuid.NewV7()
 		eventType := core.SomethingHasHappenedEventTypePrefix + strconv.Itoa(eventPostfix)
 
-		*fakeClock = fakeClock.Add(time.Second)
+		*fakeClock = fakeClock.Add(time.Millisecond * 2)
 
 		payload := fmt.Sprintf(`{"ID": "%s", "Description": "lorem ipsum dolor sit amet: %s", "occurredAt": "%s"}`,
 			id.String(), id.String(), fakeClock.Format(time.RFC3339Nano))
@@ -291,7 +313,7 @@ func generateBookCopyEvents(writers *Writers, numEvents int, fakeClock *time.Tim
 		book := books[rand.IntN(len(books))]
 
 		// Always start with adding a book to circulation
-		*fakeClock = fakeClock.Add(time.Second)
+		*fakeClock = fakeClock.Add(time.Millisecond * 2)
 		payload := fmt.Sprintf(`{"BookID": "%s", "ISBN": "%s", "Title": "%s", "Author": "%s", "Edition": "%s", "Publisher": "%s", "Year": %d, "occurredAt": "%s"}`,
 			bookID.String(), book.ISBN, book.Title, book.Author, book.Edition, book.Publisher, book.Year, fakeClock.Format(time.RFC3339Nano))
 
@@ -325,7 +347,7 @@ func generateBookCopyEvents(writers *Writers, numEvents int, fakeClock *time.Tim
 				readerID, _ := uuid.NewV7()
 
 				// Lent event
-				*fakeClock = fakeClock.Add(time.Duration(rand.IntN(86400)) * time.Second) // Random time up to 1 day
+				*fakeClock = fakeClock.Add(time.Duration(rand.IntN(86400)) * time.Millisecond) // Random time up to 1 day
 				lentPayload := fmt.Sprintf(`{"BookID": "%s", "ReaderID": "%s", "occurredAt": "%s"}`,
 					bookID.String(), readerID.String(), fakeClock.Format(time.RFC3339Nano))
 
@@ -350,7 +372,7 @@ func generateBookCopyEvents(writers *Writers, numEvents int, fakeClock *time.Tim
 				}
 
 				// Returned event (after some time)
-				*fakeClock = fakeClock.Add(time.Duration(rand.IntN(2592000)) * time.Second) // Random time up to 30 days
+				*fakeClock = fakeClock.Add(time.Duration(rand.IntN(2592000)) * time.Millisecond) // Random time up to 30 days
 				returnedPayload := fmt.Sprintf(`{"BookID": "%s", "ReaderID": "%s", "occurredAt": "%s"}`,
 					bookID.String(), readerID.String(), fakeClock.Format(time.RFC3339Nano))
 
@@ -375,7 +397,7 @@ func generateBookCopyEvents(writers *Writers, numEvents int, fakeClock *time.Tim
 			if eventsGenerated < numEvents {
 				readerID, _ := uuid.NewV7()
 
-				*fakeClock = fakeClock.Add(time.Duration(rand.IntN(86400)) * time.Second)
+				*fakeClock = fakeClock.Add(time.Duration(rand.IntN(86400)) * time.Millisecond)
 				lentPayload := fmt.Sprintf(`{"BookID": "%s", "ReaderID": "%s", "occurredAt": "%s"}`,
 					bookID.String(), readerID.String(), fakeClock.Format(time.RFC3339Nano))
 
@@ -398,7 +420,7 @@ func generateBookCopyEvents(writers *Writers, numEvents int, fakeClock *time.Tim
 
 		default: // 20% chance: removed from circulation
 			if eventsGenerated < numEvents {
-				*fakeClock = fakeClock.Add(time.Duration(rand.IntN(86400)) * time.Second)
+				*fakeClock = fakeClock.Add(time.Duration(rand.IntN(86400)) * time.Millisecond)
 				removedPayload := fmt.Sprintf(`{"BookID": "%s", "occurredAt": "%s"}`,
 					bookID.String(), fakeClock.Format(time.RFC3339Nano))
 

@@ -18,6 +18,7 @@ services:
     volumes:
       - ./initdb:/docker-entrypoint-initdb.d/
       - pgdata:/var/lib/postgresql/data
+      - ./fixtures:/fixtures
     ports:
       - "5433:5432"
 

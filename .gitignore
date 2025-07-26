@@ -1,6 +1,8 @@
 # Compiled binary
-test/cmd/*
-!test/cmd/*.go
+test/cmd/generate/*
+!test/cmd/generate/*.go
+test/cmd/import/*
+!test/cmd/import/*.go
 
 # Generated fixture files
 test/fixtures/*.*
