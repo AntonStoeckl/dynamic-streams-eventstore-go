@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 
@@ -26,11 +25,9 @@ func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 
 	es := NewPostgresEventStore(connPool)
 
-	fakeClock := time.Unix(0, 0).UTC()
-
 	// arrange
-	factor := 1000 // multiplied by 1000 -> total num of fixture events
-	fakeClock = appendFixtureEvents(b, ctx, connPool, es, fakeClock, factor)
+	guardThatThereAreEnoughFixtureEventsInStore(connPool, 10000)
+	fakeClock := GetGreatestOccurredAtTimeFromDB(b, connPool).Add(time.Second)
 
 	bookID := GivenUniqueID(b)
 	filter := FilterAllEventTypesForOneBook(bookID)
@@ -86,11 +83,9 @@ func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 
 	es := NewPostgresEventStore(connPool)
 
-	fakeClock := time.Unix(0, 0).UTC()
-
 	// arrange
-	factor := 1000 // multiplied by 1000 -> total num of fixture events
-	fakeClock = appendFixtureEvents(b, ctx, connPool, es, fakeClock, factor)
+	guardThatThereAreEnoughFixtureEventsInStore(connPool, 10000)
+	fakeClock := GetGreatestOccurredAtTimeFromDB(b, connPool).Add(time.Second)
 
 	bookID := GivenUniqueID(b)
 	filter := FilterAllEventTypesForOneBook(bookID)
@@ -155,21 +150,9 @@ func Benchmark_Query_With_Many_Events_InTheStore(b *testing.B) {
 
 	es := NewPostgresEventStore(connPool)
 
-	fakeClock := time.Unix(0, 0).UTC()
-
 	// arrange
-	factor := 1000 // multiplied by 1000 -> total num of fixture events
-	appendFixtureEvents(b, ctx, connPool, es, fakeClock, factor)
-
-	row := connPool.QueryRow(
-		context.Background(),
-		`select payload->'BookID' as bookID from events where sequence_number = (select max(sequence_number) from events)`,
-	)
-	var bookIDString string
-	err = row.Scan(&bookIDString)
-	assert.NoError(b, err, "error in arranging test data")
-	bookID, err := uuid.Parse(bookIDString)
-	assert.NoError(b, err, "error in arranging test data")
+	guardThatThereAreEnoughFixtureEventsInStore(connPool, 10000)
+	bookID := GetLatestBookIDFromDB(b, connPool)
 
 	filter := FilterAllEventTypesForOneBook(bookID)
 
@@ -200,11 +183,9 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 
 	es := NewPostgresEventStore(connPool)
 
-	fakeClock := time.Unix(0, 0).UTC()
-
 	// arrange
-	factor := 1000 // multiplied by 1000 -> total num of fixture events
-	fakeClock = appendFixtureEvents(b, ctx, connPool, es, fakeClock, factor)
+	guardThatThereAreEnoughFixtureEventsInStore(connPool, 10000)
+	fakeClock := GetGreatestOccurredAtTimeFromDB(b, connPool).Add(time.Second)
 
 	bookID := GivenUniqueID(b)
 	filter := FilterAllEventTypesForOneBook(bookID)
@@ -292,40 +273,16 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 	})
 }
 
-func appendFixtureEvents(b *testing.B, ctx context.Context, connPool *pgxpool.Pool, es PostgresEventStore, fakeClock time.Time, factor int) time.Time {
+func guardThatThereAreEnoughFixtureEventsInStore(connPool *pgxpool.Pool, expectedNumEvents int) {
 	row := connPool.QueryRow(context.Background(), `SELECT count(*) FROM events`)
 	var cnt int
 	err := row.Scan(&cnt)
-	assert.NoError(b, err, "error in arranging test data")
-	//fmt.Printf("found %d events in the DB\n", cnt)
 
-	if cnt < 1000*factor {
-		fmt.Println("DomainEvent setup will run")
-		CleanUpEvents(b, connPool)
-		fakeClock = GivenSomeOtherEventsWereAppended(b, ctx, es, 900*factor, 0, fakeClock)
-
-		var totalEvents int
-		for i := 0; i < 10*factor; i++ {
-			bookID := GivenUniqueID(b)
-
-			for j := 0; j < 5; j++ {
-				fakeClock = fakeClock.Add(time.Second)
-				GivenBookCopyAddedToCirculationWasAppended(b, ctx, es, bookID, fakeClock)
-				totalEvents++
-				fakeClock = fakeClock.Add(time.Second)
-				GivenBookCopyRemovedFromCirculationWasAppended(b, ctx, es, bookID, fakeClock)
-				totalEvents++
-
-				if totalEvents%5000 == 0 {
-					fmt.Printf("appended %d events into the DB\n", totalEvents)
-				}
-			}
-		}
-
-		//fmt.Printf("appended %d events into the DB\n", totalEvents)
-	} else {
-		//fmt.Println("DomainEvent setup will NOT run")
+	if err != nil {
+		panic(err)
 	}
 
-	return fakeClock
+	if cnt < expectedNumEvents {
+		panic("not enough fixture events in the DB")
+	}
 }

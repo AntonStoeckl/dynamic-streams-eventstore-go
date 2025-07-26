@@ -227,3 +227,28 @@ func CleanUpEvents(t testing.TB, connPool *pgxpool.Pool) {
 	assert.NoError(t, err, "error cleaning up the events table")
 	//fmt.Println("events table truncated")
 }
+
+func GetGreatestOccurredAtTimeFromDB(t testing.TB, connPool *pgxpool.Pool) time.Time {
+	row := connPool.QueryRow(
+		context.Background(),
+		`select max(occurred_at) from events`,
+	)
+	var greatestOccurredAtTime time.Time
+	err := row.Scan(&greatestOccurredAtTime)
+	assert.NoError(t, err, "error in arranging test data")
+
+	return greatestOccurredAtTime
+}
+
+func GetLatestBookIDFromDB(t testing.TB, connPool *pgxpool.Pool) uuid.UUID {
+	row := connPool.QueryRow(
+		context.Background(),
+		`select max(payload->>'BookID') from events`,
+	)
+	var bookID uuid.UUID
+	err := row.Scan(&bookID)
+	assert.NoError(t, err, "error in arranging test data")
+	assert.NotEmpty(t, bookID, "error in arranging test data")
+
+	return bookID
+}
