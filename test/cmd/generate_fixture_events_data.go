@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/csv"
 	"fmt"
 	"math/rand/v2"
 	"os"
@@ -15,11 +16,19 @@ import (
 )
 
 const (
-	NumSomethingHappenedEvents = 9000 // Number of "Something has happened" events to be created - adapt these as needed
-	NumBookCopyEvents          = 1000 // Number of BookCopy events to be created - adapt these as needed
+	tenThousand     = 10000
+	hundredThousand = tenThousand * 10
+	million         = hundredThousand * 10
 
-	OutputDir  = "test/fixtures" // the directory to put the fixture data into - should be fine as is
-	OutputFile = "events.sql"    // the file to put the fixture data into - should be fine as is
+	NumSomethingHappenedEvents = 7 * million // Number of "Something has happened" events to be created - adapt these as needed
+	NumBookCopyEvents          = 3 * million // Number of BookCopy events to be created - adapt these as needed
+
+	WriteSQLFileEnabled = false
+	WriteCSVFileEnabled = true
+
+	OutputDir     = "test/fixtures" // the directory to put the fixture data into - should be fine as is
+	OutputSQLFile = "events.sql"    // the SQL file to put the fixture data into - should be fine as is
+	OutputCSVFile = "events.csv"    // the CSV file to put the fixture data into - should be fine as is
 )
 
 type EventData struct {
@@ -27,6 +36,13 @@ type EventData struct {
 	EventType  string
 	Payload    string
 	Metadata   string
+}
+
+type Writers struct {
+	sqlFile    *os.File
+	csvFile    *os.File
+	csvWriter  *csv.Writer
+	eventCount int
 }
 
 var metadataUUIDs []string
@@ -45,20 +61,135 @@ func GenerateFixtureDataSQL() error {
 
 	outputDir := filepath.Join(projectRoot, OutputDir)
 
+	// Create the output directory if it doesn't exist
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+
 	// Generate 100 UUIDs for metadata fields
 	generateMetadataUUIDs()
 
-	var events []EventData
+	writers, err := setupWriters(outputDir)
+	if err != nil {
+		return err
+	}
+	defer closeWriters(writers)
+
 	fakeClock := time.Unix(0, 0).UTC()
 
-	// Generate "Something has happened" events
-	events = append(events, generateSomethingHappenedEvents(NumSomethingHappenedEvents, &fakeClock)...)
+	// Generate and write "Something has happened" events
+	err = generateSomethingHappenedEvents(writers, NumSomethingHappenedEvents, &fakeClock)
+	if err != nil {
+		return err
+	}
 
-	// Generate BookCopy events with realistic patterns
-	events = append(events, generateBookCopyEvents(NumBookCopyEvents, &fakeClock)...)
+	// Generate and write BookCopy events
+	err = generateBookCopyEvents(writers, NumBookCopyEvents, &fakeClock)
+	if err != nil {
+		return err
+	}
 
-	// Create an SQL INSERT statement and write to the file
-	return writeSQLToFile(events, outputDir)
+	// Finalize SQL file
+	if WriteSQLFileEnabled {
+		_, err = writers.sqlFile.WriteString(";\n")
+		if err != nil {
+			return fmt.Errorf("failed to write SQL footer: %w", err)
+		}
+	}
+
+	totalEvents := NumSomethingHappenedEvents + NumBookCopyEvents
+	if WriteSQLFileEnabled {
+		fmt.Printf("Successfully generated %d events and wrote SQL to %s\n", totalEvents, filepath.Join(outputDir, OutputSQLFile))
+	}
+	if WriteCSVFileEnabled {
+		fmt.Printf("Successfully generated %d events and wrote CSV to %s\n", totalEvents, filepath.Join(outputDir, OutputCSVFile))
+	}
+
+	return nil
+}
+
+func setupWriters(outputDir string) (*Writers, error) {
+	writers := &Writers{}
+
+	if WriteSQLFileEnabled {
+		sqlPath := filepath.Join(outputDir, OutputSQLFile)
+		sqlFile, err := os.Create(sqlPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create SQL file: %w", err)
+		}
+		writers.sqlFile = sqlFile
+
+		// Write SQL header
+		_, err = sqlFile.WriteString("INSERT " + "INTO " + "events (occurred_at, event_type, payload, metadata) VALUES\n")
+		if err != nil {
+			return nil, fmt.Errorf("failed to write SQL header: %w", err)
+		}
+	}
+
+	if WriteCSVFileEnabled {
+		csvPath := filepath.Join(outputDir, OutputCSVFile)
+		csvFile, err := os.Create(csvPath)
+		if err != nil {
+			if writers.sqlFile != nil {
+				_ = writers.sqlFile.Close() // makes no sense to handle this
+			}
+			return nil, fmt.Errorf("failed to create CSV file: %w", err)
+		}
+
+		writers.csvFile = csvFile
+		writers.csvWriter = csv.NewWriter(csvFile)
+	}
+
+	return writers, nil
+}
+
+func closeWriters(writers *Writers) {
+	if writers.csvWriter != nil {
+		writers.csvWriter.Flush()
+	}
+	if writers.sqlFile != nil {
+		closeErr := writers.sqlFile.Close()
+		if closeErr != nil {
+			// Handle close error if needed
+		}
+	}
+}
+
+func writeEvent(writers *Writers, event EventData) error {
+	if WriteSQLFileEnabled {
+		separator := ""
+		if writers.eventCount > 0 {
+			separator = ",\n"
+		}
+
+		sqlValue := fmt.Sprintf(`%s    ('%s', '%s', '%s', '%s')`,
+			separator,
+			event.OccurredAt,
+			event.EventType,
+			strings.ReplaceAll(event.Payload, "'", "''"),
+			strings.ReplaceAll(event.Metadata, "'", "''"))
+
+		_, err := writers.sqlFile.WriteString(sqlValue)
+		if err != nil {
+			return fmt.Errorf("failed to write SQL value: %w", err)
+		}
+	}
+
+	if WriteCSVFileEnabled {
+		record := []string{
+			event.OccurredAt,
+			event.EventType,
+			event.Payload,
+			event.Metadata,
+		}
+
+		if err := writers.csvWriter.Write(record); err != nil {
+			return fmt.Errorf("failed to write CSV record: %w", err)
+		}
+	}
+
+	writers.eventCount++
+	return nil
 }
 
 func generateMetadataUUIDs() {
@@ -101,11 +232,10 @@ func findProjectRoot() (string, error) {
 	return "", fmt.Errorf("could not find project root (no go.mod found)")
 }
 
-func generateSomethingHappenedEvents(numEvents int, fakeClock *time.Time) []EventData {
-	var events []EventData
+func generateSomethingHappenedEvents(writers *Writers, numEvents int, fakeClock *time.Time) error {
 	eventPostfix := 0
 
-	for totalEvents := 0; totalEvents < numEvents; {
+	for totalGenerated := 0; totalGenerated < numEvents; totalGenerated++ {
 		id, _ := uuid.NewV7()
 		eventType := core.SomethingHasHappenedEventTypePrefix + strconv.Itoa(eventPostfix)
 
@@ -114,22 +244,26 @@ func generateSomethingHappenedEvents(numEvents int, fakeClock *time.Time) []Even
 		payload := fmt.Sprintf(`{"ID": "%s", "Description": "lorem ipsum dolor sit amet: %s", "occurredAt": "%s"}`,
 			id.String(), id.String(), fakeClock.Format(time.RFC3339Nano))
 
-		events = append(events, EventData{
+		metadata := generateRandomMetadata()
+
+		event := EventData{
 			OccurredAt: fakeClock.Format(time.RFC3339Nano),
 			EventType:  eventType,
 			Payload:    payload,
-			Metadata:   generateRandomMetadata(),
-		})
+			Metadata:   metadata,
+		}
 
-		totalEvents++
+		if err := writeEvent(writers, event); err != nil {
+			return err
+		}
+
 		eventPostfix++
 	}
 
-	return events
+	return nil
 }
 
-func generateBookCopyEvents(numEvents int, fakeClock *time.Time) []EventData {
-	var events []EventData
+func generateBookCopyEvents(writers *Writers, numEvents int, fakeClock *time.Time) error {
 	booksInCirculation := make(map[uuid.UUID]bool)
 	lentBooks := make(map[uuid.UUID]uuid.UUID) // bookID -> readerID
 	removedBooks := make(map[uuid.UUID]bool)
@@ -147,6 +281,7 @@ func generateBookCopyEvents(numEvents int, fakeClock *time.Time) []EventData {
 		{"978-0-321-12521-7", "Domain-Driven Design", "Eric Evans", "First Edition", "Addison-Wesley", 2003},
 		{"978-1-617-29428-6", "Microservices Patterns", "Chris Richardson", "First Edition", "Manning Publications", 2018},
 		{"978-1-449-37320-0", "Building Microservices", "Sam Newman", "First Edition", "O'Reilly Media", 2015},
+		{"978-0-596-00696-5", "Head First Design Patterns", "Eric Freeman", "First Edition", "O'Reilly Media", 2004},
 	}
 
 	eventsGenerated := 0
@@ -160,12 +295,18 @@ func generateBookCopyEvents(numEvents int, fakeClock *time.Time) []EventData {
 		payload := fmt.Sprintf(`{"BookID": "%s", "ISBN": "%s", "Title": "%s", "Author": "%s", "Edition": "%s", "Publisher": "%s", "Year": %d, "occurredAt": "%s"}`,
 			bookID.String(), book.ISBN, book.Title, book.Author, book.Edition, book.Publisher, book.Year, fakeClock.Format(time.RFC3339Nano))
 
-		events = append(events, EventData{
+		metadata := generateRandomMetadata()
+
+		event := EventData{
 			OccurredAt: fakeClock.Format(time.RFC3339Nano),
 			EventType:  core.BookCopyAddedToCirculationEventType,
 			Payload:    payload,
-			Metadata:   generateRandomMetadata(),
-		})
+			Metadata:   metadata,
+		}
+
+		if err := writeEvent(writers, event); err != nil {
+			return err
+		}
 
 		booksInCirculation[bookID] = true
 		eventsGenerated++
@@ -188,12 +329,19 @@ func generateBookCopyEvents(numEvents int, fakeClock *time.Time) []EventData {
 				lentPayload := fmt.Sprintf(`{"BookID": "%s", "ReaderID": "%s", "occurredAt": "%s"}`,
 					bookID.String(), readerID.String(), fakeClock.Format(time.RFC3339Nano))
 
-				events = append(events, EventData{
+				lentMetadata := generateRandomMetadata()
+
+				lentEvent := EventData{
 					OccurredAt: fakeClock.Format(time.RFC3339Nano),
 					EventType:  core.BookCopyLentToReaderEventType,
 					Payload:    lentPayload,
-					Metadata:   generateRandomMetadata(),
-				})
+					Metadata:   lentMetadata,
+				}
+
+				if err := writeEvent(writers, lentEvent); err != nil {
+					return err
+				}
+
 				lentBooks[bookID] = readerID
 				eventsGenerated++
 
@@ -206,12 +354,19 @@ func generateBookCopyEvents(numEvents int, fakeClock *time.Time) []EventData {
 				returnedPayload := fmt.Sprintf(`{"BookID": "%s", "ReaderID": "%s", "occurredAt": "%s"}`,
 					bookID.String(), readerID.String(), fakeClock.Format(time.RFC3339Nano))
 
-				events = append(events, EventData{
+				returnedMetadata := generateRandomMetadata()
+
+				returnedEvent := EventData{
 					OccurredAt: fakeClock.Format(time.RFC3339Nano),
 					EventType:  core.BookCopyReturnedByReaderEventType,
 					Payload:    returnedPayload,
-					Metadata:   generateRandomMetadata(),
-				})
+					Metadata:   returnedMetadata,
+				}
+
+				if err := writeEvent(writers, returnedEvent); err != nil {
+					return err
+				}
+
 				delete(lentBooks, bookID)
 				eventsGenerated++
 			}
@@ -224,12 +379,19 @@ func generateBookCopyEvents(numEvents int, fakeClock *time.Time) []EventData {
 				lentPayload := fmt.Sprintf(`{"BookID": "%s", "ReaderID": "%s", "occurredAt": "%s"}`,
 					bookID.String(), readerID.String(), fakeClock.Format(time.RFC3339Nano))
 
-				events = append(events, EventData{
+				lentMetadata := generateRandomMetadata()
+
+				lentEvent := EventData{
 					OccurredAt: fakeClock.Format(time.RFC3339Nano),
 					EventType:  core.BookCopyLentToReaderEventType,
 					Payload:    lentPayload,
-					Metadata:   generateRandomMetadata(),
-				})
+					Metadata:   lentMetadata,
+				}
+
+				if err := writeEvent(writers, lentEvent); err != nil {
+					return err
+				}
+
 				lentBooks[bookID] = readerID
 				eventsGenerated++
 			}
@@ -240,12 +402,19 @@ func generateBookCopyEvents(numEvents int, fakeClock *time.Time) []EventData {
 				removedPayload := fmt.Sprintf(`{"BookID": "%s", "occurredAt": "%s"}`,
 					bookID.String(), fakeClock.Format(time.RFC3339Nano))
 
-				events = append(events, EventData{
+				removedMetadata := generateRandomMetadata()
+
+				removedEvent := EventData{
 					OccurredAt: fakeClock.Format(time.RFC3339Nano),
 					EventType:  core.BookCopyRemovedFromCirculationEventType,
 					Payload:    removedPayload,
-					Metadata:   generateRandomMetadata(),
-				})
+					Metadata:   removedMetadata,
+				}
+
+				if err := writeEvent(writers, removedEvent); err != nil {
+					return err
+				}
+
 				removedBooks[bookID] = true
 				delete(booksInCirculation, bookID)
 				delete(lentBooks, bookID)
@@ -253,53 +422,6 @@ func generateBookCopyEvents(numEvents int, fakeClock *time.Time) []EventData {
 			}
 		}
 	}
-
-	return events
-}
-
-func buildSQLInsert(events []EventData) string {
-	if len(events) == 0 {
-		return ""
-	}
-
-	var builder strings.Builder
-	// just a little hack to avoid SQL inspection in the IDE
-	builder.WriteString("INSERT " + "INTO " + "events (occurred_at, event_type, payload, metadata) VALUES\n")
-
-	for i, event := range events {
-		if i > 0 {
-			builder.WriteString(",\n")
-		}
-		builder.WriteString(fmt.Sprintf("    ('%s', '%s', '%s', '%s')",
-			event.OccurredAt,
-			event.EventType,
-			strings.ReplaceAll(event.Payload, "'", "''"),   // Escape single quotes
-			strings.ReplaceAll(event.Metadata, "'", "''"))) // Escape single quotes in metadata too
-	}
-
-	builder.WriteString(";\n")
-
-	return builder.String()
-}
-
-func writeSQLToFile(events []EventData, outputDir string) error {
-	// Create the output directory if it doesn't exist
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
-	}
-
-	// Build the full file path
-	filePath := filepath.Join(outputDir, OutputFile)
-
-	// Generate SQL content
-	sqlContent := buildSQLInsert(events)
-
-	// Write to the file
-	if err := os.WriteFile(filePath, []byte(sqlContent), 0644); err != nil {
-		return fmt.Errorf("failed to write SQL file: %w", err)
-	}
-
-	fmt.Printf("Successfully generated %d events and wrote SQL to %s\n", len(events), filePath)
 
 	return nil
 }
