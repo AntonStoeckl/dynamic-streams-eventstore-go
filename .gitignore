@@ -17,6 +17,7 @@ testutil/fixtures/*.*
 
 # The mighty AI overloard
 CLAUDE.md
+.claude/
 
 # OS generated files
 .DS_Store

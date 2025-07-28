@@ -2,32 +2,27 @@ package postgresengine_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/config"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/core"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shell"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/helper"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/helper/postgreswrapper"
 )
 
 func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 	// setup
 	ctx := context.Background()
-	connPool, err := pgxpool.NewWithConfig(ctx, config.PostgresPGXPoolBenchmarkConfig())
-	defer connPool.Close()
-	assert.NoError(b, err, "error connecting to DB pool in test setup")
-
-	es := NewEventStoreFromPGXPool(connPool)
+	wrapper := CreateWrapperWithBenchmarkConfig(b)
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
 
 	// arrange
-	guardThatThereAreEnoughFixtureEventsInStore(connPool, 10000)
-	fakeClock := GetGreatestOccurredAtTimeFromDB(b, connPool).Add(time.Second)
+	GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 10000)
+	fakeClock := GetGreatestOccurredAtTimeFromDB(b, wrapper).Add(time.Second)
 
 	bookID := GivenUniqueID(b)
 	filter := FilterAllEventTypesForOneBook(bookID)
@@ -46,7 +41,7 @@ func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 
 			b.StartTimer()
 			start := time.Now()
-			err = es.Append(
+			err := es.Append(
 				ctx,
 				filter,
 				maxSequenceNumberBeforeAppend,
@@ -57,15 +52,12 @@ func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 
 			assert.NoError(b, err, "error in running benchmark action")
 
-			cmdTag, dbErr := connPool.Exec(
-				context.Background(),
-				fmt.Sprintf(`DELETE FROM events WHERE payload @> '{"BookID": "%s"}'`, bookID.String()),
-			)
+			rowsAffected, dbErr := CleanUpBookEvents(wrapper, bookID)
 			assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
-			assert.Equal(b, 1, int(cmdTag.RowsAffected()))
+			assert.Equal(b, int64(1), rowsAffected)
 
 			if i%100 == 0 {
-				_, dbErr = connPool.Exec(context.Background(), `vacuum analyze events`)
+				dbErr = OptimizeDBForWhileBenchmarking(wrapper)
 				assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
 			}
 		}
@@ -77,15 +69,13 @@ func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 	// setup
 	ctx := context.Background()
-	connPool, err := pgxpool.NewWithConfig(ctx, config.PostgresPGXPoolBenchmarkConfig())
-	defer connPool.Close()
-	assert.NoError(b, err, "error connecting to DB pool in test setup")
-
-	es := NewEventStoreFromPGXPool(connPool)
+	wrapper := CreateWrapperWithBenchmarkConfig(b)
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
 
 	// arrange
-	guardThatThereAreEnoughFixtureEventsInStore(connPool, 10000)
-	fakeClock := GetGreatestOccurredAtTimeFromDB(b, connPool).Add(time.Second)
+	GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 10000)
+	fakeClock := GetGreatestOccurredAtTimeFromDB(b, wrapper).Add(time.Second)
 
 	bookID := GivenUniqueID(b)
 	filter := FilterAllEventTypesForOneBook(bookID)
@@ -113,7 +103,7 @@ func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 
 			b.StartTimer()
 			start := time.Now()
-			err = es.Append(
+			err := es.Append(
 				ctx,
 				filter,
 				maxSequenceNumberBeforeAppend,
@@ -124,15 +114,12 @@ func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 
 			assert.NoError(b, err, "error in running benchmark action")
 
-			cmdTag, dbErr := connPool.Exec(
-				context.Background(),
-				fmt.Sprintf(`DELETE FROM events WHERE payload @> '{"BookID": "%s"}'`, bookID.String()),
-			)
+			rowsAffected, dbErr := CleanUpBookEvents(wrapper, bookID)
 			assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
-			assert.Equal(b, 5, int(cmdTag.RowsAffected()))
+			assert.Equal(b, int64(5), rowsAffected)
 
 			if i%100 == 0 {
-				_, dbErr = connPool.Exec(context.Background(), `vacuum analyze events`)
+				dbErr = OptimizeDBForWhileBenchmarking(wrapper)
 				assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
 			}
 		}
@@ -144,15 +131,13 @@ func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 func Benchmark_Query_With_Many_Events_InTheStore(b *testing.B) {
 	// setup
 	ctx := context.Background()
-	connPool, err := pgxpool.NewWithConfig(ctx, config.PostgresPGXPoolBenchmarkConfig())
-	defer connPool.Close()
-	assert.NoError(b, err, "error connecting to DB pool in test setup")
-
-	es := NewEventStoreFromPGXPool(connPool)
+	wrapper := CreateWrapperWithBenchmarkConfig(b)
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
 
 	// arrange
-	guardThatThereAreEnoughFixtureEventsInStore(connPool, 10000)
-	bookID := GetLatestBookIDFromDB(b, connPool)
+	GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 10000)
+	bookID := GetLatestBookIDFromDB(b, wrapper)
 
 	filter := FilterAllEventTypesForOneBook(bookID)
 
@@ -177,15 +162,13 @@ func Benchmark_Query_With_Many_Events_InTheStore(b *testing.B) {
 func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 	// setup
 	ctx := context.Background()
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolBenchmarkConfig())
-	defer connPool.Close()
-	assert.NoError(b, err, "error connecting to DB pool in test setup")
-
-	es := NewEventStoreFromPGXPool(connPool)
+	wrapper := CreateWrapperWithBenchmarkConfig(b)
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
 
 	// arrange
-	guardThatThereAreEnoughFixtureEventsInStore(connPool, 10000)
-	fakeClock := GetGreatestOccurredAtTimeFromDB(b, connPool).Add(time.Second)
+	GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 10000)
+	fakeClock := GetGreatestOccurredAtTimeFromDB(b, wrapper).Add(time.Second)
 
 	bookID := GivenUniqueID(b)
 	filter := FilterAllEventTypesForOneBook(bookID)
@@ -241,7 +224,7 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 			b.StartTimer()
 			start = time.Now()
 
-			err = es.Append(
+			err := es.Append(
 				ctx,
 				filter,
 				maxSequenceNumberBeforeAppend,
@@ -252,16 +235,12 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 
 			assert.NoError(b, err, "error in running benchmark action")
 
-			cmdTag, dbErr := connPool.Exec(
-				context.Background(),
-				fmt.Sprintf(`DELETE FROM events WHERE payload @> '{"BookID": "%s"}'`, bookID.String()),
-			)
-
+			rowsAffected, dbErr := CleanUpBookEvents(wrapper, bookID)
 			assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
-			assert.Equal(b, 2, int(cmdTag.RowsAffected()))
+			assert.Equal(b, int64(2), rowsAffected)
 
 			if i%100 == 0 {
-				_, dbErr = connPool.Exec(context.Background(), `vacuum analyze events`)
+				dbErr = OptimizeDBForWhileBenchmarking(wrapper)
 				assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
 			}
 		}
@@ -271,18 +250,4 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 		b.ReportMetric(float64(appendTime.Milliseconds())/float64(b.N), "ms/append-op")
 		b.ReportMetric(float64(queryTime.Milliseconds())/float64(b.N), "ms/query-op")
 	})
-}
-
-func guardThatThereAreEnoughFixtureEventsInStore(connPool *pgxpool.Pool, expectedNumEvents int) {
-	row := connPool.QueryRow(context.Background(), `SELECT count(*) FROM events`)
-	var cnt int
-	err := row.Scan(&cnt)
-
-	if err != nil {
-		panic(err)
-	}
-
-	if cnt < expectedNumEvents {
-		panic("not enough fixture events in the DB")
-	}
 }

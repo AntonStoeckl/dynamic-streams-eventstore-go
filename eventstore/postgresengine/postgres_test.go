@@ -10,21 +10,50 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/config"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/core"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shell"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/helper"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/helper/postgreswrapper"
 )
 
+func Test_NewEventStoreFromPGXPoolWithTableName(t *testing.T) {
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
+	assert.NoError(t, err, "error connecting to DB pool in test setup")
+	_, err = postgresengine.NewEventStoreFromPGXPoolWithTableName(connPool, "event_data")
+	assert.NoError(t, err, "error creating the event store with table name")
+}
+
+func Test_NewEventStoreFromPGXPoolWithTableName_ShouldFail_WithEmptyTableName(t *testing.T) {
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
+	assert.NoError(t, err, "error connecting to DB pool in test setup")
+	_, err = postgresengine.NewEventStoreFromPGXPoolWithTableName(connPool, "")
+	assert.ErrorContains(t, err, ErrEmptyTableNameSupplied.Error())
+}
+
+func Test_NewEventStoreFromSQLDBWithTableName(t *testing.T) {
+	db := config.PostgresSQLDBTestConfig()
+	_, err := postgresengine.NewEventStoreFromSQLDBWithTableName(db, "event_data")
+	assert.NoError(t, err, "error creating the event store with table name")
+}
+
+func Test_NewEventStoreFromSQLDBWithTableName_ShouldFail_WithEmptyTableName(t *testing.T) {
+	db := config.PostgresSQLDBTestConfig()
+	_, err := postgresengine.NewEventStoreFromSQLDBWithTableName(db, "")
+	assert.ErrorContains(t, err, ErrEmptyTableNameSupplied.Error())
+}
+
 func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapper(t)
+	wrapper := CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -55,7 +84,7 @@ func Test_Append_When_SomeEvents_MatchTheQuery_BeforeAppend(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapper(t)
+	wrapper := CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -88,7 +117,7 @@ func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapper(t)
+	wrapper := CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -116,7 +145,6 @@ func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 	)
 
 	// assert
-	assert.Error(t, err)
 	assert.ErrorContains(t, err, ErrConcurrencyConflict.Error())
 }
 
@@ -125,7 +153,7 @@ func Test_AppendMultiple(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapper(t)
+	wrapper := CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -163,7 +191,7 @@ func Test_AppendMultiple_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapper(t)
+	wrapper := CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -192,7 +220,6 @@ func Test_AppendMultiple_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 	)
 
 	// assert
-	assert.Error(t, err)
 	assert.ErrorContains(t, err, ErrConcurrencyConflict.Error())
 }
 
@@ -201,7 +228,7 @@ func Test_Append_Concurrent(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapper(t)
+	wrapper := CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 	fakeClock := time.Unix(0, 0).UTC()
@@ -291,7 +318,7 @@ func Test_Append_EventWithMetadata(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapper(t)
+	wrapper := CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -338,7 +365,7 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapper(t)
+	wrapper := CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -657,7 +684,7 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 
 func Test_Append_When_Context_Is_Cancelled(t *testing.T) {
 	// setup
-	wrapper := CreateWrapper(t)
+	wrapper := CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 	fakeClock := time.Unix(0, 0).UTC()
@@ -691,7 +718,7 @@ func Test_Append_When_Context_Is_Cancelled(t *testing.T) {
 
 func Test_Append_When_Context_Times_out(t *testing.T) {
 	// setup
-	wrapper := CreateWrapper(t)
+	wrapper := CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 	fakeClock := time.Unix(0, 0).UTC()
@@ -727,7 +754,7 @@ func Test_Append_When_Context_Times_out(t *testing.T) {
 
 func Test_Query_When_Context_Is_Cancelled(t *testing.T) {
 	// setup
-	wrapper := CreateWrapper(t)
+	wrapper := CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 	fakeClock := time.Unix(0, 0).UTC()
@@ -756,7 +783,7 @@ func Test_Query_When_Context_Is_Cancelled(t *testing.T) {
 
 func Test_Query_When_Context_Times_Out(t *testing.T) {
 	// setup
-	wrapper := CreateWrapper(t)
+	wrapper := CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 	fakeClock := time.Unix(0, 0).UTC()
