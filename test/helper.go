@@ -197,10 +197,6 @@ func GivenSomeOtherEventsWereAppended(t testing.TB, ctx context.Context, es Post
 			totalEvent++
 			maxSequenceNumber++
 
-			if totalEvent%5000 == 0 {
-				//fmt.Printf("appended %d %s events into the DB\n", totalEvent, core.SomethingHasHappenedEventTypePrefix)
-			}
-
 			if totalEvent == numEvents {
 				break
 			}
@@ -213,8 +209,6 @@ func GivenSomeOtherEventsWereAppended(t testing.TB, ctx context.Context, es Post
 		}
 	}
 
-	//fmt.Printf("appended %d %s events into the DB\n", totalEvent, core.SomethingHasHappenedEventTypePrefix)
-
 	return fakeClock
 }
 
@@ -225,7 +219,6 @@ func CleanUpEvents(t testing.TB, connPool *pgxpool.Pool) {
 	)
 
 	assert.NoError(t, err, "error cleaning up the events table")
-	//fmt.Println("events table truncated")
 }
 
 func GetGreatestOccurredAtTimeFromDB(t testing.TB, connPool *pgxpool.Pool) time.Time {

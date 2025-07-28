@@ -299,12 +299,6 @@ func Test_Append_Concurrent(t *testing.T) {
 	events, _, err := es.Query(ctxWithTimeout, FilterAllEventTypesForOneBookOrReader(bookID, readerID))
 	assert.NoError(t, err)
 	assert.Equal(t, int(eventCount.Load()), len(events))
-
-	//t.Logf("Successful appends (single event): %d", successCountSingle.Load())
-	//t.Logf("Successful appends (multiple events): %d", successCountMultiple.Load())
-	//t.Logf("Concurrency conflicts (single event): %d", conflictCountSingle.Load())
-	//t.Logf("Concurrency conflicts (multiple events): %d", conflictCountMultiple.Load())
-	//t.Logf("Total events added: %d", eventCount.Load())
 }
 
 func Test_Append_EventWithMetadata(t *testing.T) {
