@@ -10,15 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/test"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/test/userland/config"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/test/userland/core"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/test/userland/shell"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/core"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shell"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/helper"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/helper/postgreswrapper"
 )
 
 func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
@@ -26,17 +24,14 @@ func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
-	defer connPool.Close()
-	assert.NoError(t, err, "error connecting to DB pool in test setup")
-
-	es, err := NewEventStoreFromPGXPoolWithTableName(connPool, "events")
-	assert.NoError(t, err, "creating the event store failed")
+	wrapper := CreateWrapper(t)
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUpEvents(t, connPool)
+	CleanUp(t, wrapper)
 	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock)
 	bookID := GivenUniqueID(t)
 	filter := FilterAllEventTypesForOneBook(bookID)
@@ -44,7 +39,7 @@ func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
 
 	// act
 	fakeClock = fakeClock.Add(time.Second)
-	err = es.Append(
+	err := es.Append(
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
@@ -60,16 +55,14 @@ func Test_Append_When_SomeEvents_MatchTheQuery_BeforeAppend(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
-	defer connPool.Close()
-	assert.NoError(t, err, "error connecting to DB pool in test setup")
-
-	es := NewEventStoreFromPGXPool(connPool)
+	wrapper := CreateWrapper(t)
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUpEvents(t, connPool)
+	CleanUp(t, wrapper)
 	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock)
 	bookID := GivenUniqueID(t)
 	fakeClock = fakeClock.Add(time.Second)
@@ -79,7 +72,7 @@ func Test_Append_When_SomeEvents_MatchTheQuery_BeforeAppend(t *testing.T) {
 
 	// act
 	fakeClock = fakeClock.Add(time.Second)
-	appendErr := es.Append(
+	err := es.Append(
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
@@ -87,7 +80,7 @@ func Test_Append_When_SomeEvents_MatchTheQuery_BeforeAppend(t *testing.T) {
 	)
 
 	// assert
-	assert.NoError(t, appendErr, "error in appending the events")
+	assert.NoError(t, err, "error in appending the events")
 }
 
 func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
@@ -95,16 +88,14 @@ func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
-	defer connPool.Close()
-	assert.NoError(t, err, "error connecting to DB pool in test setup")
-
-	es := NewEventStoreFromPGXPool(connPool)
+	wrapper := CreateWrapper(t)
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUpEvents(t, connPool)
+	CleanUp(t, wrapper)
 	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock)
 	bookID := GivenUniqueID(t)
 	readerID := GivenUniqueID(t)
@@ -117,7 +108,7 @@ func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 
 	// act
 	fakeClock = fakeClock.Add(time.Second)
-	err = es.Append(
+	err := es.Append(
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
@@ -134,16 +125,14 @@ func Test_AppendMultiple(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
-	defer connPool.Close()
-	assert.NoError(t, err, "error connecting to DB pool in test setup")
-
-	es := NewEventStoreFromPGXPool(connPool)
+	wrapper := CreateWrapper(t)
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUpEvents(t, connPool)
+	CleanUp(t, wrapper)
 	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock)
 	bookID := GivenUniqueID(t)
 	readerID := GivenUniqueID(t)
@@ -154,7 +143,7 @@ func Test_AppendMultiple(t *testing.T) {
 
 	// act
 	fakeClock = fakeClock.Add(time.Second)
-	appendErr := es.Append(
+	err := es.Append(
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
@@ -163,7 +152,7 @@ func Test_AppendMultiple(t *testing.T) {
 	)
 
 	// assert
-	assert.NoError(t, appendErr, "error in appending the event")
+	assert.NoError(t, err, "error in appending the event")
 	actualEvents, _, queryErr := es.Query(ctxWithTimeout, filter)
 	assert.NoError(t, queryErr, "error in querying the appended events back")
 	assert.Len(t, actualEvents, 3, "there should be exactly 3 events") // 1 in arrange and 2 in act
@@ -174,16 +163,14 @@ func Test_AppendMultiple_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
-	defer connPool.Close()
-	assert.NoError(t, err, "error connecting to DB pool in test setup")
-
-	es := NewEventStoreFromPGXPool(connPool)
+	wrapper := CreateWrapper(t)
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUpEvents(t, connPool)
+	CleanUp(t, wrapper)
 	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock)
 	bookID := GivenUniqueID(t)
 	readerID := GivenUniqueID(t)
@@ -196,7 +183,7 @@ func Test_AppendMultiple_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 
 	// act
 	fakeClock = fakeClock.Add(time.Second)
-	appendErr := es.Append(
+	err := es.Append(
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
@@ -205,8 +192,8 @@ func Test_AppendMultiple_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 	)
 
 	// assert
-	assert.Error(t, appendErr)
-	assert.ErrorContains(t, appendErr, ErrConcurrencyConflict.Error())
+	assert.Error(t, err)
+	assert.ErrorContains(t, err, ErrConcurrencyConflict.Error())
 }
 
 func Test_Append_Concurrent(t *testing.T) {
@@ -214,15 +201,13 @@ func Test_Append_Concurrent(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	connPool, configErr := pgxpool.NewWithConfig(ctxWithTimeout, config.PostgresPGXPoolTestConfig())
-	defer connPool.Close()
-	assert.NoError(t, configErr, "error connecting to DB pool in test setup")
-
-	es := NewEventStoreFromPGXPool(connPool)
+	wrapper := CreateWrapper(t)
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUpEvents(t, connPool)
+	CleanUp(t, wrapper)
 	bookID := GivenUniqueID(t)
 	readerID := GivenUniqueID(t)
 
@@ -306,16 +291,14 @@ func Test_Append_EventWithMetadata(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
-	assert.NoError(t, err, "error connecting to DB pool in test setup")
-	defer connPool.Close()
-
-	es := NewEventStoreFromPGXPool(connPool)
+	wrapper := CreateWrapper(t)
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUpEvents(t, connPool)
+	CleanUp(t, wrapper)
 	bookID := GivenUniqueID(t)
 	filter := FilterAllEventTypesForOneBook(bookID)
 	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
@@ -328,7 +311,7 @@ func Test_Append_EventWithMetadata(t *testing.T) {
 	eventMetadata := shell.BuildEventMetadata(messageID, causationID, correlationID)
 
 	// act (append)
-	err = es.Append(
+	err := es.Append(
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
@@ -355,16 +338,14 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
-	assert.NoError(t, err, "error connecting to DB pool in test setup")
-	defer connPool.Close()
-
-	es := NewEventStoreFromPGXPool(connPool)
+	wrapper := CreateWrapper(t)
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUpEvents(t, connPool)
+	CleanUp(t, wrapper)
 	numOtherEvents := 10
 	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, numOtherEvents, 0, fakeClock)
 
@@ -676,15 +657,13 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 
 func Test_Append_When_Context_Is_Cancelled(t *testing.T) {
 	// setup
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
-	defer connPool.Close()
-	assert.NoError(t, err, "error connecting to DB pool in test setup")
-
-	es := NewEventStoreFromPGXPool(connPool)
+	wrapper := CreateWrapper(t)
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUpEvents(t, connPool)
+	CleanUp(t, wrapper)
 	bookID := GivenUniqueID(t)
 	filter := FilterAllEventTypesForOneBook(bookID)
 
@@ -695,7 +674,7 @@ func Test_Append_When_Context_Is_Cancelled(t *testing.T) {
 	// act
 	cancel()
 	fakeClock = fakeClock.Add(time.Second)
-	err = es.Append(
+	err := es.Append(
 		ctxWithCancel,
 		filter,
 		maxSequenceNumberBeforeAppend,
@@ -712,15 +691,13 @@ func Test_Append_When_Context_Is_Cancelled(t *testing.T) {
 
 func Test_Append_When_Context_Times_out(t *testing.T) {
 	// setup
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
-	defer connPool.Close()
-	assert.NoError(t, err, "error connecting to DB pool in test setup")
-
-	es := NewEventStoreFromPGXPool(connPool)
+	wrapper := CreateWrapper(t)
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUpEvents(t, connPool)
+	CleanUp(t, wrapper)
 	bookID := GivenUniqueID(t)
 	filter := FilterAllEventTypesForOneBook(bookID)
 
@@ -733,7 +710,7 @@ func Test_Append_When_Context_Times_out(t *testing.T) {
 
 	// act
 	fakeClock = fakeClock.Add(time.Second)
-	err = es.Append(
+	err := es.Append(
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
@@ -750,15 +727,13 @@ func Test_Append_When_Context_Times_out(t *testing.T) {
 
 func Test_Query_When_Context_Is_Cancelled(t *testing.T) {
 	// setup
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
-	defer connPool.Close()
-	assert.NoError(t, err, "error connecting to DB pool in test setup")
-
-	es := NewEventStoreFromPGXPool(connPool)
+	wrapper := CreateWrapper(t)
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUpEvents(t, connPool)
+	CleanUp(t, wrapper)
 	bookID := GivenUniqueID(t)
 
 	fakeClock = fakeClock.Add(time.Second)
@@ -781,15 +756,13 @@ func Test_Query_When_Context_Is_Cancelled(t *testing.T) {
 
 func Test_Query_When_Context_Times_Out(t *testing.T) {
 	// setup
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
-	defer connPool.Close()
-	assert.NoError(t, err, "error connecting to DB pool in test setup")
-
-	es := NewEventStoreFromPGXPool(connPool)
+	wrapper := CreateWrapper(t)
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUpEvents(t, connPool)
+	CleanUp(t, wrapper)
 	bookID := GivenUniqueID(t)
 
 	fakeClock = fakeClock.Add(time.Second)

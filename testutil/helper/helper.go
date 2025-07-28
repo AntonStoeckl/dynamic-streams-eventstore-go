@@ -1,4 +1,4 @@
-package test
+package helper
 
 import (
 	"context"
@@ -11,10 +11,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/test/userland/core"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/test/userland/shell"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/core"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shell"
 )
 
 func GivenUniqueID(t testing.TB) uuid.UUID {
@@ -24,29 +24,29 @@ func GivenUniqueID(t testing.TB) uuid.UUID {
 	return bookID
 }
 
-func QueryMaxSequenceNumberBeforeAppend(t testing.TB, ctx context.Context, es EventStore, filter Filter) MaxSequenceNumberUint {
+func QueryMaxSequenceNumberBeforeAppend(t testing.TB, ctx context.Context, es postgresengine.EventStore, filter eventstore.Filter) eventstore.MaxSequenceNumberUint {
 	_, maxSequenceNumBeforeAppend, err := es.Query(ctx, filter)
 	assert.NoError(t, err, "error in arranging test data")
 
 	return maxSequenceNumBeforeAppend
 }
 
-func FilterAllEventTypesForOneBook(bookID uuid.UUID) Filter {
-	filter := BuildEventFilter().
+func FilterAllEventTypesForOneBook(bookID uuid.UUID) eventstore.Filter {
+	filter := eventstore.BuildEventFilter().
 		Matching().
 		AnyEventTypeOf(
 			core.BookCopyAddedToCirculationEventType,
 			core.BookCopyRemovedFromCirculationEventType,
 			core.BookCopyLentToReaderEventType,
 			core.BookCopyReturnedByReaderEventType).
-		AndAnyPredicateOf(P("BookID", bookID.String())).
+		AndAnyPredicateOf(eventstore.P("BookID", bookID.String())).
 		Finalize()
 
 	return filter
 }
 
-func FilterAllEventTypesForOneBookOrReader(bookID uuid.UUID, readerID uuid.UUID) Filter {
-	filter := BuildEventFilter().
+func FilterAllEventTypesForOneBookOrReader(bookID uuid.UUID, readerID uuid.UUID) eventstore.Filter {
+	filter := eventstore.BuildEventFilter().
 		Matching().
 		AnyEventTypeOf(
 			core.BookCopyAddedToCirculationEventType,
@@ -54,8 +54,8 @@ func FilterAllEventTypesForOneBookOrReader(bookID uuid.UUID, readerID uuid.UUID)
 			core.BookCopyLentToReaderEventType,
 			core.BookCopyReturnedByReaderEventType).
 		AndAnyPredicateOf(
-			P("BookID", bookID.String()),
-			P("ReaderID", readerID.String())).
+			eventstore.P("BookID", bookID.String()),
+			eventstore.P("ReaderID", readerID.String())).
 		Finalize()
 
 	return filter
@@ -86,21 +86,21 @@ func FixtureBookCopyReturnedByReader(bookID uuid.UUID, readerID uuid.UUID, fakeC
 	return core.BuildBookCopyReturnedFromReader(bookID, readerID, fakeClock)
 }
 
-func ToStorable(t testing.TB, domainEvent core.DomainEvent) StorableEvent {
+func ToStorable(t testing.TB, domainEvent core.DomainEvent) eventstore.StorableEvent {
 	storableEvent, err := shell.StorableEventWithEmptyMetadataFrom(domainEvent)
 	assert.NoError(t, err, "error in arranging test data")
 
 	return storableEvent
 }
 
-func ToStorableWithMetadata(t testing.TB, domainEvent core.DomainEvent, eventMetadata shell.EventMetadata) StorableEvent {
+func ToStorableWithMetadata(t testing.TB, domainEvent core.DomainEvent, eventMetadata shell.EventMetadata) eventstore.StorableEvent {
 	storableEvent, err := shell.StorableEventFrom(domainEvent, eventMetadata)
 	assert.NoError(t, err, "error in arranging test data")
 
 	return storableEvent
 }
 
-func GivenBookCopyAddedToCirculationWasAppended(t testing.TB, ctx context.Context, es EventStore, bookID uuid.UUID, fakeClock time.Time) core.DomainEvent {
+func GivenBookCopyAddedToCirculationWasAppended(t testing.TB, ctx context.Context, es postgresengine.EventStore, bookID uuid.UUID, fakeClock time.Time) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBook(bookID)
 	event := FixtureBookCopyAddedToCirculation(bookID, fakeClock)
 	err := es.Append(
@@ -114,7 +114,7 @@ func GivenBookCopyAddedToCirculationWasAppended(t testing.TB, ctx context.Contex
 	return event
 }
 
-func GivenBookCopyRemovedFromCirculationWasAppended(t testing.TB, ctx context.Context, es EventStore, bookID uuid.UUID, fakeClock time.Time) core.DomainEvent {
+func GivenBookCopyRemovedFromCirculationWasAppended(t testing.TB, ctx context.Context, es postgresengine.EventStore, bookID uuid.UUID, fakeClock time.Time) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBook(bookID)
 	event := FixtureBookCopyRemovedFromCirculation(bookID, fakeClock)
 	err := es.Append(
@@ -128,7 +128,7 @@ func GivenBookCopyRemovedFromCirculationWasAppended(t testing.TB, ctx context.Co
 	return event
 }
 
-func GivenBookCopyLentToReaderWasAppended(t testing.TB, ctx context.Context, es EventStore, bookID uuid.UUID, readerID uuid.UUID, fakeClock time.Time) core.DomainEvent {
+func GivenBookCopyLentToReaderWasAppended(t testing.TB, ctx context.Context, es postgresengine.EventStore, bookID uuid.UUID, readerID uuid.UUID, fakeClock time.Time) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBookOrReader(bookID, readerID)
 	event := FixtureBookCopyLentToReader(bookID, readerID, fakeClock)
 	err := es.Append(
@@ -142,7 +142,7 @@ func GivenBookCopyLentToReaderWasAppended(t testing.TB, ctx context.Context, es 
 	return event
 }
 
-func GivenBookCopyReturnedByReaderWasAppended(t testing.TB, ctx context.Context, es EventStore, bookID uuid.UUID, readerID uuid.UUID, fakeClock time.Time) core.DomainEvent {
+func GivenBookCopyReturnedByReaderWasAppended(t testing.TB, ctx context.Context, es postgresengine.EventStore, bookID uuid.UUID, readerID uuid.UUID, fakeClock time.Time) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBookOrReader(bookID, readerID)
 	event := FixtureBookCopyReturnedByReader(bookID, readerID, fakeClock)
 	err := es.Append(
@@ -156,7 +156,7 @@ func GivenBookCopyReturnedByReaderWasAppended(t testing.TB, ctx context.Context,
 	return event
 }
 
-func GivenSomeOtherEventsWereAppended(t testing.TB, ctx context.Context, es EventStore, numEvents int, startFrom MaxSequenceNumberUint, fakeClock time.Time) time.Time {
+func GivenSomeOtherEventsWereAppended(t testing.TB, ctx context.Context, es postgresengine.EventStore, numEvents int, startFrom eventstore.MaxSequenceNumberUint, fakeClock time.Time) time.Time {
 	maxSequenceNumber := startFrom
 	totalEvent := 0
 	eventPostfix := 0
@@ -175,10 +175,10 @@ func GivenSomeOtherEventsWereAppended(t testing.TB, ctx context.Context, es Even
 		amountOfSameEvents := rand.IntN(3) + 1
 
 		for j := 0; j < amountOfSameEvents; j++ {
-			filter := BuildEventFilter().
+			filter := eventstore.BuildEventFilter().
 				Matching().
 				AnyEventTypeOf(core.SomethingHasHappenedEventTypePrefix + strconv.Itoa(eventPostfix)).
-				AndAnyPredicateOf(P("ID", id.String())).
+				AndAnyPredicateOf(eventstore.P("ID", id.String())).
 				Finalize()
 
 			maxSequenceNumberForThisEventType := maxSequenceNumber
@@ -210,15 +210,6 @@ func GivenSomeOtherEventsWereAppended(t testing.TB, ctx context.Context, es Even
 	}
 
 	return fakeClock
-}
-
-func CleanUpEvents(t testing.TB, connPool *pgxpool.Pool) {
-	_, err := connPool.Exec(
-		context.Background(),
-		"TRUNCATE TABLE events RESTART IDENTITY",
-	)
-
-	assert.NoError(t, err, "error cleaning up the events table")
 }
 
 func GetGreatestOccurredAtTimeFromDB(t testing.TB, connPool *pgxpool.Pool) time.Time {

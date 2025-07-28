@@ -16,12 +16,6 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine/internal/adapters"
 )
 
-var ErrEmptyTableNameSupplied = errors.New("empty eventTableName supplied")
-var ErrConcurrencyConflict = errors.New("concurrency error, no rows were affected")
-
-// MaxSequenceNumberUint is a type alias for uint, representing the maximum sequence number for a "dynamic event stream".
-type MaxSequenceNumberUint = uint
-
 type sqlQueryString = string
 
 type EventStore struct {
@@ -34,7 +28,7 @@ type queryResultRow struct {
 	payload           []byte
 	metadata          []byte
 	occurredAt        time.Time
-	maxSequenceNumber MaxSequenceNumberUint
+	maxSequenceNumber eventstore.MaxSequenceNumberUint
 }
 
 func NewEventStoreFromPGXPool(db *pgxpool.Pool) EventStore {
@@ -43,7 +37,7 @@ func NewEventStoreFromPGXPool(db *pgxpool.Pool) EventStore {
 
 func NewEventStoreFromPGXPoolWithTableName(db *pgxpool.Pool, eventTableName string) (EventStore, error) {
 	if eventTableName == "" {
-		return EventStore{}, ErrEmptyTableNameSupplied
+		return EventStore{}, eventstore.ErrEmptyTableNameSupplied
 	}
 
 	return EventStore{db: adapters.NewPGXAdapter(db), eventTableName: eventTableName}, nil
@@ -55,7 +49,7 @@ func NewEventStoreFromSQLDB(db *sql.DB) EventStore {
 
 func NewEventStoreFromSQLDBWithTableName(db *sql.DB, eventTableName string) (EventStore, error) {
 	if eventTableName == "" {
-		return EventStore{}, ErrEmptyTableNameSupplied
+		return EventStore{}, eventstore.ErrEmptyTableNameSupplied
 	}
 
 	return EventStore{db: adapters.NewSQLAdapter(db), eventTableName: eventTableName}, nil
@@ -66,7 +60,7 @@ func NewEventStoreFromSQLDBWithTableName(db *sql.DB, eventTableName string) (Eve
 // as well as the MaxSequenceNumberUint for this "dynamic event stream" at the time of the query.
 func (es EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 	eventstore.StorableEvents,
-	MaxSequenceNumberUint,
+	eventstore.MaxSequenceNumberUint,
 	error,
 ) {
 
@@ -92,7 +86,7 @@ func (es EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 
 	result := queryResultRow{}
 	eventStream := make(eventstore.StorableEvents, 0)
-	maxSequenceNumber := MaxSequenceNumberUint(0)
+	maxSequenceNumber := eventstore.MaxSequenceNumberUint(0)
 
 	for rows.Next() {
 		rowScanErr := rows.Scan(&result.eventType, &result.occurredAt, &result.payload, &result.metadata, &result.maxSequenceNumber)
@@ -122,7 +116,7 @@ func (es EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 func (es EventStore) Append(
 	ctx context.Context,
 	filter eventstore.Filter,
-	expectedMaxSequenceNumber MaxSequenceNumberUint,
+	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
 	event eventstore.StorableEvent,
 	additionalEvents ...eventstore.StorableEvent,
 ) error {
@@ -157,7 +151,7 @@ func (es EventStore) Append(
 	}
 
 	if rowsAffected < int64(len(allEvents)) {
-		return ErrConcurrencyConflict
+		return eventstore.ErrConcurrencyConflict
 	}
 
 	return nil
@@ -182,7 +176,7 @@ func (es EventStore) buildSelectQuery(filter eventstore.Filter) (sqlQueryString,
 func (es EventStore) buildInsertQueryForSingleEvent(
 	event eventstore.StorableEvent,
 	filter eventstore.Filter,
-	expectedMaxSequenceNumber MaxSequenceNumberUint,
+	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
 ) (sqlQueryString, error) {
 
 	builder := goqu.Dialect("postgres")
@@ -218,7 +212,7 @@ func (es EventStore) buildInsertQueryForSingleEvent(
 func (es EventStore) buildInsertQueryForMultipleEvents(
 	events []eventstore.StorableEvent,
 	filter eventstore.Filter,
-	expectedMaxSequenceNumber MaxSequenceNumberUint,
+	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
 ) (sqlQueryString, error) {
 	builder := goqu.Dialect("postgres")
 

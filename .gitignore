@@ -1,11 +1,12 @@
 # Compiled binary
-test/cmd/generate/*
-!test/cmd/generate/*.go
-test/cmd/import/*
-!test/cmd/import/*.go
+testutil/cmd/generate/*
+!testutil/cmd/generate/*.go
+testutil/cmd/import/*
+!testutil/cmd/import/*.go
 
 # Generated fixture files
-test/fixtures/*.*
+testutil/fixtures/*.*
+!/testutil/fixtures/.gitkeep
 
 # IDE and Editor files
 .vscode/

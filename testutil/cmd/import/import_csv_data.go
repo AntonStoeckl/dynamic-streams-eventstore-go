@@ -7,7 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/test/userland/config"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/config"
 )
 
 func main() {

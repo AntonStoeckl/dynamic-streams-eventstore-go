@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/test/userland/core"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/core"
 )
 
 const (
@@ -48,9 +48,9 @@ const (
 	// WriteSQLFileEnabled determines whether the fixtures are written to a SQL file (not recommended, see above).
 	WriteSQLFileEnabled = false
 
-	OutputDir     = "test/fixtures" // The directory to put the fixture data into - should be fine as is.
-	OutputSQLFile = "events.sql"    // The SQL file to put the fixture data into - should be fine as is.
-	OutputCSVFile = "events.csv"    // The CSV file to put the fixture data into - should be fine as is.
+	OutputDir     = "testutil/fixtures" // The directory to put the fixture data into - should be fine as is.
+	OutputSQLFile = "events.sql"        // The SQL file to put the fixture data into - should be fine as is.
+	OutputCSVFile = "events.csv"        // The CSV file to put the fixture data into - should be fine as is.
 )
 
 type EventData struct {

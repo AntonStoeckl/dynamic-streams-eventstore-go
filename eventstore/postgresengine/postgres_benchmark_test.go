@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/test"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/test/userland/config"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/test/userland/core"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/test/userland/shell"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/config"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/core"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shell"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/helper"
 )
 
 func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {

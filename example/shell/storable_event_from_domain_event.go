@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/test/userland/core"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/core"
 )
 
 var ErrMappingToStorableEventFailedForDomainEvent = errors.New("mapping to storable event failed for domain event")

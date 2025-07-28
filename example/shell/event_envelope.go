@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/test/userland/core"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/core"
 )
 
 var ErrEventEnvelopeFromStorableEventFailed = errors.New("event envelope from storable event failed")
