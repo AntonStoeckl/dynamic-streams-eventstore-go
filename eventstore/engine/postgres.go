@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/engine/internal/adapters"
 )
 
 var ErrEmptyTableNameSupplied = errors.New("empty eventTableName supplied")
@@ -24,7 +25,7 @@ type MaxSequenceNumberUint = uint
 type sqlQueryString = string
 
 type PostgresEventStore struct {
-	db             dbAdapter
+	db             adapters.DBAdapter
 	eventTableName string
 }
 
@@ -37,7 +38,7 @@ type queryResultRow struct {
 }
 
 func NewPostgresEventStoreFromPGXPool(db *pgxpool.Pool) PostgresEventStore {
-	return PostgresEventStore{db: &pgxAdapter{pool: db}, eventTableName: "events"}
+	return PostgresEventStore{db: adapters.NewPGXAdapter(db), eventTableName: "events"}
 }
 
 func NewPostgresEventStoreFromPGXPoolWithTableName(db *pgxpool.Pool, eventTableName string) (PostgresEventStore, error) {
@@ -45,11 +46,11 @@ func NewPostgresEventStoreFromPGXPoolWithTableName(db *pgxpool.Pool, eventTableN
 		return PostgresEventStore{}, ErrEmptyTableNameSupplied
 	}
 
-	return PostgresEventStore{db: &pgxAdapter{pool: db}, eventTableName: eventTableName}, nil
+	return PostgresEventStore{db: adapters.NewPGXAdapter(db), eventTableName: eventTableName}, nil
 }
 
 func NewPostgresEventStoreFromSQLDB(db *sql.DB) PostgresEventStore {
-	return PostgresEventStore{db: &sqlAdapter{db: db}, eventTableName: "events"}
+	return PostgresEventStore{db: adapters.NewSQLAdapter(db), eventTableName: "events"}
 }
 
 func NewPostgresEventStoreFromSQLDBWithTableName(db *sql.DB, eventTableName string) (PostgresEventStore, error) {
@@ -57,7 +58,7 @@ func NewPostgresEventStoreFromSQLDBWithTableName(db *sql.DB, eventTableName stri
 		return PostgresEventStore{}, ErrEmptyTableNameSupplied
 	}
 
-	return PostgresEventStore{db: &sqlAdapter{db: db}, eventTableName: eventTableName}, nil
+	return PostgresEventStore{db: adapters.NewSQLAdapter(db), eventTableName: eventTableName}, nil
 }
 
 // Query retrieves events from the Postgres event store based on the provided eventstore.Filter criteria
@@ -328,117 +329,4 @@ func (es PostgresEventStore) addWhereClause(filter eventstore.Filter, selectStmt
 	)
 
 	return selectStmt
-}
-
-// Internal database adapter interfaces
-type dbAdapter interface {
-	Query(ctx context.Context, query string) (dbRows, error)
-	Exec(ctx context.Context, query string) (dbResult, error)
-}
-
-type dbRows interface {
-	Next() bool
-	Scan(dest ...interface{}) error
-	Close() error
-}
-
-type dbResult interface {
-	RowsAffected() (int64, error)
-}
-
-// pgx adapter implementations
-type pgxAdapter struct {
-	pool *pgxpool.Pool
-}
-
-func (p *pgxAdapter) Query(ctx context.Context, query string) (dbRows, error) {
-	rows, err := p.pool.Query(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	return &pgxRows{rows: rows}, nil
-}
-
-func (p *pgxAdapter) Exec(ctx context.Context, query string) (dbResult, error) {
-	tag, err := p.pool.Exec(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	return &pgxResult{tag: tag}, nil
-}
-
-type pgxRows struct {
-	rows interface {
-		Next() bool
-		Scan(dest ...interface{}) error
-		Close()
-	}
-}
-
-func (p *pgxRows) Next() bool {
-	return p.rows.Next()
-}
-
-func (p *pgxRows) Scan(dest ...interface{}) error {
-	return p.rows.Scan(dest...)
-}
-
-func (p *pgxRows) Close() error {
-	p.rows.Close()
-	return nil
-}
-
-type pgxResult struct {
-	tag interface {
-		RowsAffected() int64
-	}
-}
-
-func (p *pgxResult) RowsAffected() (int64, error) {
-	return p.tag.RowsAffected(), nil
-}
-
-// sql.DB adapter implementations
-type sqlAdapter struct {
-	db *sql.DB
-}
-
-func (s *sqlAdapter) Query(ctx context.Context, query string) (dbRows, error) {
-	rows, err := s.db.QueryContext(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	return &sqlRows{rows: rows}, nil
-}
-
-func (s *sqlAdapter) Exec(ctx context.Context, query string) (dbResult, error) {
-	result, err := s.db.ExecContext(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	return &sqlResult{result: result}, nil
-}
-
-type sqlRows struct {
-	rows *sql.Rows
-}
-
-func (s *sqlRows) Next() bool {
-	return s.rows.Next()
-}
-
-func (s *sqlRows) Scan(dest ...interface{}) error {
-	return s.rows.Scan(dest...)
-}
-
-func (s *sqlRows) Close() error {
-	return s.rows.Close()
-}
-
-type sqlResult struct {
-	result sql.Result
-}
-
-func (s *sqlResult) RowsAffected() (int64, error) {
-	return s.result.RowsAffected()
 }
