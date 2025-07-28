@@ -19,7 +19,7 @@ import (
 func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 	// setup
 	ctx := context.Background()
-	connPool, err := pgxpool.NewWithConfig(ctx, config.PostgresBenchmarkConfig())
+	connPool, err := pgxpool.NewWithConfig(ctx, config.PostgresPGXPoolBenchmarkConfig())
 	defer connPool.Close()
 	assert.NoError(b, err, "error connecting to DB pool in test setup")
 
@@ -77,7 +77,7 @@ func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 	// setup
 	ctx := context.Background()
-	connPool, err := pgxpool.NewWithConfig(ctx, config.PostgresBenchmarkConfig())
+	connPool, err := pgxpool.NewWithConfig(ctx, config.PostgresPGXPoolBenchmarkConfig())
 	defer connPool.Close()
 	assert.NoError(b, err, "error connecting to DB pool in test setup")
 
@@ -144,7 +144,7 @@ func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 func Benchmark_Query_With_Many_Events_InTheStore(b *testing.B) {
 	// setup
 	ctx := context.Background()
-	connPool, err := pgxpool.NewWithConfig(ctx, config.PostgresBenchmarkConfig())
+	connPool, err := pgxpool.NewWithConfig(ctx, config.PostgresPGXPoolBenchmarkConfig())
 	defer connPool.Close()
 	assert.NoError(b, err, "error connecting to DB pool in test setup")
 
@@ -177,7 +177,7 @@ func Benchmark_Query_With_Many_Events_InTheStore(b *testing.B) {
 func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 	// setup
 	ctx := context.Background()
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresBenchmarkConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolBenchmarkConfig())
 	defer connPool.Close()
 	assert.NoError(b, err, "error connecting to DB pool in test setup")
 

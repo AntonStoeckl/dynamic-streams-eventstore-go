@@ -26,7 +26,7 @@ func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
@@ -60,7 +60,7 @@ func Test_Append_When_SomeEvents_MatchTheQuery_BeforeAppend(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
@@ -95,7 +95,7 @@ func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
@@ -134,7 +134,7 @@ func Test_AppendMultiple(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
@@ -174,7 +174,7 @@ func Test_AppendMultiple_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
@@ -214,7 +214,7 @@ func Test_Append_Concurrent(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	connPool, configErr := pgxpool.NewWithConfig(ctxWithTimeout, config.PostgresTestConfig())
+	connPool, configErr := pgxpool.NewWithConfig(ctxWithTimeout, config.PostgresPGXPoolTestConfig())
 	defer connPool.Close()
 	assert.NoError(t, configErr, "error connecting to DB pool in test setup")
 
@@ -306,7 +306,7 @@ func Test_Append_EventWithMetadata(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 	defer connPool.Close()
 
@@ -355,7 +355,7 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 	defer connPool.Close()
 
@@ -676,7 +676,7 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 
 func Test_Append_When_Context_Is_Cancelled(t *testing.T) {
 	// setup
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
@@ -712,7 +712,7 @@ func Test_Append_When_Context_Is_Cancelled(t *testing.T) {
 
 func Test_Append_When_Context_Times_out(t *testing.T) {
 	// setup
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
@@ -750,7 +750,7 @@ func Test_Append_When_Context_Times_out(t *testing.T) {
 
 func Test_Query_When_Context_Is_Cancelled(t *testing.T) {
 	// setup
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
@@ -781,7 +781,7 @@ func Test_Query_When_Context_Is_Cancelled(t *testing.T) {
 
 func Test_Query_When_Context_Times_Out(t *testing.T) {
 	// setup
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresTestConfig())
+	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 

@@ -7,7 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func PostgresTestConfig() *pgxpool.Config {
+func PostgresPGXPoolTestConfig() *pgxpool.Config {
 	const defaultMaxConnections = int32(8)
 	const defaultMinConnections = int32(2)
 	const defaultMaxConnLifetime = time.Hour
@@ -33,7 +33,7 @@ func PostgresTestConfig() *pgxpool.Config {
 	return dbConfig
 }
 
-func PostgresBenchmarkConfig() *pgxpool.Config {
+func PostgresPGXPoolBenchmarkConfig() *pgxpool.Config {
 	const defaultMaxConnections = int32(8)
 	const defaultMinConnections = int32(2)
 	const defaultMaxConnLifetime = time.Hour
