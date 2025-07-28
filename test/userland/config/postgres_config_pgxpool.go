@@ -1,7 +1,6 @@
 package config
 
 import (
-	"database/sql"
 	"log"
 	"time"
 
