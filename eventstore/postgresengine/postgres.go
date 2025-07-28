@@ -1,4 +1,4 @@
-package engine
+package postgresengine
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/engine/internal/adapters"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine/internal/adapters"
 )
 
 var ErrEmptyTableNameSupplied = errors.New("empty eventTableName supplied")
@@ -24,7 +24,7 @@ type MaxSequenceNumberUint = uint
 
 type sqlQueryString = string
 
-type PostgresEventStore struct {
+type EventStore struct {
 	db             adapters.DBAdapter
 	eventTableName string
 }
@@ -37,34 +37,34 @@ type queryResultRow struct {
 	maxSequenceNumber MaxSequenceNumberUint
 }
 
-func NewPostgresEventStoreFromPGXPool(db *pgxpool.Pool) PostgresEventStore {
-	return PostgresEventStore{db: adapters.NewPGXAdapter(db), eventTableName: "events"}
+func NewEventStoreFromPGXPool(db *pgxpool.Pool) EventStore {
+	return EventStore{db: adapters.NewPGXAdapter(db), eventTableName: "events"}
 }
 
-func NewPostgresEventStoreFromPGXPoolWithTableName(db *pgxpool.Pool, eventTableName string) (PostgresEventStore, error) {
+func NewEventStoreFromPGXPoolWithTableName(db *pgxpool.Pool, eventTableName string) (EventStore, error) {
 	if eventTableName == "" {
-		return PostgresEventStore{}, ErrEmptyTableNameSupplied
+		return EventStore{}, ErrEmptyTableNameSupplied
 	}
 
-	return PostgresEventStore{db: adapters.NewPGXAdapter(db), eventTableName: eventTableName}, nil
+	return EventStore{db: adapters.NewPGXAdapter(db), eventTableName: eventTableName}, nil
 }
 
-func NewPostgresEventStoreFromSQLDB(db *sql.DB) PostgresEventStore {
-	return PostgresEventStore{db: adapters.NewSQLAdapter(db), eventTableName: "events"}
+func NewEventStoreFromSQLDB(db *sql.DB) EventStore {
+	return EventStore{db: adapters.NewSQLAdapter(db), eventTableName: "events"}
 }
 
-func NewPostgresEventStoreFromSQLDBWithTableName(db *sql.DB, eventTableName string) (PostgresEventStore, error) {
+func NewEventStoreFromSQLDBWithTableName(db *sql.DB, eventTableName string) (EventStore, error) {
 	if eventTableName == "" {
-		return PostgresEventStore{}, ErrEmptyTableNameSupplied
+		return EventStore{}, ErrEmptyTableNameSupplied
 	}
 
-	return PostgresEventStore{db: adapters.NewSQLAdapter(db), eventTableName: eventTableName}, nil
+	return EventStore{db: adapters.NewSQLAdapter(db), eventTableName: eventTableName}, nil
 }
 
 // Query retrieves events from the Postgres event store based on the provided eventstore.Filter criteria
 // and returns them as eventstore.StorableEvents
 // as well as the MaxSequenceNumberUint for this "dynamic event stream" at the time of the query.
-func (es PostgresEventStore) Query(ctx context.Context, filter eventstore.Filter) (
+func (es EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 	eventstore.StorableEvents,
 	MaxSequenceNumberUint,
 	error,
@@ -119,7 +119,7 @@ func (es PostgresEventStore) Query(ctx context.Context, filter eventstore.Filter
 // The insert query to append multiple events atomically is heavier than the one built to append a single event.
 // In event-sourced applications, one command/request should typically only produce one event.
 // Only supply multiple events if you are sure that you need to append multiple events at once!
-func (es PostgresEventStore) Append(
+func (es EventStore) Append(
 	ctx context.Context,
 	filter eventstore.Filter,
 	expectedMaxSequenceNumber MaxSequenceNumberUint,
@@ -163,7 +163,7 @@ func (es PostgresEventStore) Append(
 	return nil
 }
 
-func (es PostgresEventStore) buildSelectQuery(filter eventstore.Filter) (sqlQueryString, error) {
+func (es EventStore) buildSelectQuery(filter eventstore.Filter) (sqlQueryString, error) {
 	selectStmt := goqu.Dialect("postgres").
 		From(es.eventTableName).
 		Select("event_type", "occurred_at", "payload", "metadata", "sequence_number").
@@ -179,7 +179,7 @@ func (es PostgresEventStore) buildSelectQuery(filter eventstore.Filter) (sqlQuer
 	return sqlQuery, nil
 }
 
-func (es PostgresEventStore) buildInsertQueryForSingleEvent(
+func (es EventStore) buildInsertQueryForSingleEvent(
 	event eventstore.StorableEvent,
 	filter eventstore.Filter,
 	expectedMaxSequenceNumber MaxSequenceNumberUint,
@@ -215,7 +215,7 @@ func (es PostgresEventStore) buildInsertQueryForSingleEvent(
 	return sqlQuery, nil
 }
 
-func (es PostgresEventStore) buildInsertQueryForMultipleEvents(
+func (es EventStore) buildInsertQueryForMultipleEvents(
 	events []eventstore.StorableEvent,
 	filter eventstore.Filter,
 	expectedMaxSequenceNumber MaxSequenceNumberUint,
@@ -267,7 +267,7 @@ func (es PostgresEventStore) buildInsertQueryForMultipleEvents(
 	return sqlQuery, nil
 }
 
-func (es PostgresEventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.SelectDataset) *goqu.SelectDataset {
+func (es EventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.SelectDataset) *goqu.SelectDataset {
 	itemsExpressions := make([]goqu.Expression, 0)
 
 	for _, item := range filter.Items() {

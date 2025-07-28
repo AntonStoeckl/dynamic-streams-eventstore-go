@@ -95,10 +95,10 @@ See [Performance Documentation](./docs/performance.md) for detailed benchmarks a
 docker-compose --file test/docker-compose.yml up -d
 
 # Run tests
-go test ./eventstore/engine/
+go test ./eventstore/...
 
 # Run benchmarks  
-go test -bench=. ./eventstore/engine/
+go test -bench=. ./eventstore/...
 ```
 
 ## 🤝 Contributing

@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/engine"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/test/userland/core"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/test/userland/shell"
 )
@@ -24,7 +24,7 @@ func GivenUniqueID(t testing.TB) uuid.UUID {
 	return bookID
 }
 
-func QueryMaxSequenceNumberBeforeAppend(t testing.TB, ctx context.Context, es PostgresEventStore, filter Filter) MaxSequenceNumberUint {
+func QueryMaxSequenceNumberBeforeAppend(t testing.TB, ctx context.Context, es EventStore, filter Filter) MaxSequenceNumberUint {
 	_, maxSequenceNumBeforeAppend, err := es.Query(ctx, filter)
 	assert.NoError(t, err, "error in arranging test data")
 
@@ -100,7 +100,7 @@ func ToStorableWithMetadata(t testing.TB, domainEvent core.DomainEvent, eventMet
 	return storableEvent
 }
 
-func GivenBookCopyAddedToCirculationWasAppended(t testing.TB, ctx context.Context, es PostgresEventStore, bookID uuid.UUID, fakeClock time.Time) core.DomainEvent {
+func GivenBookCopyAddedToCirculationWasAppended(t testing.TB, ctx context.Context, es EventStore, bookID uuid.UUID, fakeClock time.Time) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBook(bookID)
 	event := FixtureBookCopyAddedToCirculation(bookID, fakeClock)
 	err := es.Append(
@@ -114,7 +114,7 @@ func GivenBookCopyAddedToCirculationWasAppended(t testing.TB, ctx context.Contex
 	return event
 }
 
-func GivenBookCopyRemovedFromCirculationWasAppended(t testing.TB, ctx context.Context, es PostgresEventStore, bookID uuid.UUID, fakeClock time.Time) core.DomainEvent {
+func GivenBookCopyRemovedFromCirculationWasAppended(t testing.TB, ctx context.Context, es EventStore, bookID uuid.UUID, fakeClock time.Time) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBook(bookID)
 	event := FixtureBookCopyRemovedFromCirculation(bookID, fakeClock)
 	err := es.Append(
@@ -128,7 +128,7 @@ func GivenBookCopyRemovedFromCirculationWasAppended(t testing.TB, ctx context.Co
 	return event
 }
 
-func GivenBookCopyLentToReaderWasAppended(t testing.TB, ctx context.Context, es PostgresEventStore, bookID uuid.UUID, readerID uuid.UUID, fakeClock time.Time) core.DomainEvent {
+func GivenBookCopyLentToReaderWasAppended(t testing.TB, ctx context.Context, es EventStore, bookID uuid.UUID, readerID uuid.UUID, fakeClock time.Time) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBookOrReader(bookID, readerID)
 	event := FixtureBookCopyLentToReader(bookID, readerID, fakeClock)
 	err := es.Append(
@@ -142,7 +142,7 @@ func GivenBookCopyLentToReaderWasAppended(t testing.TB, ctx context.Context, es 
 	return event
 }
 
-func GivenBookCopyReturnedByReaderWasAppended(t testing.TB, ctx context.Context, es PostgresEventStore, bookID uuid.UUID, readerID uuid.UUID, fakeClock time.Time) core.DomainEvent {
+func GivenBookCopyReturnedByReaderWasAppended(t testing.TB, ctx context.Context, es EventStore, bookID uuid.UUID, readerID uuid.UUID, fakeClock time.Time) core.DomainEvent {
 	filter := FilterAllEventTypesForOneBookOrReader(bookID, readerID)
 	event := FixtureBookCopyReturnedByReader(bookID, readerID, fakeClock)
 	err := es.Append(
@@ -156,7 +156,7 @@ func GivenBookCopyReturnedByReaderWasAppended(t testing.TB, ctx context.Context,
 	return event
 }
 
-func GivenSomeOtherEventsWereAppended(t testing.TB, ctx context.Context, es PostgresEventStore, numEvents int, startFrom MaxSequenceNumberUint, fakeClock time.Time) time.Time {
+func GivenSomeOtherEventsWereAppended(t testing.TB, ctx context.Context, es EventStore, numEvents int, startFrom MaxSequenceNumberUint, fakeClock time.Time) time.Time {
 	maxSequenceNumber := startFrom
 	totalEvent := 0
 	eventPostfix := 0

@@ -35,7 +35,7 @@ docker-compose --file test/docker-compose.yml up -d postgres_benchmark # Port 54
 
 4. **Verify setup:**
 ```bash
-go test ./eventstore/engine/
+go test ./eventstore/postgresengine/
 ```
 
 ## Project Structure
@@ -73,29 +73,29 @@ go test ./...
 
 # Run specific package tests
 go test ./eventstore/
-go test ./eventstore/engine/
+go test ./eventstore/postgresengine/
 
 # Run tests with verbose output
-go test -v ./eventstore/engine/
+go test -v ./eventstore/postgresengine/
 
 # Run specific test
-go test -v ./eventstore/engine/ -run TestPostgresEventStore_Query
+go test -v ./eventstore/postgresengine/ -run TestPostgresEventStore_Query
 ```
 
 ### Benchmark Tests
 
 ```bash
 # Run all benchmarks
-go test -bench=. ./eventstore/engine/
+go test -bench=. ./eventstore/postgresengine/
 
 # Run specific benchmark
-go test -bench=BenchmarkQuery ./eventstore/engine/
+go test -bench=BenchmarkQuery ./eventstore/postgresengine/
 
 # Run benchmarks multiple times for stability
-go test -bench=. -count=8 ./eventstore/engine/
+go test -bench=. -count=8 ./eventstore/postgresengine/
 
 # Save benchmark results
-go test -bench=. ./eventstore/engine/ > benchmarks.txt
+go test -bench=. ./eventstore/postgresengine/ > benchmarks.txt
 ```
 
 **Note:** Benchmarks require at least 10,000 fixture events. Use the fixture generation tools if needed.
@@ -285,7 +285,7 @@ docker-compose --file test/docker-compose.yml logs postgres_test
 # Clean state and retry
 docker-compose --file test/docker-compose.yml down -v
 docker-compose --file test/docker-compose.yml up -d
-go test ./eventstore/engine/
+go test ./eventstore/postgresengine/
 ```
 
 ## Performance Profiling
@@ -294,7 +294,7 @@ go test ./eventstore/engine/
 
 ```bash
 # Run benchmarks with CPU profiling
-go test -bench=BenchmarkQuery -cpuprofile=cpu.prof ./eventstore/engine/
+go test -bench=BenchmarkQuery -cpuprofile=cpu.prof ./eventstore/postgresengine/
 
 # Analyze profile
 go tool pprof cpu.prof
@@ -304,7 +304,7 @@ go tool pprof cpu.prof
 
 ```bash
 # Run benchmarks with memory profiling
-go test -bench=BenchmarkQuery -memprofile=mem.prof ./eventstore/engine/
+go test -bench=BenchmarkQuery -memprofile=mem.prof ./eventstore/postgresengine/
 
 # Analyze profile
 go tool pprof mem.prof
@@ -314,7 +314,7 @@ go tool pprof mem.prof
 
 ```bash
 # Generate execution trace
-go test -bench=BenchmarkQuery -trace=trace.out ./eventstore/engine/
+go test -bench=BenchmarkQuery -trace=trace.out ./eventstore/postgresengine/
 
 # View trace
 go tool trace trace.out
@@ -331,7 +331,7 @@ go test ./...
 
 2. **Run benchmarks:**
 ```bash
-go test -bench=. ./eventstore/engine/
+go test -bench=. ./eventstore/postgresengine/
 ```
 
 3. **Check formatting:**
@@ -368,7 +368,7 @@ golangci-lint run
 go build ./...
 
 # Build specific package
-go build ./eventstore/engine/
+go build ./eventstore/postgresengine/
 
 # Check for build issues
 go build -v ./...

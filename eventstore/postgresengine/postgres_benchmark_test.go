@@ -1,4 +1,4 @@
-package engine_test
+package postgresengine_test
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/engine"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/test"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/test/userland/config"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/test/userland/core"
@@ -23,7 +23,7 @@ func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 	defer connPool.Close()
 	assert.NoError(b, err, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStoreFromPGXPool(connPool)
+	es := NewEventStoreFromPGXPool(connPool)
 
 	// arrange
 	guardThatThereAreEnoughFixtureEventsInStore(connPool, 10000)
@@ -81,7 +81,7 @@ func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 	defer connPool.Close()
 	assert.NoError(b, err, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStoreFromPGXPool(connPool)
+	es := NewEventStoreFromPGXPool(connPool)
 
 	// arrange
 	guardThatThereAreEnoughFixtureEventsInStore(connPool, 10000)
@@ -148,7 +148,7 @@ func Benchmark_Query_With_Many_Events_InTheStore(b *testing.B) {
 	defer connPool.Close()
 	assert.NoError(b, err, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStoreFromPGXPool(connPool)
+	es := NewEventStoreFromPGXPool(connPool)
 
 	// arrange
 	guardThatThereAreEnoughFixtureEventsInStore(connPool, 10000)
@@ -181,7 +181,7 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 	defer connPool.Close()
 	assert.NoError(b, err, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStoreFromPGXPool(connPool)
+	es := NewEventStoreFromPGXPool(connPool)
 
 	// arrange
 	guardThatThereAreEnoughFixtureEventsInStore(connPool, 10000)
