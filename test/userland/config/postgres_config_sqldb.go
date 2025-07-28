@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"log"
 	"time"
+
+	_ "github.com/lib/pq" // postgres driver
 )
 
 func PostgresSQLDBTestConfig() *sql.DB {
