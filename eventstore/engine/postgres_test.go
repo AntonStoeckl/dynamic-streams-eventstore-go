@@ -30,7 +30,7 @@ func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
-	es, err := NewPostgresEventStoreWithTableName(connPool, "events")
+	es, err := NewPostgresEventStoreFromPGXPoolWithTableName(connPool, "events")
 	assert.NoError(t, err, "creating the event store failed")
 
 	fakeClock := time.Unix(0, 0).UTC()
@@ -64,7 +64,7 @@ func Test_Append_When_SomeEvents_MatchTheQuery_BeforeAppend(t *testing.T) {
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStore(connPool)
+	es := NewPostgresEventStoreFromPGXPool(connPool)
 
 	fakeClock := time.Unix(0, 0).UTC()
 
@@ -99,7 +99,7 @@ func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStore(connPool)
+	es := NewPostgresEventStoreFromPGXPool(connPool)
 
 	fakeClock := time.Unix(0, 0).UTC()
 
@@ -138,7 +138,7 @@ func Test_AppendMultiple(t *testing.T) {
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStore(connPool)
+	es := NewPostgresEventStoreFromPGXPool(connPool)
 
 	fakeClock := time.Unix(0, 0).UTC()
 
@@ -178,7 +178,7 @@ func Test_AppendMultiple_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStore(connPool)
+	es := NewPostgresEventStoreFromPGXPool(connPool)
 
 	fakeClock := time.Unix(0, 0).UTC()
 
@@ -218,7 +218,7 @@ func Test_Append_Concurrent(t *testing.T) {
 	defer connPool.Close()
 	assert.NoError(t, configErr, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStore(connPool)
+	es := NewPostgresEventStoreFromPGXPool(connPool)
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
@@ -310,7 +310,7 @@ func Test_Append_EventWithMetadata(t *testing.T) {
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 	defer connPool.Close()
 
-	es := NewPostgresEventStore(connPool)
+	es := NewPostgresEventStoreFromPGXPool(connPool)
 
 	fakeClock := time.Unix(0, 0).UTC()
 
@@ -359,7 +359,7 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 	defer connPool.Close()
 
-	es := NewPostgresEventStore(connPool)
+	es := NewPostgresEventStoreFromPGXPool(connPool)
 
 	fakeClock := time.Unix(0, 0).UTC()
 
@@ -680,7 +680,7 @@ func Test_Append_When_Context_Is_Cancelled(t *testing.T) {
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStore(connPool)
+	es := NewPostgresEventStoreFromPGXPool(connPool)
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
@@ -716,7 +716,7 @@ func Test_Append_When_Context_Times_out(t *testing.T) {
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStore(connPool)
+	es := NewPostgresEventStoreFromPGXPool(connPool)
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
@@ -754,7 +754,7 @@ func Test_Query_When_Context_Is_Cancelled(t *testing.T) {
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStore(connPool)
+	es := NewPostgresEventStoreFromPGXPool(connPool)
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
@@ -785,7 +785,7 @@ func Test_Query_When_Context_Times_Out(t *testing.T) {
 	defer connPool.Close()
 	assert.NoError(t, err, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStore(connPool)
+	es := NewPostgresEventStoreFromPGXPool(connPool)
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange

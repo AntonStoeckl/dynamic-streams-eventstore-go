@@ -23,7 +23,7 @@ func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 	defer connPool.Close()
 	assert.NoError(b, err, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStore(connPool)
+	es := NewPostgresEventStoreFromPGXPool(connPool)
 
 	// arrange
 	guardThatThereAreEnoughFixtureEventsInStore(connPool, 10000)
@@ -81,7 +81,7 @@ func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 	defer connPool.Close()
 	assert.NoError(b, err, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStore(connPool)
+	es := NewPostgresEventStoreFromPGXPool(connPool)
 
 	// arrange
 	guardThatThereAreEnoughFixtureEventsInStore(connPool, 10000)
@@ -148,7 +148,7 @@ func Benchmark_Query_With_Many_Events_InTheStore(b *testing.B) {
 	defer connPool.Close()
 	assert.NoError(b, err, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStore(connPool)
+	es := NewPostgresEventStoreFromPGXPool(connPool)
 
 	// arrange
 	guardThatThereAreEnoughFixtureEventsInStore(connPool, 10000)
@@ -181,7 +181,7 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 	defer connPool.Close()
 	assert.NoError(b, err, "error connecting to DB pool in test setup")
 
-	es := NewPostgresEventStore(connPool)
+	es := NewPostgresEventStoreFromPGXPool(connPool)
 
 	// arrange
 	guardThatThereAreEnoughFixtureEventsInStore(connPool, 10000)
