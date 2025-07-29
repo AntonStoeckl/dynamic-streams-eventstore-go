@@ -41,7 +41,7 @@ jobs:
 
       - name: Initialize database
         run: |
-          PGPASSWORD=test psql -h localhost -U test -d eventstore -f test/initdb/init.sql
+          PGPASSWORD=test psql -h localhost -U test -d eventstore -f testutil/initdb/init.sql
 
       - name: Run tests
         run: |
