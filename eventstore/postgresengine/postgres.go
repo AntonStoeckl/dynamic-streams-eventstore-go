@@ -24,6 +24,20 @@ type EventStore struct {
 	eventTableName string
 }
 
+// Option defines a functional option for configuring EventStore
+type Option func(*EventStore) error
+
+// WithTableName sets the table name for the EventStore
+func WithTableName(tableName string) Option {
+	return func(es *EventStore) error {
+		if tableName == "" {
+			return eventstore.ErrEmptyTableNameSupplied
+		}
+		es.eventTableName = tableName
+		return nil
+	}
+}
+
 type queryResultRow struct {
 	eventType         string
 	payload           []byte
@@ -32,40 +46,52 @@ type queryResultRow struct {
 	maxSequenceNumber eventstore.MaxSequenceNumberUint
 }
 
-func NewEventStoreFromPGXPool(db *pgxpool.Pool) EventStore {
-	return EventStore{db: adapters.NewPGXAdapter(db), eventTableName: "events"}
-}
-
-func NewEventStoreFromPGXPoolWithTableName(db *pgxpool.Pool, eventTableName string) (EventStore, error) {
-	if eventTableName == "" {
-		return EventStore{}, eventstore.ErrEmptyTableNameSupplied
+// NewEventStoreFromPGXPool creates a new EventStore using a pgx Pool with optional configuration
+func NewEventStoreFromPGXPool(db *pgxpool.Pool, options ...Option) (EventStore, error) {
+	es := EventStore{
+		db:             adapters.NewPGXAdapter(db),
+		eventTableName: "events", // default
 	}
 
-	return EventStore{db: adapters.NewPGXAdapter(db), eventTableName: eventTableName}, nil
-}
-
-func NewEventStoreFromSQLDB(db *sql.DB) EventStore {
-	return EventStore{db: adapters.NewSQLAdapter(db), eventTableName: "events"}
-}
-
-func NewEventStoreFromSQLDBWithTableName(db *sql.DB, eventTableName string) (EventStore, error) {
-	if eventTableName == "" {
-		return EventStore{}, eventstore.ErrEmptyTableNameSupplied
+	for _, option := range options {
+		if err := option(&es); err != nil {
+			return EventStore{}, err
+		}
 	}
 
-	return EventStore{db: adapters.NewSQLAdapter(db), eventTableName: eventTableName}, nil
+	return es, nil
 }
 
-func NewEventStoreFromSQLX(db *sqlx.DB) EventStore {
-	return EventStore{db: adapters.NewSQLXAdapter(db), eventTableName: "events"}
-}
-
-func NewEventStoreFromSQLXWithTableName(db *sqlx.DB, eventTableName string) (EventStore, error) {
-	if eventTableName == "" {
-		return EventStore{}, eventstore.ErrEmptyTableNameSupplied
+// NewEventStoreFromSQLDB creates a new EventStore using a sql.DB with optional configuration
+func NewEventStoreFromSQLDB(db *sql.DB, options ...Option) (EventStore, error) {
+	es := EventStore{
+		db:             adapters.NewSQLAdapter(db),
+		eventTableName: "events", // default
 	}
 
-	return EventStore{db: adapters.NewSQLXAdapter(db), eventTableName: eventTableName}, nil
+	for _, option := range options {
+		if err := option(&es); err != nil {
+			return EventStore{}, err
+		}
+	}
+
+	return es, nil
+}
+
+// NewEventStoreFromSQLX creates a new EventStore using a sqlx.DB with optional configuration
+func NewEventStoreFromSQLX(db *sqlx.DB, options ...Option) (EventStore, error) {
+	es := EventStore{
+		db:             adapters.NewSQLXAdapter(db),
+		eventTableName: "events", // default
+	}
+
+	for _, option := range options {
+		if err := option(&es); err != nil {
+			return EventStore{}, err
+		}
+	}
+
+	return es, nil
 }
 
 // Query retrieves events from the Postgres event store based on the provided eventstore.Filter criteria
