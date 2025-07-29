@@ -1,10 +1,14 @@
 # Performance
 
-This document covers performance characteristics, benchmarks, and optimization strategies for dynamic-streams-eventstore-go.
+Performance characteristics, benchmarks, and optimization strategies for dynamic-streams-eventstore-go.
+
+## Database Adapter Performance
+
+All three supported adapters (pgx.Pool, database/sql, sqlx) provide equivalent performance characteristics. The choice depends on your existing infrastructure and preferences.
 
 ## Benchmark Results
 
-These benchmarks were run on a Linux laptop with an 8-core i7-8565U CPU @ 1.80GHz and 16GB memory against PostgreSQL with 1 million existing events in the database.
+Benchmarks run on Linux with 8-core i7-8565U CPU @ 1.80GHz, 16GB memory, PostgreSQL with 1M+ events.
 
 ### Query Performance
 
@@ -58,6 +62,15 @@ Breakdown:
 
 This represents a complete business operation: Query → Apply Business Logic → Append.
 
+## Testing Performance with Different Adapters
+
+```bash
+# Benchmark all adapters
+go test -bench=. ./eventstore/postgresengine/                    # pgx.Pool
+ADAPTER_TYPE=sqldb go test -bench=. ./eventstore/postgresengine/ # database/sql
+ADAPTER_TYPE=sqlx go test -bench=. ./eventstore/postgresengine/  # sqlx
+```
+
 ## Performance Factors
 
 ### Database Indexes
@@ -110,7 +123,7 @@ filter := BuildEventFilter().
 // Slower: Returns many events
 filter := BuildEventFilter().
     Matching().
-    AnyEventTypeOf("BookEvent").  // Too generic
+    AnyEventTypeOf("BookCopyLentToReader").  // Specific event type
     Finalize()
 ```
 

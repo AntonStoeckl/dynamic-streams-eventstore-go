@@ -26,11 +26,11 @@ go mod download
 3. **Start test databases:**
 ```bash
 # Start both test databases
-docker-compose --file test/docker-compose.yml up -d
+docker-compose --file testutil/docker-compose.yml up -d
 
 # Or start individually
-docker-compose --file test/docker-compose.yml up -d postgres_test      # Port 5432
-docker-compose --file test/docker-compose.yml up -d postgres_benchmark # Port 5433
+docker-compose --file testutil/docker-compose.yml up -d postgres_test      # Port 5432
+docker-compose --file testutil/docker-compose.yml up -d postgres_benchmark # Port 5433
 ```
 
 4. **Verify setup:**
@@ -41,26 +41,31 @@ go test ./eventstore/postgresengine/
 ## Project Structure
 
 ```
-├── eventstore/                    # Core event store implementation
-│   ├── engine/                    # Database-specific implementations
-│   │   ├── postgres.go           # Main PostgreSQL implementation
-│   │   ├── postgres_test.go      # Functional tests
-│   │   └── postgres_benchmark_test.go # Performance benchmarks
-│   ├── filter.go                 # Filter builder implementation
-│   └── storable_event.go         # Event data structures
-├── test/                         # Test infrastructure
-│   ├── cmd/                      # Utility commands
-│   │   ├── generate/             # Fixture data generation
-│   │   └── import/               # Data import utilities
-│   ├── initdb/                   # Database initialization
-│   ├── userland/                 # Example domain implementation
-│   │   ├── core/                 # Domain events and business logic
-│   │   ├── shell/                # Event mapping layer
-│   │   └── config/               # Test database configuration
-│   ├── docker-compose.yml        # Test database setup
-│   └── helper.go                 # Test utilities
-├── docs/                         # Documentation
-└── go.mod                        # Go module definition
+├── eventstore/                           # Core event store implementation
+│   ├── postgresengine/                  # PostgreSQL implementation
+│   │   ├── postgres.go                  # Main implementation with adapters
+│   │   ├── internal/adapters/           # Database adapter abstraction
+│   │   │   ├── pgx_adapter.go          # pgx.Pool adapter
+│   │   │   ├── sql_adapter.go          # database/sql adapter  
+│   │   │   └── sqlx_adapter.go         # sqlx adapter
+│   │   ├── postgres_test.go            # Functional tests
+│   │   └── postgres_benchmark_test.go  # Performance benchmarks
+│   ├── filter.go                       # Filter builder implementation
+│   └── storable_event.go               # Event data structures
+├── testutil/                           # Test infrastructure
+│   ├── cmd/                            # Utility commands
+│   │   ├── generate/                   # Fixture data generation
+│   │   └── import/                     # Data import utilities
+│   ├── initdb/                         # Database initialization
+│   ├── helper/postgreswrapper/         # Adapter-agnostic test wrapper
+│   ├── docker-compose.yml              # Test database setup
+│   └── helper.go                       # Test utilities
+├── example/                            # Example domain (used in tests)
+│   ├── core/                           # Domain events and business logic
+│   ├── shell/                          # Event mapping layer
+│   └── config/                         # Test database configuration
+├── docs/                               # Documentation
+└── go.mod                              # Go module definition
 ```
 
 ## Running Tests
@@ -68,34 +73,36 @@ go test ./eventstore/postgresengine/
 ### Functional Tests
 
 ```bash
-# Run all tests
+# Run all tests with default adapter (pgx.Pool)
 go test ./...
 
-# Run specific package tests
-go test ./eventstore/
-go test ./eventstore/postgresengine/
+# Test with specific database adapters
+ADAPTER_TYPE=sqldb go test ./eventstore/postgresengine/   # database/sql
+ADAPTER_TYPE=sqlx go test ./eventstore/postgresengine/    # sqlx
 
 # Run tests with verbose output
 go test -v ./eventstore/postgresengine/
 
 # Run specific test
-go test -v ./eventstore/postgresengine/ -run TestPostgresEventStore_Query
+go test -v ./eventstore/postgresengine/ -run TestEventStore_Query
 ```
 
 ### Benchmark Tests
 
 ```bash
-# Run all benchmarks
+# Run all benchmarks with default adapter (pgx.Pool)
 go test -bench=. ./eventstore/postgresengine/
+
+# Test with specific database adapters
+ADAPTER_TYPE=sqldb go test -bench=. ./eventstore/postgresengine/   # database/sql
+ADAPTER_TYPE=sqlx go test -bench=. ./eventstore/postgresengine/    # sqlx
 
 # Run specific benchmark
 go test -bench=BenchmarkQuery ./eventstore/postgresengine/
 
-# Run benchmarks multiple times for stability
-go test -bench=. -count=8 ./eventstore/postgresengine/
-
-# Save benchmark results
-go test -bench=. ./eventstore/postgresengine/ > benchmarks.txt
+# Compare adapter performance
+go test -bench=. -count=3 ./eventstore/postgresengine/ > pgx_bench.txt
+ADAPTER_TYPE=sqldb go test -bench=. -count=3 ./eventstore/postgresengine/ > sql_bench.txt
 ```
 
 **Note:** Benchmarks require at least 10,000 fixture events. Use the fixture generation tools if needed.
@@ -121,23 +128,23 @@ For performance testing, you may need to generate fixture data:
 
 ```bash
 # Generate CSV file with fixture events
-go run test/cmd/generate/generate_fixture_events_data.go
+go run testutil/cmd/generate/generate_fixture_events_data.go
 
-# This creates test/fixtures/events.csv
+# This creates testutil/fixtures/events.csv
 ```
 
 ### Import Fixture Data
 
 ```bash
 # Import CSV data into benchmark database
-go run test/cmd/import/import_csv_data.go
+go run testutil/cmd/import/import_csv_data.go
 
 # This imports data into the postgres_benchmark container
 ```
 
 ### Custom Fixture Generation
 
-You can modify the generation parameters in `test/cmd/generate/generate_fixture_events_data.go`:
+You can modify the generation parameters in `testutil/cmd/generate/generate_fixture_events_data.go`:
 
 ```go
 // Adjust these values for your testing needs
@@ -200,13 +207,13 @@ go mod verify
 
 ### Schema Changes
 
-The database schema is defined in `test/initdb/init.sql`. When making schema changes:
+The database schema is defined in `testutil/initdb/init.sql`. When making schema changes:
 
 1. Update `init.sql`
 2. Recreate test databases:
 ```bash
-docker-compose --file test/docker-compose.yml down -v
-docker-compose --file test/docker-compose.yml up -d
+docker-compose --file testutil/docker-compose.yml down -v
+docker-compose --file testutil/docker-compose.yml up -d
 ```
 
 ### Database Debugging
@@ -274,17 +281,17 @@ services:
 **Connection Issues:**
 ```bash
 # Check if databases are running
-docker-compose --file test/docker-compose.yml ps
+docker-compose --file testutil/docker-compose.yml ps
 
 # Check logs
-docker-compose --file test/docker-compose.yml logs postgres_test
+docker-compose --file testutil/docker-compose.yml logs postgres_test
 ```
 
 **Test Failures:**
 ```bash
 # Clean state and retry
-docker-compose --file test/docker-compose.yml down -v
-docker-compose --file test/docker-compose.yml up -d
+docker-compose --file testutil/docker-compose.yml down -v
+docker-compose --file testutil/docker-compose.yml up -d
 go test ./eventstore/postgresengine/
 ```
 

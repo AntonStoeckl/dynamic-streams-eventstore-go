@@ -2,39 +2,59 @@
 
 ## What are Dynamic Event Streams?
 
-Dynamic Event Streams (also known as Dynamic Consistency Boundaries) represent a fundamental shift from traditional Event Sourcing approaches. Instead of fixed streams tied to specific aggregates, this approach allows you to define consistency boundaries dynamically based on your business needs.
+Dynamic Event Streams represent a fundamental shift from traditional Event Sourcing approaches.  
+Instead of fixed streams tied to specific entities, this approach allows you to define consistency boundaries dynamically based on your business needs.
 
-### Traditional vs Dynamic Approach
+
+### Traditional vs Dynamic Event Streams
 
 **Traditional Event Sourcing:**
 ```
-BookAggregate Stream: [BookCreated, BookPublished, ...]
-ReaderAggregate Stream: [ReaderRegistered, BookBorrowed, ...]
+BookCirculation Entity: [BookCopyAddedToCirculation, BookCopyRemovedFromCirculation, ...]
+ReaderAccount Entity:   [ReaderRegistered, ReaderContractCanceled, ...]
+BookLending Entity:     [BookCopyLentToReader, BookCopyReturnedByReader, ...]
 ```
 
 **Dynamic Event Streams:**
 ```
-Cross-Entity Stream: [BookCreated, ReaderRegistered, BookBorrowed, ...]
-                     ↑ Query events spanning multiple entities
+Entity-independent Stream: [BookCopyAddedToCirculation, BookCopyRemovedFromCirculation, ReaderRegistered, 
+                            ReaderContractCanceled, BookCopyLentToReader, BookCopyReturnedByReader, ...]
+                           ↑ Query events spanning multiple entities
 ```
 
-## The Problem Dynamic Streams Solve
+### Dynamic Consistency Boundaries vs Dynamic Event Streams
+
+**DCB** works by tagging each event as belonging to one - or multiple - dynamic streams.  
+While the concept of **Dynamic Event Streams** does not even require tagging events as *belongs to a stream*.  
+Which further reduces the complexity and eliminates the need of *thinking in entities or streams*.
+
+## The Problem Dynamic Streams (and DCB) Solve
 
 Consider these business scenarios:
 
 1. **Book Lending**: When a reader borrows a book, you need to:
-   - Verify the book exists and is available
+   - Verify the book is in circulation and is not currently lent out
+   - Verify that the reader (still) has an uncanceled contract
    - Check the reader's borrowing quota
-   - Record the lending event
+   - Update both circulation and lending streams
 
 2. **Student Enrollment**: When enrolling a student in a course:
    - Verify course capacity
-   - Check student prerequisites  
-   - Update both student and course state
+   - Check student prerequisites
+   - Update both student and course streams
 
 Traditional event stores force you to either:
 - Accept eventual consistency (complex saga patterns)
-- Model everything as a single large aggregate (performance issues)
+- Model everything as a single large entity (performance issues)
+- Or find other creative/complex solutions
+
+While reading multiple streams to make the business decision is relatively easy, apart from performance considerations,
+the consistency boundary of traditional, stream-based event stores is **one** stream, so it's typically not possible to atomically 
+append to multiple streams.  
+And even if that is possible (at least one vendor is working on it), if you append multiple events about the same fact to multiple streams,
+then there is no single source of truth anymore.
+
+Last but not least: **Simplicity** trumps *clever* solutions and makes Event Sourcing more approachable!
 
 ## How Dynamic Streams Work
 
@@ -45,9 +65,12 @@ Build a filter that spans multiple entities:
 filter := BuildEventFilter().
     Matching().
     AnyEventTypeOf(
-        "BookCreated",
-        "BookBorrowed", 
-        "BookReturned").
+        "BookCopyAddedToCirculation",
+        "BookCopyRemovedFromCirculation",
+        "ReaderRegistered",
+        "ReaderContractCanceled",
+        "BookCopyLentToReader", 
+        "BookCopyReturnedByReader").
     AndAnyPredicateOf(
         P("BookID", bookID),
         P("ReaderID", readerID)).
@@ -92,8 +115,8 @@ If the event stream changed since your query (someone else added events), the ap
 - PostgreSQL guarantees atomicity
 
 ### 2. Flexible Consistency Boundaries
-- Define boundaries per use case, not per aggregate
-- Cross-entity operations become simple
+- Define boundaries per use case, not per entity
+- Entity-independent operations become simple
 - Business logic stays pure and testable
 
 ### 3. Performance
@@ -121,7 +144,7 @@ BuildEventFilter().
 // Valid: Specific event types across entities  
 BuildEventFilter().
     Matching().
-    AnyEventTypeOf("BookBorrowed", "BookReturned").
+    AnyEventTypeOf("BookCopyLentToReader", "BookCopyReturnedByReader").
     AndAnyPredicateOf(
         P("BookID", bookID),
         P("ReaderID", readerID)).
@@ -147,7 +170,7 @@ P("ReaderType", "Premium") // payload @> '{"ReaderType": "Premium"}'
 ## When to Use Dynamic Streams
 
 **✅ Great for:**
-- Cross-aggregate business rules
+- Entity-independent business rules
 - Complex consistency requirements
 - High-frequency updates to related entities
 - Replacing complex sagas
@@ -162,7 +185,7 @@ P("ReaderType", "Premium") // payload @> '{"ReaderType": "Premium"}'
 | Pattern | Consistency | Complexity | Performance | Scalability |
 |---------|------------|------------|-------------|-------------|
 | **Dynamic Streams** | Strong | Low | High | Medium |
-| **Traditional ES** | Aggregate-level | Medium | High | High |  
+| **Traditional ES** | Entity-level | Medium | High | High |  
 | **Sagas** | Eventual | High | Medium | High |
 | **2PC/XA** | Strong | High | Low | Low |
 
@@ -170,4 +193,4 @@ P("ReaderType", "Premium") // payload @> '{"ReaderType": "Premium"}'
 
 - See [Usage Examples](./usage-examples.md) for practical implementations
 - Review [Performance](./performance.md) characteristics and benchmarks
-- Check [Migration Guide](./migration.md) for adopting in existing systems
+- Check [Development Guide](./development.md) for adopting in existing systems

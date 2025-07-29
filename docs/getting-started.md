@@ -7,6 +7,7 @@ This guide will help you get up and running with dynamic-streams-eventstore-go q
 - **Go 1.24+**
 - **PostgreSQL 17+** (or Docker for testing)
 - Basic understanding of Event Sourcing concepts
+- One of the supported database drivers: pgx/v5, lib/pq, or sqlx
 
 ## Installation
 
@@ -23,7 +24,7 @@ go get github.com/AntonStoeckl/dynamic-streams-eventstore-go
 Create a PostgreSQL database with the required table structure. You can use the initialization script from this repository:
 
 ```sql
--- See test/initdb/init.sql for the complete schema
+-- See testutil/initdb/init.sql for the complete schema
 CREATE TABLE events (
     sequence_number BIGSERIAL PRIMARY KEY,
     event_type TEXT NOT NULL,
@@ -45,29 +46,85 @@ package main
 
 import (
     "context"
+    "database/sql"
     "log"
     
     "github.com/jackc/pgx/v5/pgxpool"
-    "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/engine"
+    "github.com/jmoiron/sqlx"
+    _ "github.com/lib/pq"
+    "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
 )
 
 func main() {
     ctx := context.Background()
     
-    // Configure your database connection
+    // Option 1: Using pgx.Pool (recommended)
     config, err := pgxpool.ParseConfig("postgres://user:password@localhost/eventstore")
     if err != nil {
         log.Fatal(err)
     }
     
-    db, err := pgxpool.NewWithConfig(ctx, config)
+    pgxPool, err := pgxpool.NewWithConfig(ctx, config)
     if err != nil {
         log.Fatal(err)
     }
-    defer db.Close()
+    defer pgxPool.Close()
     
-    // Create event store
-    eventStore := engine.NewPostgresEventStore(db)
+    eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool)
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    // Option 2: Using database/sql
+    sqlDB, err := sql.Open("postgres", "postgres://user:password@localhost/eventstore?sslmode=disable")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer sqlDB.Close()
+    
+    // eventStore, err := postgresengine.NewEventStoreFromSQLDB(sqlDB)
+    // if err != nil {
+    //     log.Fatal(err)
+    // }
+    
+    // Option 3: Using sqlx
+    sqlxDB, err := sqlx.Connect("postgres", "postgres://user:password@localhost/eventstore?sslmode=disable")
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer sqlxDB.Close()
+    
+    // eventStore, err := postgresengine.NewEventStoreFromSQLX(sqlxDB)
+    // if err != nil {
+    //     log.Fatal(err)
+    // }
+}
+```
+
+#### Using Custom Table Name
+
+If you need to use a different table name instead of the default "events":
+
+```go
+// Using pgx.Pool with custom table name
+eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool, 
+    postgresengine.WithTableName("my_events"))
+if err != nil {
+    log.Fatal(err)
+}
+
+// Using database/sql with custom table name
+eventStore, err := postgresengine.NewEventStoreFromSQLDB(sqlDB,
+    postgresengine.WithTableName("my_events"))
+if err != nil {
+    log.Fatal(err)
+}
+
+// Using sqlx with custom table name
+eventStore, err := postgresengine.NewEventStoreFromSQLX(sqlxDB,
+    postgresengine.WithTableName("my_events"))
+if err != nil {
+    log.Fatal(err)
 }
 ```
 
@@ -78,18 +135,18 @@ package events
 
 import "time"
 
-type BookAddedEvent struct {
-    BookID    string    `json:"BookID"`
-    Title     string    `json:"Title"`
-    Author    string    `json:"Author"`
-    OccurredAt time.Time `json:"OccurredAt"`
+type BookCopyAddedToCirculation struct {
+    BookID     string   
+    Title      string   
+    Author     string   
+    OccurredAt time.Time
 }
 
-func (e BookAddedEvent) EventType() string {
-    return "BookAdded"
+func (e BookCopyAddedToCirculation) EventType() string {
+    return "BookCopyAddedToCirculation"
 }
 
-func (e BookAddedEvent) HasOccurredAt() time.Time {
+func (e BookCopyAddedToCirculation) HasOccurredAt() time.Time {
     return e.OccurredAt
 }
 ```
@@ -105,7 +162,7 @@ import (
 )
 
 // Create a domain event
-event := BookAddedEvent{
+event := BookCopyAddedToCirculation{
     BookID:     "book-123",
     Title:      "Domain-Driven Design",
     Author:     "Eric Evans",
@@ -154,9 +211,26 @@ for _, storableEvent := range storableEvents {
 }
 ```
 
+## Testing with Different Adapters
+
+You can test your implementation with different database adapters using the `ADAPTER_TYPE` environment variable:
+
+```bash
+# Test with pgx.Pool (default)
+go test ./...
+
+# Test with database/sql
+ADAPTER_TYPE=sqldb go test ./...
+
+# Test with sqlx
+ADAPTER_TYPE=sqlx go test ./...
+```
+
 ## Next Steps
 
 - Read the [Core Concepts](./core-concepts.md) to understand Dynamic Event Streams
-- See [Usage Examples](./usage-examples.md) for more complex scenarios
-- Check [Configuration](./configuration.md) for production setup
+- See [Usage Examples](./usage-examples.md) for more complex scenarios  
 - Review [API Reference](./api-reference.md) for detailed documentation
+- Check [Development](./development.md) for contribution guidelines
+
+**Note:** The `/example` directory contains test fixtures and simple usage examples that demonstrate the library's capabilities.

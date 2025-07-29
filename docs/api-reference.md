@@ -2,15 +2,71 @@
 
 ## Event Store Interface
 
-### PostgresEventStore
+### EventStore
+
+The event store supports multiple PostgreSQL database adapters: pgx.Pool, database/sql, and sqlx.DB.
 
 ```go
-type PostgresEventStore struct {
+type EventStore struct {
     // Private fields
 }
 
-func NewPostgresEventStore(db *pgxpool.Pool) PostgresEventStore
-func NewPostgresEventStoreWithTableName(db *pgxpool.Pool, eventTableName string) (PostgresEventStore, error)
+// Factory functions for different database adapters
+func NewEventStoreFromPGXPool(pool *pgxpool.Pool, options ...Option) (EventStore, error)
+func NewEventStoreFromSQLDB(db *sql.DB, options ...Option) (EventStore, error)
+func NewEventStoreFromSQLX(db *sqlx.DB, options ...Option) (EventStore, error)
+
+// Functional options
+type Option func(*EventStore) error
+
+func WithTableName(tableName string) Option
+```
+
+#### Factory Function Examples
+
+**Using default table name ("events"):**
+```go
+// Using pgx.Pool
+eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool)
+if err != nil {
+    return err
+}
+
+// Using database/sql
+eventStore, err := postgresengine.NewEventStoreFromSQLDB(sqlDB)
+if err != nil {
+    return err
+}
+
+// Using sqlx
+eventStore, err := postgresengine.NewEventStoreFromSQLX(sqlxDB)
+if err != nil {
+    return err
+}
+```
+
+**Using custom table name:**
+```go
+// Using pgx.Pool with custom table name
+eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool, 
+    postgresengine.WithTableName("my_events"))
+if err != nil {
+    return err
+}
+
+// Using database/sql with custom table name
+eventStore, err := postgresengine.NewEventStoreFromSQLDB(sqlDB,
+    postgresengine.WithTableName("my_events"))
+if err != nil {
+    return err
+}
+
+// Using sqlx with custom table name  
+eventStore, err := postgresengine.NewEventStoreFromSQLX(sqlxDB,
+    postgresengine.WithTableName("my_events"))
+if err != nil {
+    return err
+}
 ```
 
 #### Methods
@@ -18,7 +74,7 @@ func NewPostgresEventStoreWithTableName(db *pgxpool.Pool, eventTableName string)
 ##### Query
 
 ```go
-func (es PostgresEventStore) Query(
+func (es EventStore) Query(
     ctx context.Context, 
     filter Filter,
 ) (StorableEvents, MaxSequenceNumberUint, error)
@@ -47,7 +103,7 @@ fmt.Printf("Found %d events, max sequence: %d\n", len(events), maxSeq)
 ##### Append
 
 ```go
-func (es PostgresEventStore) Append(
+func (es EventStore) Append(
     ctx context.Context,
     filter Filter,
     expectedMaxSequenceNumber MaxSequenceNumberUint,

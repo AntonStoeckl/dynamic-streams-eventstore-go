@@ -7,9 +7,9 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/AntonStoeckl/dynamic-streams-eventstore-go)](https://github.com/AntonStoeckl/dynamic-streams-eventstore-go)
 [![Release](https://img.shields.io/github/release-pre/AntonStoeckl/dynamic-streams-eventstore-go.svg)](https://github.com/AntonStoeckl/dynamic-streams-eventstore-go/releases)
 
-A Go-based **Event Store** implementation for **Event Sourcing** with PostgreSQL, operating on **Dynamic Event Streams** (also known as Dynamic Consistency Boundaries).
+A Go-based **Event Store** implementation for **Event Sourcing** with PostgreSQL, operating on **Dynamic Event Streams** (also known as Dynamic Consistency Boundaries **DCB**)).
 
-Unlike traditional event stores with fixed streams tied to specific aggregates, this approach enables **atomic cross-entity operations** while maintaining strong consistency through PostgreSQL's ACID guarantees.
+Unlike traditional event stores with fixed streams tied to specific entities, this approach enables **atomic entity-independent operations** while maintaining strong consistency through PostgreSQL's ACID guarantees.
 
 ## ✨ Key Features
 
@@ -18,6 +18,7 @@ Unlike traditional event stores with fixed streams tied to specific aggregates, 
 - **🛡️ ACID Transactions**: PostgreSQL-backed consistency without distributed transactions
 - **🎯 Fluent Filter API**: Type-safe, expressive event filtering with compile-time validation
 - **📊 JSON-First**: Efficient JSONB storage with GIN index optimization
+- **🔗 Multiple Adapters**: Support for pgx/v5, database/sql, and sqlx database connections
 
 ## 🚀 Quick Start
 
@@ -26,10 +27,19 @@ go get github.com/AntonStoeckl/dynamic-streams-eventstore-go
 ```
 
 ```go
+// Create an event store with pgx adapter (default)
+eventStore := postgres.NewEventStoreFromPGXPool(pgxPool)
+
+// Or use alternative adapters:
+// eventStore := postgres.NewEventStoreFromSQLDB(sqlDB)
+// eventStore := postgres.NewEventStoreFromSQLX(sqlxDB)
+
 // Query events spanning multiple entities
 filter := BuildEventFilter().
     Matching().
-    AnyEventTypeOf("BookLent", "BookReturned").
+    AnyEventTypeOf(
+        "BookCopyAddedToCirculation", "BookCopyRemovedFromCirculation",
+        "ReaderRegistered", "BookCopyLentToReader", "BookCopyReturnedByReader").
     AndAnyPredicateOf(
         P("BookID", bookID),
         P("ReaderID", readerID)).
@@ -45,16 +55,20 @@ err := eventStore.Append(ctx, filter, maxSeq, newEvent)
 
 **Traditional Event Sourcing:**
 ```
-BookAggregate: [BookCreated, BookUpdated, ...]     ← Separate streams
-UserAggregate: [UserCreated, BookBorrowed, ...]    ← Separate streams
+BookCirculation: [BookCopyAddedToCirculation, BookCopyRemovedFromCirculation, ...]  ← Separate streams
+ReaderAccount:   [ReaderRegistered, ReaderContractCanceled, ...]                    ← Separate streams  
+BookLending:     [BookCopyLentToReader, BookCopyReturnedByReader, ...]              ← Separate streams
 ```
 
 **Dynamic Event Streams:**
 ```
-Cross-Entity: [BookCreated, UserCreated, BookBorrowed, ...] ← Single atomic boundary
+Entity-independent: [BookCopyAddedToCirculation, BookCopyRemovedFromCirculation, ReaderRegistered, 
+                     ReaderContractCanceled, BookCopyLentToReader, BookCopyReturnedByReader, ...]  ← Single atomic boundary
 ```
 
-This eliminates the need for complex sagas while maintaining strong consistency for cross-entity business rules.
+This eliminates the need for complex synchronization between entities, bounded contexts, services, ...
+while maintaining strong consistency for entity-independent business rules.  
+See **[Core Concepts](./docs/core-concepts.md)** for a more detailed description.
 
 ## 📚 Documentation
 
@@ -68,9 +82,16 @@ This eliminates the need for complex sagas while maintaining strong consistency 
 ## 🏗️ Architecture
 
 **Core Components:**
-- `eventstore/engine/postgres.go` - PostgreSQL implementation with CTE-based optimistic locking
-- `eventstore/filter.go` - Fluent filter builder for cross-entity queries  
+- `eventstore/postgresengine/postgres.go` - PostgreSQL implementation with CTE-based optimistic locking
+- `eventstore/postgresengine/internal/adapters/` - Database adapter abstraction (pgx, sql.DB, sqlx)
+- `eventstore/filter.go` - Fluent filter builder for entity-independent queries  
 - `eventstore/storable_event.go` - Storage-agnostic event DTOs
+
+**Database Adapters:**
+The event store supports three PostgreSQL adapters, switchable via factory functions:
+- **pgx.Pool** (default): High-performance connection pooling
+- **database/sql**: Standard library with lib/pq driver  
+- **sqlx**: Enhanced database/sql with additional features
 
 **Key Pattern:**
 ```postgresql
@@ -92,14 +113,25 @@ See [Performance Documentation](./docs/performance.md) for detailed benchmarks a
 
 ```bash
 # Start test databases
-docker-compose --file test/docker-compose.yml up -d
+docker-compose --file testutil/docker-compose.yml up -d
 
-# Run tests
-go test ./eventstore/...
+# Run tests with different adapters
+go test ./eventstore/postgresengine/                    # pgx.Pool (default)
+ADAPTER_TYPE=sqldb go test ./eventstore/postgresengine/ # database/sql  
+ADAPTER_TYPE=sqlx go test ./eventstore/postgresengine/  # sqlx
 
-# Run benchmarks  
-go test -bench=. ./eventstore/...
+# Run benchmarks with different adapters
+go test -bench=. ./eventstore/postgresengine/                    # pgx.Pool (default)
+ADAPTER_TYPE=sqldb go test -bench=. ./eventstore/postgresengine/ # database/sql
+ADAPTER_TYPE=sqlx go test -bench=. ./eventstore/postgresengine/  # sqlx
 ```
+
+The `ADAPTER_TYPE` environment variable switches between database adapters:
+- `pgxpool` or unset: pgx.Pool (default)
+- `sqldb`: database/sql with lib/pq
+- `sqlx`: sqlx.DB with lib/pq
+
+Note: The `/example` directory contains test fixtures and simple usage examples used by the test suite.
 
 ## 🤝 Contributing
 
