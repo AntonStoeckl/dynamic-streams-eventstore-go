@@ -78,11 +78,6 @@ func CreateWrapperWithTestConfig(t testing.TB) Wrapper {
 	return createWrapperWithTestConfig(t, "events")
 }
 
-// CreateWrapperWithTestConfigAndTableName creates the appropriate wrapper with a custom table name based on the environment variable
-func CreateWrapperWithTestConfigAndTableName(t testing.TB, tableName string) Wrapper {
-	return createWrapperWithTestConfig(t, tableName)
-}
-
 // TryCreateEventStoreWithTableName tries to create an event store with the given table name and returns the error (for testing error cases)
 func TryCreateEventStoreWithTableName(t testing.TB, tableName string) error {
 	engineTypeFromEnv := strings.ToLower(os.Getenv("ADAPTER_TYPE"))
