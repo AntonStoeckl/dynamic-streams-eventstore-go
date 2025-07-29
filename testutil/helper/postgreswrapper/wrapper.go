@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
@@ -19,8 +20,9 @@ import (
 
 // Engine type constants
 const (
-	typePGXPool = "pgxpool"
-	typeSQLDB   = "sqldb"
+	typePGXPool = "pgx.pool"
+	typeSQLDB   = "sql.db"
+	typeSQLXDB  = "sqlx.db"
 )
 
 // Wrapper interface to abstract over different engine types
@@ -57,6 +59,20 @@ func (e *SQLDBWrapper) Close() {
 	_ = e.db.Close() // ignore error
 }
 
+// SQLXWrapper wraps sqlx.DB-based testing
+type SQLXWrapper struct {
+	db *sqlx.DB
+	es EventStore
+}
+
+func (e *SQLXWrapper) GetEventStore() EventStore {
+	return e.es
+}
+
+func (e *SQLXWrapper) Close() {
+	_ = e.db.Close() // ignore error
+}
+
 // CreateWrapperWithTestConfig creates the appropriate wrapper based on the environment variable
 func CreateWrapperWithTestConfig(t testing.TB) Wrapper {
 	engineTypeFromEnv := strings.ToLower(os.Getenv("ADAPTER_TYPE"))
@@ -74,6 +90,12 @@ func CreateWrapperWithTestConfig(t testing.TB) Wrapper {
 		es := NewEventStoreFromSQLDB(db)
 
 		return &SQLDBWrapper{db: db, es: es}
+
+	case typeSQLXDB:
+		db := config.PostgresSQLXTestConfig()
+		es := NewEventStoreFromSQLX(db)
+
+		return &SQLXWrapper{db: db, es: es}
 
 	default: // neither one of the known types nor empty
 		panic(fmt.Sprintf("unsupported wrapper type from env: %s", engineTypeFromEnv))
@@ -98,6 +120,12 @@ func CreateWrapperWithBenchmarkConfig(t testing.TB) Wrapper {
 
 		return &SQLDBWrapper{db: db, es: es}
 
+	case typeSQLXDB:
+		db := config.PostgresSQLXBenchmarkConfig()
+		es := NewEventStoreFromSQLX(db)
+
+		return &SQLXWrapper{db: db, es: es}
+
 	default: // neither one of the known types nor empty
 		panic(fmt.Sprintf("unsupported wrapper type from env: %s", engineTypeFromEnv))
 	}
@@ -111,6 +139,10 @@ func CleanUp(t testing.TB, wrapper Wrapper) {
 		assert.NoError(t, err, "error cleaning up the events table")
 
 	case *SQLDBWrapper:
+		_, err := e.db.Exec("TRUNCATE TABLE events RESTART IDENTITY")
+		assert.NoError(t, err, "error cleaning up the events table")
+
+	case *SQLXWrapper:
 		_, err := e.db.Exec("TRUNCATE TABLE events RESTART IDENTITY")
 		assert.NoError(t, err, "error cleaning up the events table")
 
@@ -130,6 +162,10 @@ func GetGreatestOccurredAtTimeFromDB(t testing.TB, wrapper Wrapper) time.Time {
 		err = row.Scan(&greatestOccurredAtTime)
 
 	case *SQLDBWrapper:
+		row := e.db.QueryRow(`select max(occurred_at) from events`)
+		err = row.Scan(&greatestOccurredAtTime)
+
+	case *SQLXWrapper:
 		row := e.db.QueryRow(`select max(occurred_at) from events`)
 		err = row.Scan(&greatestOccurredAtTime)
 
@@ -155,6 +191,10 @@ func GetLatestBookIDFromDB(t testing.TB, wrapper Wrapper) uuid.UUID {
 		row := e.db.QueryRow(`select max(payload->>'BookID') from events`)
 		err = row.Scan(&bookID)
 
+	case *SQLXWrapper:
+		row := e.db.QueryRow(`select max(payload->>'BookID') from events`)
+		err = row.Scan(&bookID)
+
 	default:
 		panic(fmt.Sprintf("unsupported wrapper type: %T", e))
 	}
@@ -175,6 +215,10 @@ func GuardThatThereAreEnoughFixtureEventsInStore(wrapper Wrapper, expectedNumEve
 		err = row.Scan(&cnt)
 
 	case *SQLDBWrapper:
+		row := e.db.QueryRow(`SELECT count(*) FROM events`)
+		err = row.Scan(&cnt)
+
+	case *SQLXWrapper:
 		row := e.db.QueryRow(`SELECT count(*) FROM events`)
 		err = row.Scan(&cnt)
 
@@ -210,6 +254,13 @@ func CleanUpBookEvents(wrapper Wrapper, bookID uuid.UUID) (rowsAffected int64, e
 		}
 		return result.RowsAffected()
 
+	case *SQLXWrapper:
+		result, execErr := e.db.Exec(query)
+		if execErr != nil {
+			return 0, execErr
+		}
+		return result.RowsAffected()
+
 	default:
 		panic(fmt.Sprintf("unsupported wrapper type: %T", e))
 	}
@@ -229,6 +280,14 @@ func OptimizeDBForWhileBenchmarking(wrapper Wrapper) error {
 		return nil
 
 	case *SQLDBWrapper:
+		_, execErr := e.db.Exec(query)
+		if execErr != nil {
+			return execErr
+		}
+
+		return nil
+
+	case *SQLXWrapper:
 		_, execErr := e.db.Exec(query)
 		if execErr != nil {
 			return execErr

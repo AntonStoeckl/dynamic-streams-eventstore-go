@@ -48,6 +48,18 @@ func Test_NewEventStoreFromSQLDBWithTableName_ShouldFail_WithEmptyTableName(t *t
 	assert.ErrorContains(t, err, ErrEmptyTableNameSupplied.Error())
 }
 
+func Test_NewEventStoreFromSQLXWithTableName(t *testing.T) {
+	db := config.PostgresSQLXTestConfig()
+	_, err := postgresengine.NewEventStoreFromSQLXWithTableName(db, "event_data")
+	assert.NoError(t, err, "error creating the event store with table name")
+}
+
+func Test_NewEventStoreFromSQLXWithTableName_ShouldFail_WithEmptyTableName(t *testing.T) {
+	db := config.PostgresSQLXTestConfig()
+	_, err := postgresengine.NewEventStoreFromSQLXWithTableName(db, "")
+	assert.ErrorContains(t, err, ErrEmptyTableNameSupplied.Error())
+}
+
 func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)

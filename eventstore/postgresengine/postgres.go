@@ -11,6 +11,7 @@ import (
 	_ "github.com/doug-martin/goqu/v9/dialect/postgres"
 	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jmoiron/sqlx"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine/internal/adapters"
@@ -53,6 +54,18 @@ func NewEventStoreFromSQLDBWithTableName(db *sql.DB, eventTableName string) (Eve
 	}
 
 	return EventStore{db: adapters.NewSQLAdapter(db), eventTableName: eventTableName}, nil
+}
+
+func NewEventStoreFromSQLX(db *sqlx.DB) EventStore {
+	return EventStore{db: adapters.NewSQLXAdapter(db), eventTableName: "events"}
+}
+
+func NewEventStoreFromSQLXWithTableName(db *sqlx.DB, eventTableName string) (EventStore, error) {
+	if eventTableName == "" {
+		return EventStore{}, eventstore.ErrEmptyTableNameSupplied
+	}
+
+	return EventStore{db: adapters.NewSQLXAdapter(db), eventTableName: eventTableName}, nil
 }
 
 // Query retrieves events from the Postgres event store based on the provided eventstore.Filter criteria
