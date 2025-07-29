@@ -18,9 +18,9 @@ git clone https://github.com/AntonStoeckl/dynamic-streams-eventstore-go.git
 cd dynamic-streams-eventstore-go
 ```
 
-2. **Install dependencies:**
+2. **Install and update dependencies:**
 ```bash
-go mod download
+go mod tidy
 ```
 
 3. **Start test databases:**
@@ -77,8 +77,8 @@ go test ./eventstore/postgresengine/
 go test ./...
 
 # Test with specific database adapters
-ADAPTER_TYPE=sqldb go test ./eventstore/postgresengine/   # database/sql
-ADAPTER_TYPE=sqlx go test ./eventstore/postgresengine/    # sqlx
+ADAPTER_TYPE=sql.db go test ./eventstore/postgresengine/   # database/sql
+ADAPTER_TYPE=sqlx.db go test ./eventstore/postgresengine/  # sqlx
 
 # Run tests with verbose output
 go test -v ./eventstore/postgresengine/
@@ -94,15 +94,15 @@ go test -v ./eventstore/postgresengine/ -run TestEventStore_Query
 go test -bench=. ./eventstore/postgresengine/
 
 # Test with specific database adapters
-ADAPTER_TYPE=sqldb go test -bench=. ./eventstore/postgresengine/   # database/sql
-ADAPTER_TYPE=sqlx go test -bench=. ./eventstore/postgresengine/    # sqlx
+ADAPTER_TYPE=sql.db go test -bench=. ./eventstore/postgresengine/   # database/sql
+ADAPTER_TYPE=sqlx.db go test -bench=. ./eventstore/postgresengine/  # sqlx
 
 # Run specific benchmark
 go test -bench=BenchmarkQuery ./eventstore/postgresengine/
 
 # Compare adapter performance
 go test -bench=. -count=3 ./eventstore/postgresengine/ > pgx_bench.txt
-ADAPTER_TYPE=sqldb go test -bench=. -count=3 ./eventstore/postgresengine/ > sql_bench.txt
+ADAPTER_TYPE=sql.db go test -bench=. -count=3 ./eventstore/postgresengine/ > sql_bench.txt
 ```
 
 **Note:** Benchmarks require at least 10,000 fixture events. Use the fixture generation tools if needed.
@@ -122,7 +122,18 @@ go tool cover -func=coverage.out
 
 ## Fixture Data Management
 
-For performance testing, you may need to generate fixture data:
+For performance testing, you need to generate fixture data and import it into the benchmark DB.
+
+The way shown below (importing a mounted CSV file from "inside" the DB) is definitely the fastest way!  
+
+Well, actually ... producing a file in Postgres's binary format and importing that from "inside" the DB would be even
+faster, but I failed with the binary format, and it was not worth the time to get that working.
+
+The second-fastest alternative:  
+Import a generated CSV locally → at least 5 times slower, sometimes fails before millions of events were imported.
+
+The slowest alternative:  
+Generating a file with SQL statements and import that locally → painfully slow unless the data set is very small.
 
 ### Generate Fixture Events
 
@@ -131,6 +142,10 @@ For performance testing, you may need to generate fixture data:
 go run testutil/cmd/generate/generate_fixture_events_data.go
 
 # This creates testutil/fixtures/events.csv
+
+# After creating fixtures, restart containers to mount the new fixture file into a volume
+docker-compose --file testutil/docker-compose.yml down
+docker-compose --file testutil/docker-compose.yml up -d
 ```
 
 ### Import Fixture Data
@@ -138,8 +153,6 @@ go run testutil/cmd/generate/generate_fixture_events_data.go
 ```bash
 # Import CSV data into benchmark database
 go run testutil/cmd/import/import_csv_data.go
-
-# This imports data into the postgres_benchmark container
 ```
 
 ### Custom Fixture Generation
@@ -149,134 +162,23 @@ You can modify the generation parameters in `testutil/cmd/generate/generate_fixt
 ```go
 // Adjust these values for your testing needs
 const (
-    numEvents = 100000        // Total events to generate
-    numBooks = 1000          // Number of unique books  
-    numReaders = 500         // Number of unique readers
+    // Number of "Something has happened" events to be created
+    NumSomethingHappenedEvents = 9 * million // Default: 9 million events
+    
+    // Number of "BookCopy..." events to be created  
+    NumBookCopyEvents = 1 * million          // Default: 1 million events
+    
+    // Total events: 10 million (generates ~3.9GB CSV/SQL files)
+    
+    // Control output formats
+    WriteCSVFileEnabled = true  // Generate CSV file (recommended)
+    WriteSQLFileEnabled = false // Generate SQL file (slower import)
 )
 ```
 
-## Code Style and Standards
+**Warning:** 10 million fixture events create ~3.9GB files. Generation takes about 1 minute, and importing can take 2+ minutes (on my machine). Use smaller values for faster fixture loading.
 
-### Formatting
-
-```bash
-# Format all code
-go fmt ./...
-
-# Check formatting
-gofmt -d .
-```
-
-### Linting
-
-```bash
-# Install golangci-lint
-go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-
-# Run linter
-golangci-lint run
-
-# Run specific linters
-golangci-lint run --enable=gosec,goconst
-```
-
-### Vetting
-
-```bash
-# Vet all packages
-go vet ./...
-```
-
-## Dependency Management
-
-```bash
-# Add new dependency
-go get github.com/some/package
-
-# Update dependencies
-go get -u ./...
-
-# Tidy modules
-go mod tidy
-
-# Verify dependencies
-go mod verify
-```
-
-## Database Development
-
-### Schema Changes
-
-The database schema is defined in `testutil/initdb/init.sql`. When making schema changes:
-
-1. Update `init.sql`
-2. Recreate test databases:
-```bash
-docker-compose --file testutil/docker-compose.yml down -v
-docker-compose --file testutil/docker-compose.yml up -d
-```
-
-### Database Debugging
-
-```bash
-# Connect to test database
-docker exec -it test_postgres_test_1 psql -U test -d eventstore
-
-# Connect to benchmark database  
-docker exec -it test_postgres_benchmark_1 psql -U test -d eventstore
-```
-
-Useful SQL queries for debugging:
-
-```sql
--- Check event counts
-SELECT COUNT(*) FROM events;
-
--- Check recent events
-SELECT event_type, occurred_at, payload 
-FROM events 
-ORDER BY sequence_number DESC 
-LIMIT 10;
-
--- Analyze query performance
-EXPLAIN ANALYZE 
-SELECT * FROM events 
-WHERE payload @> '{"BookID": "some-id"}';
-
--- Check index usage
-SELECT indexname, idx_tup_read, idx_tup_fetch 
-FROM pg_stat_user_indexes 
-WHERE relname = 'events';
-```
-
-## Debugging
-
-### Enable Debug Logging
-
-```go
-// In your test code
-import "log"
-
-func TestDebugExample(t *testing.T) {
-    // Enable verbose logging
-    log.SetFlags(log.LstdFlags | log.Lshortfile)
-    
-    // Your test code
-}
-```
-
-### SQL Query Logging
-
-Enable PostgreSQL query logging in Docker:
-
-```yaml
-# In docker-compose.yml
-services:
-  postgres_test:
-    command: postgres -c log_statement=all -c log_destination=stderr
-```
-
-### Common Issues
+## Common Issues
 
 **Connection Issues:**
 ```bash
@@ -329,6 +231,8 @@ go tool trace trace.out
 
 ## Contributing
 
+**Note:** I generally prefer issues over pull requests for discussing changes and improvements.
+
 ### Before Submitting PRs
 
 1. **Run all tests:**
@@ -366,62 +270,11 @@ golangci-lint run
 - Include both positive and negative test cases
 - Add benchmarks for performance-critical changes
 
-## Build and Release
-
-### Building
-
-```bash
-# Build all packages
-go build ./...
-
-# Build specific package
-go build ./eventstore/postgresengine/
-
-# Check for build issues
-go build -v ./...
-```
-
-### Module Publishing
-
-This project follows semantic versioning. When ready to release:
-
-1. **Tag the release:**
-```bash
-git tag v1.2.3
-git push origin v1.2.3
-```
-
-2. **Go modules automatically pick up the tag**
-
 ### Documentation Updates
 
 When making changes, update relevant documentation:
 
-- Update `CLAUDE.md` for development guidance
 - Update `docs/` files for user-facing changes
 - Update `README.md` if necessary
 - Update code comments and examples
 
-## Development Tools
-
-### Recommended VS Code Extensions
-
-- Go (official Go extension)
-- PostgreSQL (syntax highlighting)
-- Docker (container management)
-- GitLens (git integration)
-
-### Recommended IntelliJ/GoLand Plugins
-
-- PostgreSQL integration
-- Docker integration  
-- Go modules support
-
-### CLI Tools
-
-```bash
-# Install useful Go tools
-go install golang.org/x/tools/cmd/goimports@latest
-go install golang.org/x/tools/cmd/godoc@latest
-go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-```
