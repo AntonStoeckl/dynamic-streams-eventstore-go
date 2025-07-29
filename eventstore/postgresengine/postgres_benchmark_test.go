@@ -9,8 +9,8 @@ import (
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/core"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shell"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/helper"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/helper/postgreswrapper"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper"
 )
 
 func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {

@@ -25,8 +25,8 @@ const (
 	// WARNING
 	//
 	// 10 Million fixture events in total create 3.9GB (CSV and SQL each) files which are mounted into a Docker volume.
-	// The generation itself should take less than a minute.
-	// The import takes maybe 2 minutes in total if done from the CSV in the DB with dropped indexes.
+	// The generation itself takes about 25 seconds.
+	// The import takes about 4 minutes if done from the CSV in the DB with dropped indexes.
 	// Importing this via SQL already takes ages.
 	// If you go to 100 Million events, you might be in trouble ...
 	NumSomethingHappenedEvents = 9 * million
@@ -36,8 +36,8 @@ const (
 	// WARNING
 	//
 	// 10 Million fixture events in total create 3.9GB (CSV and SQL each) files which are mounted into a Docker volume.
-	// The generation itself should take less than a minute.
-	// The import takes maybe 2 minutes in total if done from the CSV in the DB with dropped indexes.
+	// The generation itself takes about 25 seconds.
+	// The import takes about 4 minutes if done from the CSV in the DB with dropped indexes.
 	// Importing this via SQL already takes ages.
 	// If you go to 100 Million events, you might be in trouble ...
 	NumBookCopyEvents = 1 * million
@@ -46,11 +46,16 @@ const (
 	WriteCSVFileEnabled = true
 
 	// WriteSQLFileEnabled determines whether the fixtures are written to a SQL file (not recommended, see above).
-	WriteSQLFileEnabled = false
+	WriteSQLFileEnabled = true
 
-	OutputDir     = "testutil/fixtures" // The directory to put the fixture data into - should be fine as is.
-	OutputSQLFile = "events.sql"        // The SQL file to put the fixture data into - should be fine as is.
-	OutputCSVFile = "events.csv"        // The CSV file to put the fixture data into - should be fine as is.
+	// OutputDir - the directory to put the fixture data into - don't change.
+	OutputDir = "testutil/postgresengine/fixtures"
+
+	// OutputSQLFile - the SQL file to put the fixture data into - don't change.
+	OutputSQLFile = "events.sql"
+
+	// OutputCSVFile - the CSV file to put the fixture data into - don't change.
+	OutputCSVFile = "events.csv"
 )
 
 type EventData struct {
@@ -76,6 +81,14 @@ func main() {
 }
 
 func GenerateFixtureDataSQL() error {
+	startTime := time.Now()
+	totalEvents := NumSomethingHappenedEvents + NumBookCopyEvents
+
+	// Report what we're starting
+	fmt.Println("🚀 Starting fixture data generation")
+	fmt.Printf("📊 Total events to generate: %s (%s SomethingHappened + %s BookCopy)\n",
+		formatNumber(totalEvents), formatNumber(NumSomethingHappenedEvents), formatNumber(NumBookCopyEvents))
+
 	projectRoot, err := findProjectRoot()
 	if err != nil {
 		return fmt.Errorf("failed to find project root: %w", err)
@@ -87,6 +100,20 @@ func GenerateFixtureDataSQL() error {
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
+
+	// Report output formats
+	fmt.Println("📁 Output formats:")
+	if WriteCSVFileEnabled {
+		fmt.Printf("  ✅ CSV: %s\n", filepath.Join(outputDir, OutputCSVFile))
+	} else {
+		fmt.Println("  ✖️ CSV: disabled")
+	}
+	if WriteSQLFileEnabled {
+		fmt.Printf("  ✅ SQL: %s\n", filepath.Join(outputDir, OutputSQLFile))
+	} else {
+		fmt.Println("  ✖️ SQL: disabled")
+	}
+	fmt.Println()
 
 	// Generate 100 UUIDs for metadata fields
 	generateMetadataUUIDs()
@@ -100,16 +127,20 @@ func GenerateFixtureDataSQL() error {
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// Generate and write "Something has happened" events
+	fmt.Printf("🔄 Phase 1/2: Generating %s SomethingHappened events...\n", formatNumber(NumSomethingHappenedEvents))
 	err = generateSomethingHappenedEvents(writers, NumSomethingHappenedEvents, &fakeClock)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("\n✅ Phase 1/2: Generated %s SomethingHappened events\n\n", formatNumber(NumSomethingHappenedEvents))
 
 	// Generate and write BookCopy events
+	fmt.Printf("🔄 Phase 2/2: Generating %s BookCopy events...\n", formatNumber(NumBookCopyEvents))
 	err = generateBookCopyEvents(writers, NumBookCopyEvents, &fakeClock)
 	if err != nil {
 		return err
 	}
+	fmt.Printf("\n✅ Phase 2/2: Generated %s BookCopy events\n\n", formatNumber(NumBookCopyEvents))
 
 	// Finalize SQL file
 	if WriteSQLFileEnabled {
@@ -119,12 +150,16 @@ func GenerateFixtureDataSQL() error {
 		}
 	}
 
-	totalEvents := NumSomethingHappenedEvents + NumBookCopyEvents
-	if WriteSQLFileEnabled {
-		fmt.Printf("Successfully generated %d events and wrote SQL to %s\n", totalEvents, filepath.Join(outputDir, OutputSQLFile))
-	}
+	elapsed := time.Since(startTime)
+
+	fmt.Printf("Fixture generation completed! 🎉\n")
+	fmt.Printf("Total events generated: %s 📊\n", formatNumber(totalEvents))
+	fmt.Printf("Total time: %v ⏱️\n", elapsed.Round(time.Millisecond))
 	if WriteCSVFileEnabled {
-		fmt.Printf("Successfully generated %d events and wrote CSV to %s\n", totalEvents, filepath.Join(outputDir, OutputCSVFile))
+		fmt.Printf("CSV file: %s\n", filepath.Join(outputDir, OutputCSVFile))
+	}
+	if WriteSQLFileEnabled {
+		fmt.Printf("SQL file: %s\n", filepath.Join(outputDir, OutputSQLFile))
 	}
 
 	return nil
@@ -254,8 +289,34 @@ func findProjectRoot() (string, error) {
 	return "", fmt.Errorf("could not find project root (no go.mod found)")
 }
 
+func formatNumber(n int) string {
+	if n >= million {
+		return fmt.Sprintf("%.1fM", float64(n)/float64(million))
+	} else if n >= hundredThousand {
+		return fmt.Sprintf("%.0fK", float64(n)/1000)
+	} else if n >= tenThousand {
+		return fmt.Sprintf("%.1fK", float64(n)/1000)
+	}
+	return strconv.Itoa(n)
+}
+
+func reportProgress(phase string, current, total int) {
+	percentage := float64(current) / float64(total) * 100
+	if int(percentage)%5 == 0 && current > 0 {
+		var spinChar string
+		if percentage >= 100 {
+			spinChar = "●" // Filled circle when complete
+		} else {
+			spinner := []string{"◐", "◓", "◑", "◒"}
+			spinChar = spinner[int(percentage/5)%len(spinner)]
+		}
+		fmt.Printf("\r  %s %s: %s/%s (%.0f%%)    ", spinChar, phase, formatNumber(current), formatNumber(total), percentage)
+	}
+}
+
 func generateSomethingHappenedEvents(writers *Writers, numEvents int, fakeClock *time.Time) error {
 	eventPostfix := 0
+	progressStep := numEvents / 20 // 5% increments
 
 	for totalGenerated := 0; totalGenerated < numEvents; totalGenerated++ {
 		id, _ := uuid.NewV7()
@@ -280,6 +341,11 @@ func generateSomethingHappenedEvents(writers *Writers, numEvents int, fakeClock 
 		}
 
 		eventPostfix++
+
+		// Report progress every 5%
+		if progressStep > 0 && (totalGenerated+1)%progressStep == 0 {
+			reportProgress("SomethingHappened", totalGenerated+1, numEvents)
+		}
 	}
 
 	return nil
@@ -289,6 +355,7 @@ func generateBookCopyEvents(writers *Writers, numEvents int, fakeClock *time.Tim
 	booksInCirculation := make(map[uuid.UUID]bool)
 	lentBooks := make(map[uuid.UUID]uuid.UUID) // bookID -> readerID
 	removedBooks := make(map[uuid.UUID]bool)
+	progressStep := numEvents / 20 // 5% increments
 
 	// Sample book data
 	books := []struct {
@@ -333,6 +400,11 @@ func generateBookCopyEvents(writers *Writers, numEvents int, fakeClock *time.Tim
 		booksInCirculation[bookID] = true
 		eventsGenerated++
 
+		// Report progress every 5%
+		if progressStep > 0 && eventsGenerated%progressStep == 0 {
+			reportProgress("BookCopy", eventsGenerated, numEvents)
+		}
+
 		if eventsGenerated >= numEvents {
 			break
 		}
@@ -367,6 +439,11 @@ func generateBookCopyEvents(writers *Writers, numEvents int, fakeClock *time.Tim
 				lentBooks[bookID] = readerID
 				eventsGenerated++
 
+				// Report progress every 5%
+				if progressStep > 0 && eventsGenerated%progressStep == 0 {
+					reportProgress("BookCopy", eventsGenerated, numEvents)
+				}
+
 				if eventsGenerated >= numEvents {
 					break
 				}
@@ -391,6 +468,11 @@ func generateBookCopyEvents(writers *Writers, numEvents int, fakeClock *time.Tim
 
 				delete(lentBooks, bookID)
 				eventsGenerated++
+
+				// Report progress every 5%
+				if progressStep > 0 && eventsGenerated%progressStep == 0 {
+					reportProgress("BookCopy", eventsGenerated, numEvents)
+				}
 			}
 
 		case action < 80: // 20% chance: lent but never returned
@@ -416,6 +498,11 @@ func generateBookCopyEvents(writers *Writers, numEvents int, fakeClock *time.Tim
 
 				lentBooks[bookID] = readerID
 				eventsGenerated++
+
+				// Report progress every 5%
+				if progressStep > 0 && eventsGenerated%progressStep == 0 {
+					reportProgress("BookCopy", eventsGenerated, numEvents)
+				}
 			}
 
 		default: // 20% chance: removed from circulation
@@ -441,6 +528,11 @@ func generateBookCopyEvents(writers *Writers, numEvents int, fakeClock *time.Tim
 				delete(booksInCirculation, bookID)
 				delete(lentBooks, bookID)
 				eventsGenerated++
+
+				// Report progress every 5%
+				if progressStep > 0 && eventsGenerated%progressStep == 0 {
+					reportProgress("BookCopy", eventsGenerated, numEvents)
+				}
 			}
 		}
 	}

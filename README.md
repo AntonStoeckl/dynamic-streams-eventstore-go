@@ -105,7 +105,7 @@ WHERE event_type IN ('BookCopyLentToReader', 'ReaderRegistered')
 
 ## ⚡ Performance
 
-With 1M+ events in PostgreSQL:
+With 10M events in PostgreSQL:
 - **Query**: ~0.12 ms average
 - **Append**: ~2.55 ms average  
 - **Full Workflow**: ~3.56 ms (Query + Business Logic + Append)

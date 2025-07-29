@@ -19,7 +19,7 @@ Range: 0.11 - 0.13 ms per query
 ```
 
 **Key characteristics:**
-- Sub-millisecond query times even with 1M+ events
+- Sub-millisecond query times even with 10M events
 - Consistent performance due to PostgreSQL's efficient JSON indexing
 - Performance scales with filter selectivity, not total event count
 

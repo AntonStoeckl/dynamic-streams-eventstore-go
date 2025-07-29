@@ -1,3 +1,5 @@
+name: des
+
 services:
   postgres_test:
     image: postgres

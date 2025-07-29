@@ -26,11 +26,11 @@ go mod tidy
 3. **Start test databases:**
 ```bash
 # Start both test databases
-docker-compose --file testutil/docker-compose.yml up -d
+docker-compose --file testutil/postgresengine/docker-compose.yml up -d
 
 # Or start individually
-docker-compose --file testutil/docker-compose.yml up -d postgres_test      # Port 5432
-docker-compose --file testutil/docker-compose.yml up -d postgres_benchmark # Port 5433
+docker-compose --file testutil/postgresengine/docker-compose.yml up -d postgres_test      # Port 5432
+docker-compose --file testutil/postgresengine/docker-compose.yml up -d postgres_benchmark # Port 5433
 ```
 
 4. **Verify setup:**
@@ -53,13 +53,15 @@ go test ./eventstore/postgresengine/
 │   ├── filter.go                       # Filter builder implementation
 │   └── storable_event.go               # Event data structures
 ├── testutil/                           # Test infrastructure
-│   ├── cmd/                            # Utility commands
-│   │   ├── generate/                   # Fixture data generation
-│   │   └── import/                     # Data import utilities
-│   ├── initdb/                         # Database initialization
-│   ├── helper/postgreswrapper/         # Adapter-agnostic test wrapper
-│   ├── docker-compose.yml              # Test database setup
-│   └── helper.go                       # Test utilities
+│   └── postgresengine/                 # PostgreSQL-specific test utilities
+│       ├── cmd/                        # Utility commands
+│       │   ├── generate/               # Fixture data generation
+│       │   └── import/                 # Data import utilities
+│       ├── initdb/                     # Database initialization
+│       ├── helper/postgreswrapper/     # Adapter-agnostic test wrapper
+│       ├── docker-compose.yml          # Test database setup
+│       ├── fixtures/                   # Generated fixture data
+│       └── helper.go                   # Test utilities
 ├── example/                            # Example domain (used in tests)
 │   ├── core/                           # Domain events and business logic
 │   ├── shell/                          # Event mapping layer
@@ -133,25 +135,25 @@ For performance testing, generate fixture data and import it into the benchmark 
 
 ```bash
 # Generate CSV file with fixture events
-go run testutil/cmd/generate/generate_fixture_events_data.go
+go run testutil/postgresengine/cmd/generate/generate_fixture_events_data.go
 
-# This creates testutil/fixtures/events.csv
+# This creates testutil/postgresengine/fixtures/events.csv
 
 # After creating fixtures, restart containers to mount the new fixture file into a volume
 docker-compose --file testutil/docker-compose.yml down
-docker-compose --file testutil/docker-compose.yml up -d
+docker-compose --file testutil/postgresengine/docker-compose.yml up -d
 ```
 
 ### Import Fixture Data
 
 ```bash
 # Import CSV data into benchmark database
-go run testutil/cmd/import/import_csv_data.go
+go run testutil/postgresengine/cmd/import/import_csv_data.go
 ```
 
 ### Custom Fixture Generation
 
-You can modify the generation parameters in `testutil/cmd/generate/generate_fixture_events_data.go`:
+You can modify the generation parameters in `testutil/postgresengine/cmd/generate/generate_fixture_events_data.go`:
 
 ```go
 // Adjust these values for your testing needs
@@ -170,24 +172,24 @@ const (
 )
 ```
 
-**Warning:** 10 million fixture events create ~3.9GB files. Generation takes about 1 minute, and importing can take 2+ minutes (on my machine). Use smaller values for faster fixture loading.
+**Warning:** 10 million fixture events create ~3.9GB files. Generation takes about 25 seconds, and importing takes about 4 minutes. Use smaller values for faster fixture loading.
 
 ## Common Issues
 
 **Connection Issues:**
 ```bash
 # Check if databases are running
-docker-compose --file testutil/docker-compose.yml ps
+docker-compose --file testutil/postgresengine/docker-compose.yml ps
 
 # Check logs
-docker-compose --file testutil/docker-compose.yml logs postgres_test
+docker-compose --file testutil/postgresengine/docker-compose.yml logs postgres_test
 ```
 
 **Test Failures:**
 ```bash
 # Clean state and retry
-docker-compose --file testutil/docker-compose.yml down -v
-docker-compose --file testutil/docker-compose.yml up -d
+docker-compose --file testutil/postgresengine/docker-compose.yml down -v
+docker-compose --file testutil/postgresengine/docker-compose.yml up -d
 go test ./eventstore/postgresengine/
 ```
 

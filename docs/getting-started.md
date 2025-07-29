@@ -24,7 +24,7 @@ go get github.com/AntonStoeckl/dynamic-streams-eventstore-go
 Create a PostgreSQL database with the required table structure. You can use the initialization script from this repository:
 
 ```sql
--- See testutil/initdb/init.sql for the complete schema
+-- See testutil/postgresengine/initdb/init.sql for the complete schema
 CREATE TABLE events (
     sequence_number BIGSERIAL PRIMARY KEY,
     event_type TEXT NOT NULL,
