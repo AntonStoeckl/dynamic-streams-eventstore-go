@@ -5,58 +5,80 @@ import (
 	"errors"
 	"fmt"
 	"math/rand/v2"
+	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/config"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/core"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shell"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/helper"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/helper/postgreswrapper"
 )
 
-func Test_NewEventStoreFromPGXPoolWithTableName(t *testing.T) {
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
-	assert.NoError(t, err, "error connecting to DB pool in test setup")
-	_, err = postgresengine.NewEventStoreFromPGXPoolWithTableName(connPool, "event_data")
-	assert.NoError(t, err, "error creating the event store with table name")
+func Test_NewEventStore_ShouldPanic_WithUnsupportedAdapterType(t *testing.T) {
+	// Save the original env var
+	originalAdapterType := os.Getenv("ADAPTER_TYPE")
+	defer func() {
+		if originalAdapterType == "" {
+			err := os.Unsetenv("ADAPTER_TYPE")
+			assert.NoError(t, err)
+		} else {
+			err := os.Setenv("ADAPTER_TYPE", originalAdapterType)
+			assert.NoError(t, err)
+		}
+	}()
+
+	// Set an unsupported adapter type
+	err := os.Setenv("ADAPTER_TYPE", "unsupported")
+	assert.NoError(t, err)
+
+	assert.Panics(t, func() {
+		createErr := TryCreateEventStoreWithTableName(t, "event_data")
+		assert.NoError(t, createErr)
+	})
 }
 
-func Test_NewEventStoreFromPGXPoolWithTableName_ShouldFail_WithEmptyTableName(t *testing.T) {
-	connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
-	assert.NoError(t, err, "error connecting to DB pool in test setup")
-	_, err = postgresengine.NewEventStoreFromPGXPoolWithTableName(connPool, "")
-	assert.ErrorContains(t, err, ErrEmptyTableNameSupplied.Error())
+func Test_NewEventStoreWithTableName_ShouldPanic_WithUnsupportedAdapterType(t *testing.T) {
+	// Save the original env var
+	originalAdapterType := os.Getenv("ADAPTER_TYPE")
+	defer func() {
+		if originalAdapterType == "" {
+			err := os.Unsetenv("ADAPTER_TYPE")
+			assert.NoError(t, err)
+		} else {
+			err := os.Setenv("ADAPTER_TYPE", originalAdapterType)
+			assert.NoError(t, err)
+		}
+	}()
+
+	// Set an unsupported adapter type
+	err := os.Setenv("ADAPTER_TYPE", "unsupported")
+	assert.NoError(t, err)
+
+	assert.Panics(t, func() {
+		createErr := TryCreateEventStoreWithTableName(t, "event_data")
+		assert.NoError(t, createErr)
+	})
 }
 
-func Test_NewEventStoreFromSQLDBWithTableName(t *testing.T) {
-	db := config.PostgresSQLDBTestConfig()
-	_, err := postgresengine.NewEventStoreFromSQLDBWithTableName(db, "event_data")
-	assert.NoError(t, err, "error creating the event store with table name")
+func Test_NewEventStoreWithTableName_Success(t *testing.T) {
+	var err error
+	assert.NotPanics(t, func() {
+		err = TryCreateEventStoreWithTableName(t, "event_data")
+	})
+	assert.NoError(t, err)
 }
 
-func Test_NewEventStoreFromSQLDBWithTableName_ShouldFail_WithEmptyTableName(t *testing.T) {
-	db := config.PostgresSQLDBTestConfig()
-	_, err := postgresengine.NewEventStoreFromSQLDBWithTableName(db, "")
-	assert.ErrorContains(t, err, ErrEmptyTableNameSupplied.Error())
-}
-
-func Test_NewEventStoreFromSQLXWithTableName(t *testing.T) {
-	db := config.PostgresSQLXTestConfig()
-	_, err := postgresengine.NewEventStoreFromSQLXWithTableName(db, "event_data")
-	assert.NoError(t, err, "error creating the event store with table name")
-}
-
-func Test_NewEventStoreFromSQLXWithTableName_ShouldFail_WithEmptyTableName(t *testing.T) {
-	db := config.PostgresSQLXTestConfig()
-	_, err := postgresengine.NewEventStoreFromSQLXWithTableName(db, "")
+func Test_NewEventStoreWithTableName_ShouldFail_WithEmptyTableName(t *testing.T) {
+	var err error
+	assert.NotPanics(t, func() {
+		err = TryCreateEventStoreWithTableName(t, "")
+	})
 	assert.ErrorContains(t, err, ErrEmptyTableNameSupplied.Error())
 }
 
