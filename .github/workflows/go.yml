@@ -35,14 +35,27 @@ jobs:
           go-version: '1.24'
 
       - name: Install dependencies
-        run: go mod download
+        run: |
+          go mod download
+          go install github.com/wadey/gocovmerge@latest
 
       - name: Initialize database
         run: |
           PGPASSWORD=test psql -h localhost -U test -d eventstore -f test/initdb/init.sql
 
       - name: Run tests
-        run: go test -race -coverprofile=coverage.out -coverpkg=./eventstore,./eventstore/postgresengine -covermode=atomic $(go list ./... | grep -v '/test')
+        run: |
+          echo "Running tests with pgxpool adapter..."
+          ADAPTER_TYPE=pgx.pool go test -race -coverprofile=coverage-pgxpool.out -coverpkg=./eventstore/... -covermode=atomic $(go list ./... | grep '/eventstore')
+          
+          echo "Running tests with sqldb adapter..."
+          ADAPTER_TYPE=sql.db go test -race -coverprofile=coverage-sqldb.out -coverpkg=./eventstore/... -covermode=atomic $(go list ./... | grep '/eventstore')
+          
+          echo "Running tests with sqlxdb adapter..."
+          ADAPTER_TYPE=sqlx.db go test -race -coverprofile=coverage-sqlxdb.out -coverpkg=./eventstore/... -covermode=atomic $(go list ./... | grep '/eventstore')
+          
+          echo "Merging coverage profiles..."
+          gocovmerge coverage-pgxpool.out coverage-sqldb.out coverage-sqlxdb.out > coverage.out
 
       - name: Upload results to Codecov
         uses: codecov/codecov-action@v5
