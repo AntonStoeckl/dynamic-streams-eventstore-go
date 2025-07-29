@@ -125,7 +125,7 @@ Appends a single event to the store with optimistic concurrency control.
 **Example:**
 ```go
 err := eventStore.Append(ctx, filter, maxSeq, storableEvent)
-if errors.Is(err, engine.ErrConcurrencyConflict) {
+if errors.Is(err, eventstore.ErrConcurrencyConflict) {
     // Retry the operation
     return retry()
 }
@@ -134,7 +134,7 @@ if errors.Is(err, engine.ErrConcurrencyConflict) {
 ##### AppendMultiple
 
 ```go
-func (es PostgresEventStore) AppendMultiple(
+func (es EventStore) AppendMultiple(
     ctx context.Context,
     filter Filter,
     expectedMaxSequenceNumber MaxSequenceNumberUint,
@@ -268,7 +268,7 @@ filter := BuildEventFilter().
 ```go
 filter := BuildEventFilter().
     Matching().
-    AnyEventTypeOf("BookLent", "BookReturned").
+    AnyEventTypeOf("BookCopyLentToReader", "BookCopyReturnedByReader").
     AndAnyPredicateOf(P("BookID", "book-123")).
     Finalize()
 ```
@@ -277,7 +277,7 @@ filter := BuildEventFilter().
 ```go
 filter := BuildEventFilter().
     Matching().
-    AnyEventTypeOf("BookLent", "BookReturned").
+    AnyEventTypeOf("BookCopyLentToReader", "BookCopyReturnedByReader").
     AndAnyPredicateOf(
         P("BookID", "book-123"),
         P("ReaderID", "reader-456")).
@@ -307,6 +307,7 @@ P("BookID", "book-123")  // Matches: payload @> '{"BookID": "book-123"}'
 ### Predefined Errors
 
 ```go
+// From eventstore package
 var ErrEmptyTableNameSupplied = errors.New("empty eventTableName supplied")
 var ErrConcurrencyConflict = errors.New("concurrency error, no rows were affected")
 ```
@@ -317,8 +318,10 @@ Returned when an append operation fails due to optimistic concurrency control. T
 
 **Handling:**
 ```go
+import "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
+
 err := eventStore.Append(ctx, filter, maxSeq, event)
-if errors.Is(err, engine.ErrConcurrencyConflict) {
+if errors.Is(err, eventstore.ErrConcurrencyConflict) {
     // Retry the entire operation: Query -> Business Logic -> Append
     return retryOperation()
 }
@@ -333,36 +336,9 @@ type FilterKeyString = string
 type FilterValString = string
 ```
 
-## Database Configuration
+## Database Schema
 
-### Connection Setup
-
-The event store requires a PostgreSQL connection pool:
-
-```go
-import (
-    "github.com/jackc/pgx/v5/pgxpool"
-)
-
-config, err := pgxpool.ParseConfig("postgres://user:pass@localhost/db")
-if err != nil {
-    return err
-}
-
-// Optional: Configure pool settings
-config.MaxConns = 30
-config.MinConns = 5
-
-db, err := pgxpool.NewWithConfig(ctx, config)
-if err != nil {
-    return err
-}
-defer db.Close()
-
-eventStore := engine.NewPostgresEventStore(db)
-```
-
-### Required Database Schema
+The event store requires this PostgreSQL table:
 
 ```sql
 CREATE TABLE events (
@@ -373,51 +349,15 @@ CREATE TABLE events (
     metadata JSONB NOT NULL
 );
 
--- Performance indexes
+-- Required indexes
 CREATE INDEX events_event_type_idx ON events (event_type);
 CREATE INDEX events_occurred_at_idx ON events (occurred_at);
 CREATE INDEX events_payload_gin_idx ON events USING gin (payload);
 ```
 
-## Context Support
+## Notes
 
-All operations accept a `context.Context` for:
-
-- **Cancellation**: Cancel long-running operations
-- **Timeouts**: Set operation deadlines
-- **Tracing**: Propagate trace information
-
-```go
-// With timeout
-ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-defer cancel()
-
-events, maxSeq, err := eventStore.Query(ctx, filter)
-```
-
-## Thread Safety
-
-The `PostgresEventStore` is thread-safe and can be used concurrently from multiple goroutines. The underlying pgx connection pool handles concurrent access safely.
-
-## Performance Considerations
-
-### Query Performance
-
-- Use specific event type filters when possible
-- JSON predicates use GIN indexes for fast lookup
-- Consider the number of events returned (pagination may be needed for large result sets)
-
-### Append Performance
-
-- Single event appends are fastest
-- Multiple event appends are atomic but slower
-- High contention on the same filter may cause retries
-
-### Connection Pool Tuning
-
-```go
-config.MaxConns = 30        // Max concurrent connections
-config.MinConns = 5         // Keep minimum connections open
-config.MaxConnLifetime = time.Hour
-config.MaxConnIdleTime = time.Minute * 30
-```
+- All operations are thread-safe
+- Use `context.Context` for timeouts and cancellation
+- The GIN index on payload is critical for performance
+- See [Performance](./performance.md) for detailed benchmarks

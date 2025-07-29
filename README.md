@@ -27,12 +27,15 @@ go get github.com/AntonStoeckl/dynamic-streams-eventstore-go
 ```
 
 ```go
-// Create an event store with pgx adapter (default)
-eventStore := postgres.NewEventStoreFromPGXPool(pgxPool)
+// Create event store with pgx adapter (default)
+eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool)
+if err != nil {
+    log.Fatal(err)
+}
 
 // Or use alternative adapters:
-// eventStore := postgres.NewEventStoreFromSQLDB(sqlDB)
-// eventStore := postgres.NewEventStoreFromSQLX(sqlxDB)
+// eventStore, err := postgresengine.NewEventStoreFromSQLDB(sqlDB)
+// eventStore, err := postgresengine.NewEventStoreFromSQLX(sqlxDB)
 
 // Query events spanning multiple entities
 filter := BuildEventFilter().
@@ -96,8 +99,8 @@ The event store supports three PostgreSQL adapters, switchable via factory funct
 **Key Pattern:**
 ```postgresql
 -- Same WHERE clause used in Query and Append for consistency
-WHERE event_type IN ('BookEvent', 'UserEvent') 
-  AND (payload @> '{"BookID": "123"}' OR payload @> '{"UserID": "456"}')
+WHERE event_type IN ('BookCopyLentToReader', 'ReaderRegistered') 
+  AND (payload @> '{"BookID": "123"}' OR payload @> '{"ReaderID": "456"}')
 ```
 
 ## ⚡ Performance
@@ -111,25 +114,7 @@ See [Performance Documentation](./docs/performance.md) for detailed benchmarks a
 
 ## 🧪 Testing
 
-```bash
-# Start test databases
-docker-compose --file testutil/docker-compose.yml up -d
-
-# Run tests with different adapters
-go test ./eventstore/postgresengine/                    # pgx.Pool (default)
-ADAPTER_TYPE=sqldb go test ./eventstore/postgresengine/ # database/sql  
-ADAPTER_TYPE=sqlx go test ./eventstore/postgresengine/  # sqlx
-
-# Run benchmarks with different adapters
-go test -bench=. ./eventstore/postgresengine/                    # pgx.Pool (default)
-ADAPTER_TYPE=sqldb go test -bench=. ./eventstore/postgresengine/ # database/sql
-ADAPTER_TYPE=sqlx go test -bench=. ./eventstore/postgresengine/  # sqlx
-```
-
-The `ADAPTER_TYPE` environment variable switches between database adapters:
-- `pgxpool` or unset: pgx.Pool (default)
-- `sqldb`: database/sql with lib/pq
-- `sqlx`: sqlx.DB with lib/pq
+See [Development Guide](./docs/development.md) for complete testing instructions including adapter switching and benchmarks.
 
 Note: The `/example` directory contains test fixtures and simple usage examples used by the test suite.
 

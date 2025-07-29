@@ -62,14 +62,9 @@ Breakdown:
 
 This represents a complete business operation: Query → Apply Business Logic → Append.
 
-## Testing Performance with Different Adapters
+## Testing Performance
 
-```bash
-# Benchmark all adapters
-go test -bench=. ./eventstore/postgresengine/                    # pgx.Pool
-ADAPTER_TYPE=sqldb go test -bench=. ./eventstore/postgresengine/ # database/sql
-ADAPTER_TYPE=sqlx go test -bench=. ./eventstore/postgresengine/  # sqlx
-```
+See [Development Guide](./development.md) for benchmarking with different database adapters.
 
 ## Performance Factors
 
@@ -184,7 +179,7 @@ func withExponentialBackoff(operation func() error, maxRetries int) error {
             return nil
         }
         
-        if errors.Is(err, engine.ErrConcurrencyConflict) {
+        if errors.Is(err, eventstore.ErrConcurrencyConflict) {
             // Exponential backoff: 10ms, 20ms, 40ms, 80ms
             delay := time.Duration(10<<i) * time.Millisecond
             time.Sleep(delay)
@@ -199,142 +194,24 @@ func withExponentialBackoff(operation func() error, maxRetries int) error {
 
 ## Scaling Patterns
 
-### Horizontal Read Scaling
+### Scaling Strategies
 
-```go
-// Use read replicas for queries
-readerDB := setupReadReplica()
-writerDB := setupPrimaryDB()
+- **Read Replicas**: Use read replicas for queries, primary for appends
+- **Partitioning**: Partition events table by event type for very high scale  
+- **Caching**: Cache query results briefly (100ms TTL) for high-frequency reads
 
-readerEventStore := engine.NewPostgresEventStore(readerDB)
-writerEventStore := engine.NewPostgresEventStore(writerDB)
+## Monitoring
 
-// Queries can use read replicas
-events, maxSeq, _ := readerEventStore.Query(ctx, filter)
+**Key Metrics:**
+- Query/append latencies 
+- Concurrency conflict rates
+- Database connection usage
+- Table/index sizes
 
-// But appends must use primary
-err := writerEventStore.Append(ctx, filter, maxSeq, event)
-```
-
-### Partitioning Strategies
-
-For very high scale, consider partitioning:
-
-```sql
--- Partition by event type
-CREATE TABLE events_book_events PARTITION OF events
-FOR VALUES IN ('BookLent', 'BookReturned', 'BookAdded');
-
-CREATE TABLE events_user_events PARTITION OF events  
-FOR VALUES IN ('UserRegistered', 'UserDeactivated');
-```
-
-### Caching Strategies
-
-#### Event Caching
-```go
-type CachedEventStore struct {
-    store engine.PostgresEventStore
-    cache map[string]CacheEntry
-    mu    sync.RWMutex
-}
-
-func (c *CachedEventStore) Query(ctx context.Context, filter Filter) (StorableEvents, MaxSequenceNumberUint, error) {
-    key := filterKey(filter)
-    
-    c.mu.RLock()
-    if entry, exists := c.cache[key]; exists && !entry.Expired() {
-        c.mu.RUnlock()
-        return entry.Events, entry.MaxSeq, nil
-    }
-    c.mu.RUnlock()
-    
-    // Cache miss - query database
-    events, maxSeq, err := c.store.Query(ctx, filter)
-    if err != nil {
-        return nil, 0, err
-    }
-    
-    // Cache result briefly
-    c.mu.Lock()
-    c.cache[key] = CacheEntry{
-        Events: events,
-        MaxSeq: maxSeq,
-        Expires: time.Now().Add(100 * time.Millisecond), // Short TTL
-    }
-    c.mu.Unlock()
-    
-    return events, maxSeq, nil
-}
-```
-
-## Monitoring and Observability
-
-### Key Metrics to Track
-
-```go
-// Operation latencies
-queryDuration := prometheus.NewHistogramVec(
-    prometheus.HistogramOpts{
-        Name: "eventstore_query_duration_seconds",
-        Help: "Time spent querying events",
-    },
-    []string{"filter_type"},
-)
-
-appendDuration := prometheus.NewHistogramVec(
-    prometheus.HistogramOpts{
-        Name: "eventstore_append_duration_seconds", 
-        Help: "Time spent appending events",
-    },
-    []string{"event_count"},
-)
-
-// Concurrency conflicts
-concurrencyConflicts := prometheus.NewCounterVec(
-    prometheus.CounterOpts{
-        Name: "eventstore_concurrency_conflicts_total",
-        Help: "Number of concurrency conflicts",
-    },
-    []string{"filter_type"},
-)
-
-// Database connections
-dbConnections := prometheus.NewGaugeVec(
-    prometheus.GaugeOpts{
-        Name: "eventstore_db_connections",
-        Help: "Current database connections",
-    },
-    []string{"status"}, // active, idle, etc.
-)
-```
-
-### Database Monitoring
-
-```sql
--- Monitor query performance
-SELECT 
-    query,
-    mean_exec_time,
-    calls,
-    total_exec_time
-FROM pg_stat_statements 
-WHERE query LIKE '%events%'
-ORDER BY mean_exec_time DESC;
-
--- Monitor index usage
-SELECT 
-    indexrelname,
-    idx_tup_read,
-    idx_tup_fetch
-FROM pg_stat_user_indexes 
-WHERE relname = 'events';
-
--- Monitor table size
-SELECT 
-    pg_size_pretty(pg_total_relation_size('events')) as table_size,
-    pg_size_pretty(pg_relation_size('events')) as data_size;
-```
+**Important Queries:**
+- Monitor `pg_stat_statements` for slow queries
+- Check `pg_stat_user_indexes` for index usage  
+- Track table size with `pg_total_relation_size('events')`
 
 ## Optimization Recommendations
 
@@ -362,34 +239,4 @@ SELECT
 
 ## Performance Testing
 
-### Load Testing Setup
-
-```go
-func BenchmarkConcurrentAppends(b *testing.B) {
-    db := setupTestDB()
-    es := engine.NewPostgresEventStore(db)
-    
-    b.ResetTimer()
-    b.RunParallel(func(pb *testing.PB) {
-        for pb.Next() {
-            // Simulate concurrent appends
-            bookID := generateUniqueID()
-            filter := buildFilter(bookID)
-            
-            events, maxSeq, _ := es.Query(ctx, filter)
-            event := createTestEvent(bookID)
-            
-            err := es.Append(ctx, filter, maxSeq, event)
-            if errors.Is(err, engine.ErrConcurrencyConflict) {
-                // Expected under high concurrency
-                continue
-            }
-            if err != nil {
-                b.Error(err)
-            }
-        }
-    })
-}
-```
-
-The benchmarks in `eventstore/engine/postgres_benchmark_test.go` provide comprehensive performance testing that you can run in your own environment.
+The benchmarks in `eventstore/postgresengine/postgres_benchmark_test.go` provide comprehensive performance testing. Run with different adapters using the `ADAPTER_TYPE` environment variable.

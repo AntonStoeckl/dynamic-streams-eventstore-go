@@ -122,18 +122,12 @@ go tool cover -func=coverage.out
 
 ## Fixture Data Management
 
-For performance testing, you need to generate fixture data and import it into the benchmark DB.
+For performance testing, generate fixture data and import it into the benchmark database.
 
-The way shown below (importing a mounted CSV file from "inside" the DB) is definitely the fastest way!  
-
-Well, actually ... producing a file in Postgres's binary format and importing that from "inside" the DB would be even
-faster, but I failed with the binary format, and it was not worth the time to get that working.
-
-The second-fastest alternative:  
-Import a generated CSV locally → at least 5 times slower, sometimes fails before millions of events were imported.
-
-The slowest alternative:  
-Generating a file with SQL statements and import that locally → painfully slow unless the data set is very small.
+**Import Speed (fastest to slowest):**
+1. **CSV server-side import** (recommended) - Fast, mounted into Docker container
+2. **CSV local import** - 5x slower, sometimes fails with millions of events  
+3. **SQL file import** - Very slow, only suitable for small datasets
 
 ### Generate Fixture Events
 
@@ -272,7 +266,7 @@ golangci-lint run
 
 ### Documentation Updates
 
-When making changes, update relevant documentation:
+When making changes, update the relevant documentation:
 
 - Update `docs/` files for user-facing changes
 - Update `README.md` if necessary

@@ -104,7 +104,7 @@ func withRetry(operation func() error, maxRetries int) error {
         }
         
         // Retry on concurrency conflicts
-        if errors.Is(err, postgresengine.ErrConcurrencyConflict) {
+        if errors.Is(err, eventstore.ErrConcurrencyConflict) {
             time.Sleep(time.Duration(1<<i) * 10 * time.Millisecond)
             continue
         }

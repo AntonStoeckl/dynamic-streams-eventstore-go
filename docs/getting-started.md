@@ -211,20 +211,9 @@ for _, storableEvent := range storableEvents {
 }
 ```
 
-## Testing with Different Adapters
+## Testing
 
-You can test your implementation with different database adapters using the `ADAPTER_TYPE` environment variable:
-
-```bash
-# Test with pgx.Pool (default)
-go test ./...
-
-# Test with database/sql
-ADAPTER_TYPE=sqldb go test ./...
-
-# Test with sqlx
-ADAPTER_TYPE=sqlx go test ./...
-```
+See [Development Guide](./development.md) for testing with different database adapters.
 
 ## Next Steps
 
