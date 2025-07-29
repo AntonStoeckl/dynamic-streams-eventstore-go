@@ -8,7 +8,7 @@ All three supported adapters (pgx.Pool, database/sql, sqlx) provide equivalent p
 
 ## Benchmark Results
 
-Benchmarks run on Linux with 8-core i7-8565U CPU @ 1.80GHz, 16GB memory, PostgreSQL with 1M+ events.
+Benchmarks run on Linux with 8-core i7-8565U CPU @ 1.80 GHz, 16GB memory, PostgreSQL with 1M+ events.
 
 ### Query Performance
 
@@ -23,7 +23,7 @@ Range: 0.11 - 0.13 ms per query
 - Consistent performance due to PostgreSQL's efficient JSON indexing
 - Performance scales with filter selectivity, not total event count
 
-### Single Event Append
+### Single Event Appends
 
 ```
 Benchmark_SingleAppend_With_Many_Events_InTheStore  
@@ -32,11 +32,11 @@ Range: 2.4 - 2.6 ms per append
 ```
 
 **Key characteristics:**
-- ~2.5ms for atomic single event append with optimistic locking
+- ~2.5 ms for atomic single event append with optimistic locking
 - Time includes CTE evaluation and row insertion
 - Performance is consistent regardless of database size
 
-### Multiple Event Append
+### Multiple Event Appends
 
 ```
 Benchmark_MultipleAppend_With_Many_Events_InTheStore
@@ -47,7 +47,7 @@ Range: 2.8 - 3.7 ms per append operation
 **Key characteristics:**
 - Slightly higher latency for multi-event atomic operations
 - All events succeed or fail together
-- More efficient than multiple single appends
+- More efficient than multiple single append operations
 
 ### Complete Workflow
 
@@ -86,13 +86,13 @@ CREATE INDEX events_occurred_at_idx ON events (occurred_at);
 CREATE INDEX events_payload_gin_idx ON events USING gin (payload);
 ```
 
-**The GIN index on payload is critical** - it enables fast JSON containment queries (`@>` operator).
+**The GIN index on payload is critical** — it enables fast JSON containment queries (`@>` operator).
 
 ### Filter Design
 
 #### Efficient Filters
 
-**✅ Good - Specific predicates:**
+**✅ Good — Specific predicates:**
 ```go
 // Fast: Uses GIN index effectively
 filter := BuildEventFilter().
@@ -101,7 +101,7 @@ filter := BuildEventFilter().
     Finalize()
 ```
 
-**✅ Good - Event type + predicate:**
+**✅ Good — Event type + predicate:**
 ```go
 // Fast: Combines event type index with JSON index
 filter := BuildEventFilter().
@@ -113,7 +113,7 @@ filter := BuildEventFilter().
 
 #### Less Efficient Filters
 
-**⚠️ Slower - Too broad:**
+**⚠️ Slower — Too broad:**
 ```go
 // Slower: Returns many events
 filter := BuildEventFilter().
@@ -122,7 +122,7 @@ filter := BuildEventFilter().
     Finalize()
 ```
 
-**⚠️ Slower - Multiple OR predicates:**
+**⚠️ Slower — Multiple OR predicates:**
 ```go
 // Slower: Multiple JSON containment checks
 filter := BuildEventFilter().
@@ -165,8 +165,8 @@ Dynamic streams use optimistic concurrency control, which has specific performan
 - Independent business operations
 
 **⚠️ Potential Bottlenecks:**
-- High contention on same entity
-- Many concurrent writers to same stream
+- High contention on the same entity
+- Many concurrent writers to the same stream
 - Complex filters returning many events
 
 ### Retry Strategy
@@ -180,7 +180,7 @@ func withExponentialBackoff(operation func() error, maxRetries int) error {
         }
         
         if errors.Is(err, eventstore.ErrConcurrencyConflict) {
-            // Exponential backoff: 10ms, 20ms, 40ms, 80ms
+            // Exponential backoff: 10 ms, 20 ms, 40 ms, 80 ms
             delay := time.Duration(10<<i) * time.Millisecond
             time.Sleep(delay)
             continue
@@ -196,9 +196,9 @@ func withExponentialBackoff(operation func() error, maxRetries int) error {
 
 ### Scaling Strategies
 
-- **Read Replicas**: Use read replicas for queries, primary for appends
-- **Partitioning**: Partition events table by event type for very high scale  
-- **Caching**: Cache query results briefly (100ms TTL) for high-frequency reads
+- **Read Replicas**: Use read replicas for queries, primary for appending
+- **Partitioning**: Partition events table by event type for a very high scale  
+- **Caching**: Cache query results briefly (100 ms TTL) for high-frequency reads
 
 ## Monitoring
 

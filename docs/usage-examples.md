@@ -72,7 +72,7 @@ func LendBookToReader(ctx context.Context, es EventStore, bookID, readerID strin
         return err
     }
     
-    // 2. Build current state from events
+    // 2. Build the current state from events
     bookAvailable, readerBorrowCount := buildStateFromEvents(events, bookID, readerID)
     
     // 3. Apply business rules
@@ -128,7 +128,7 @@ func TestLendBookToReader(t *testing.T) {
     
     // Test database setup handles ADAPTER_TYPE env var
     db := setupTestDB(t) 
-    es := postgresengine.NewEventStoreFromPGXPool(db) // or other adapter
+    es := postgresengine.NewEventStoreFromPGXPool(db) // or another adapter
     
     // Test the lending use case
     err := LendBookToReader(ctx, es, "book-123", "reader-456") 

@@ -7,7 +7,7 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/AntonStoeckl/dynamic-streams-eventstore-go)](https://github.com/AntonStoeckl/dynamic-streams-eventstore-go)
 [![Release](https://img.shields.io/github/release-pre/AntonStoeckl/dynamic-streams-eventstore-go.svg)](https://github.com/AntonStoeckl/dynamic-streams-eventstore-go/releases)
 
-A Go-based **Event Store** implementation for **Event Sourcing** with PostgreSQL, operating on **Dynamic Event Streams** (also known as Dynamic Consistency Boundaries **DCB**)).
+A Go-based **Event Store** implementation for **Event Sourcing** with PostgreSQL, operating on **Dynamic Event Streams** (also known as Dynamic Consistency Boundaries **DCB**).
 
 Unlike traditional event stores with fixed streams tied to specific entities, this approach enables **atomic entity-independent operations** while maintaining strong consistency through PostgreSQL's ACID guarantees.
 
@@ -75,20 +75,20 @@ See **[Core Concepts](./docs/core-concepts.md)** for a more detailed description
 
 ## 📚 Documentation
 
-- **[Getting Started](./docs/getting-started.md)** - Installation, setup, and first steps
-- **[Core Concepts](./docs/core-concepts.md)** - Understanding Dynamic Event Streams
-- **[Usage Examples](./docs/usage-examples.md)** - Real-world implementation patterns
-- **[API Reference](./docs/api-reference.md)** - Complete API documentation
-- **[Performance](./docs/performance.md)** - Benchmarks and optimization guide
-- **[Development](./docs/development.md)** - Contributing and development setup
+- **[Getting Started](./docs/getting-started.md)** — Installation, setup, and first steps
+- **[Core Concepts](./docs/core-concepts.md)** — Understanding Dynamic Event Streams
+- **[Usage Examples](./docs/usage-examples.md)** — Real-world implementation patterns
+- **[API Reference](./docs/api-reference.md)** — Complete API documentation
+- **[Performance](./docs/performance.md)** — Benchmarks and optimization guide
+- **[Development](./docs/development.md)** — Contributing and development setup
 
 ## 🏗️ Architecture
 
 **Core Components:**
-- `eventstore/postgresengine/postgres.go` - PostgreSQL implementation with CTE-based optimistic locking
-- `eventstore/postgresengine/internal/adapters/` - Database adapter abstraction (pgx, sql.DB, sqlx)
-- `eventstore/filter.go` - Fluent filter builder for entity-independent queries  
-- `eventstore/storable_event.go` - Storage-agnostic event DTOs
+- `eventstore/postgresengine/postgres.go` — PostgreSQL implementation with CTE-based optimistic locking
+- `eventstore/postgresengine/internal/adapters/` — Database adapter abstraction (pgx, sql.DB, sqlx)
+- `eventstore/filter.go` — Fluent filter builder for entity-independent queries  
+- `eventstore/storable_event.go` — Storage-agnostic event DTOs
 
 **Database Adapters:**
 The event store supports three PostgreSQL adapters, switchable via factory functions:
@@ -97,7 +97,7 @@ The event store supports three PostgreSQL adapters, switchable via factory funct
 - **sqlx**: Enhanced database/sql with additional features
 
 **Key Pattern:**
-```postgresql
+```sql
 -- Same WHERE clause used in Query and Append for consistency
 WHERE event_type IN ('BookCopyLentToReader', 'ReaderRegistered') 
   AND (payload @> '{"BookID": "123"}' OR payload @> '{"ReaderID": "456"}')
@@ -124,7 +124,7 @@ See [Development Guide](./docs/development.md) for contribution guidelines, setu
 
 ## 📄 License
 
-This project is licensed under the **GNU GPLv3** - see [LICENSE.txt](LICENSE.txt) for details.
+This project is licensed under the **GNU GPLv3** — see [LICENSE.txt](LICENSE.txt) for details.
 
 ## 🙏 Acknowledgments
 

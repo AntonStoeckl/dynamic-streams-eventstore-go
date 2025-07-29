@@ -127,9 +127,9 @@ go tool cover -func=coverage.out
 For performance testing, generate fixture data and import it into the benchmark database.
 
 **Import Speed (fastest to slowest):**
-1. **CSV server-side import** (recommended) - Fast, mounted into Docker container
-2. **CSV local import** - 5x slower, sometimes fails with millions of events  
-3. **SQL file import** - Very slow, only suitable for small datasets
+1. **CSV server-side import** (recommended) — Fast, mounted into Docker container
+2. **CSV local import** — 5x slower, sometimes fails with millions of events  
+3. **SQL file import** — Very slow, only suitable for small datasets
 
 ### Generate Fixture Events
 
@@ -227,7 +227,7 @@ go tool trace trace.out
 
 ## Contributing
 
-**Note:** I generally prefer issues over pull requests for discussing changes and improvements.
+**Note:** I generally like filed issues more than pull requests for discussing changes and improvements.
 
 ### Before Submitting PRs
 

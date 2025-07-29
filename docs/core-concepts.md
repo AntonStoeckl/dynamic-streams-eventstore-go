@@ -6,7 +6,7 @@ Dynamic Event Streams represent a fundamental shift from traditional Event Sourc
 Instead of fixed streams tied to specific entities, this approach allows you to define consistency boundaries dynamically based on your business needs.
 
 
-### Traditional vs Dynamic Event Streams
+### Traditional vs. Dynamic Event Streams
 
 **Traditional Event Sourcing:**
 ```
@@ -22,7 +22,7 @@ Entity-independent Stream: [BookCopyAddedToCirculation, BookCopyRemovedFromCircu
                            ↑ Query events spanning multiple entities
 ```
 
-### Dynamic Consistency Boundaries vs Dynamic Event Streams
+### Dynamic Consistency Boundaries vs. Dynamic Event Streams
 
 **DCB** works by tagging each event as belonging to one - or multiple - dynamic streams.  
 While the concept of **Dynamic Event Streams** does not even require tagging events as *belongs to a stream*.  
@@ -105,7 +105,7 @@ FROM context
 WHERE (COALESCE(max_seq, 0) = 42) -- Expected version
 ```
 
-If the event stream changed since your query (someone else added events), the append fails with a concurrency error.
+If the event stream changed since your query (someone else added events), the append operation fails with a concurrency error.
 
 ## Key Benefits
 
@@ -182,12 +182,12 @@ P("ReaderType", "Premium") // payload @> '{"ReaderType": "Premium"}'
 
 ## Comparison with Other Patterns
 
-| Pattern | Consistency | Complexity | Performance | Scalability |
-|---------|------------|------------|-------------|-------------|
-| **Dynamic Streams** | Strong | Low | High | Medium |
-| **Traditional ES** | Entity-level | Medium | High | High |  
-| **Sagas** | Eventual | High | Medium | High |
-| **2PC/XA** | Strong | High | Low | Low |
+| Pattern             | Consistency  | Complexity | Performance | Scalability |
+|---------------------|--------------|------------|-------------|-------------|
+| **Dynamic Streams** | Strong       | Low        | High        | Medium      |
+| **Traditional ES**  | Entity-level | Medium     | High        | High        |  
+| **Sagas**           | Eventual     | High       | Medium      | High        |
+| **2PC/XA**          | Strong       | High       | Low         | Low         |
 
 ## Next Steps
 

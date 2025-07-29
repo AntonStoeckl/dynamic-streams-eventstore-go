@@ -24,7 +24,7 @@ func WithTableName(tableName string) Option
 
 #### Factory Function Examples
 
-**Using default table name ("events"):**
+**Using the default table name ("events"):**
 ```go
 // Using pgx.Pool
 eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool)
