@@ -14,10 +14,7 @@ func PostgresSQLDBTestConfig() *sql.DB {
 	const defaultMaxConnLifetime = time.Hour
 	const defaultMaxConnIdleTime = time.Minute * 5
 
-	// Your own Database URL
-	const DatabaseUrl string = "postgres://test:test@localhost:5432/eventstore?sslmode=disable"
-
-	db, err := sql.Open("postgres", DatabaseUrl)
+	db, err := sql.Open("postgres", PostgresTestDSN())
 	if err != nil {
 		log.Fatal("Failed to open database connection, error: ", err)
 	}
@@ -42,10 +39,7 @@ func PostgresSQLDBBenchmarkConfig() *sql.DB {
 	const defaultMaxConnLifetime = time.Hour
 	const defaultMaxConnIdleTime = time.Minute * 5
 
-	// Your own Database URL
-	const DatabaseUrl string = "postgres://test:test@localhost:5433/eventstore?sslmode=disable"
-
-	db, err := sql.Open("postgres", DatabaseUrl)
+	db, err := sql.Open("postgres", PostgresBenchmarkDSN())
 	if err != nil {
 		log.Fatal("Failed to open database connection, error: ", err)
 	}

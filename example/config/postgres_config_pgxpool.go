@@ -15,10 +15,7 @@ func PostgresPGXPoolTestConfig() *pgxpool.Config {
 	const defaultHealthCheckPeriod = time.Minute
 	const defaultConnectTimeout = time.Second * 5
 
-	// Your own Database URL
-	const DatabaseUrl string = "postgres://test:test@localhost:5432/eventstore?"
-
-	dbConfig, err := pgxpool.ParseConfig(DatabaseUrl)
+	dbConfig, err := pgxpool.ParseConfig(PostgresTestDSN())
 	if err != nil {
 		log.Fatal("Failed to create a config, error: ", err)
 	}
@@ -41,10 +38,7 @@ func PostgresPGXPoolBenchmarkConfig() *pgxpool.Config {
 	const defaultHealthCheckPeriod = time.Minute
 	const defaultConnectTimeout = time.Second * 5
 
-	// Your own Database URL
-	const DatabaseUrl string = "postgres://test:test@localhost:5433/eventstore?"
-
-	dbConfig, err := pgxpool.ParseConfig(DatabaseUrl)
+	dbConfig, err := pgxpool.ParseConfig(PostgresBenchmarkDSN())
 	if err != nil {
 		log.Fatal("Failed to create a config, error: ", err)
 	}
