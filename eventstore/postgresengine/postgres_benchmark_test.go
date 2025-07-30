@@ -57,7 +57,7 @@ func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 			assert.Equal(b, int64(1), rowsAffected)
 
 			if i%100 == 0 {
-				dbErr = OptimizeDBForWhileBenchmarking(wrapper)
+				dbErr = OptimizeDBWhileBenchmarking(wrapper)
 				assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
 			}
 		}
@@ -119,7 +119,7 @@ func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 			assert.Equal(b, int64(5), rowsAffected)
 
 			if i%100 == 0 {
-				dbErr = OptimizeDBForWhileBenchmarking(wrapper)
+				dbErr = OptimizeDBWhileBenchmarking(wrapper)
 				assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
 			}
 		}
@@ -240,7 +240,7 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 			assert.Equal(b, int64(2), rowsAffected)
 
 			if i%100 == 0 {
-				dbErr = OptimizeDBForWhileBenchmarking(wrapper)
+				dbErr = OptimizeDBWhileBenchmarking(wrapper)
 				assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
 			}
 		}

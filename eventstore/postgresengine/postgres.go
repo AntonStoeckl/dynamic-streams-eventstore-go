@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/doug-martin/goqu/v9"
@@ -22,6 +23,7 @@ type sqlQueryString = string
 type EventStore struct {
 	db             adapters.DBAdapter
 	eventTableName string
+	logger         *slog.Logger
 }
 
 // Option defines a functional option for configuring EventStore
@@ -34,6 +36,14 @@ func WithTableName(tableName string) Option {
 			return eventstore.ErrEmptyEventsTableName
 		}
 		es.eventTableName = tableName
+		return nil
+	}
+}
+
+// WithLogger sets the logger for the EventStore
+func WithLogger(logger *slog.Logger) Option {
+	return func(es *EventStore) error {
+		es.logger = logger
 		return nil
 	}
 }
@@ -122,7 +132,7 @@ func (es EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 		return empty, 0, buildQueryErr
 	}
 
-	//fmt.Println(sqlQuery)
+	es.logQuery(sqlQuery, "query")
 
 	rows, queryErr := es.db.Query(ctx, sqlQuery)
 	if queryErr != nil {
@@ -194,7 +204,7 @@ func (es EventStore) Append(
 		return buildQueryErr
 	}
 
-	//fmt.Println(sqlQuery)
+	es.logQuery(sqlQuery, "append")
 
 	tag, execErr := es.db.Exec(ctx, sqlQuery)
 	if execErr != nil {
@@ -379,4 +389,11 @@ func (es EventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.S
 	)
 
 	return selectStmt
+}
+
+// logQuery logs SQL queries at debug level if logger is configured
+func (es EventStore) logQuery(sqlQuery string, action string) {
+	if es.logger != nil {
+		es.logger.Debug("executing sql for: "+action, "query", sqlQuery)
+	}
 }

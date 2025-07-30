@@ -2,8 +2,10 @@ package postgresengine_test
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/lib/pq" // postgres driver
@@ -11,7 +13,8 @@ import (
 
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/config"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/config"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper"
 )
 
@@ -33,7 +36,7 @@ func Test_Generic_NewEventStore_ShouldPanic_WithUnsupportedAdapterType(t *testin
 	assert.NoError(t, err)
 
 	assert.Panics(t, func() {
-		createErr := TryCreateEventStoreWithTableName(t, "event_data")
+		createErr := TryCreateEventStoreWithTableName(t, WithTableName("event_data"))
 		assert.NoError(t, createErr)
 	})
 }
@@ -56,7 +59,7 @@ func Test_Generic_NewEventStoreWithTableName_ShouldPanic_WithUnsupportedAdapterT
 	assert.NoError(t, err)
 
 	assert.Panics(t, func() {
-		createErr := TryCreateEventStoreWithTableName(t, "event_data")
+		createErr := TryCreateEventStoreWithTableName(t, WithTableName("event_data"))
 		assert.NoError(t, createErr)
 	})
 }
@@ -105,7 +108,7 @@ func Test_Generic_FactoryFunctions_ShouldFail_WithEmptyTableName(t *testing.T) {
 		{
 			name: "NewEventStoreFromPGXPool with empty table name",
 			factoryFunc: func(t *testing.T) (EventStore, error) {
-				connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
+				connPool, err := pgxpool.NewWithConfig(context.Background(), PostgresPGXPoolTestConfig())
 				assert.NoError(t, err, "error connecting to DB pool in test setup")
 				defer connPool.Close()
 
@@ -115,7 +118,7 @@ func Test_Generic_FactoryFunctions_ShouldFail_WithEmptyTableName(t *testing.T) {
 		{
 			name: "NewEventStoreFromSQLDB with empty table name",
 			factoryFunc: func(t *testing.T) (EventStore, error) {
-				db := config.PostgresSQLDBTestConfig()
+				db := PostgresSQLDBTestConfig()
 				defer func() { _ = db.Close() }()
 
 				return NewEventStoreFromSQLDB(db, WithTableName(""))
@@ -124,7 +127,7 @@ func Test_Generic_FactoryFunctions_ShouldFail_WithEmptyTableName(t *testing.T) {
 		{
 			name: "NewEventStoreFromSQLX with empty table name",
 			factoryFunc: func(t *testing.T) (EventStore, error) {
-				db := config.PostgresSQLXTestConfig()
+				db := PostgresSQLXTestConfig()
 				defer func() { _ = db.Close() }()
 
 				return NewEventStoreFromSQLX(db, WithTableName(""))
@@ -141,4 +144,64 @@ func Test_Generic_FactoryFunctions_ShouldFail_WithEmptyTableName(t *testing.T) {
 			assert.ErrorContains(t, err, ErrEmptyEventsTableName.Error())
 		})
 	}
+}
+
+func Test_Generic_Eventstore_WithLogger_LogsQueries(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	testHandler := NewTestLogHandler()
+	logger := slog.New(testHandler)
+
+	wrapper := CreateWrapperWithTestConfig(t, WithLogger(logger))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	// arrange
+	CleanUp(t, wrapper)
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// act
+	_, _, err := es.Query(ctxWithTimeout, filter)
+
+	// assert
+	assert.NoError(t, err, "error in querying the event")
+	assert.Equal(t, 1, testHandler.GetRecordCount(), "Query should log exactly one SQL statement")
+	assert.True(t, testHandler.HasDebugLogWithMessage("executing sql for: query"), "should log with correct message")
+}
+
+func Test_Generic_Eventstore_WithLogger_LogsAppends(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	testHandler := NewTestLogHandler()
+	logger := slog.New(testHandler)
+
+	wrapper := CreateWrapperWithTestConfig(t, WithLogger(logger))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	fakeClock := time.Unix(0, 0).UTC()
+
+	// arrange
+	CleanUp(t, wrapper)
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// act
+	err := es.Append(
+		ctxWithTimeout,
+		filter,
+		QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
+		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
+	)
+
+	// assert
+	assert.NoError(t, err, "error in appending the event")
+	assert.Equal(t, 2, testHandler.GetRecordCount(), "query and append should log exactly one sql statement each")
+	assert.True(t, testHandler.HasDebugLogWithMessage("executing sql for: query"), "Should log with correct message")
+	assert.True(t, testHandler.HasDebugLogWithMessage("executing sql for: append"), "Should log with correct message")
 }

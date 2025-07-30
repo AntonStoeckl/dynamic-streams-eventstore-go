@@ -128,6 +128,32 @@ if err != nil {
 }
 ```
 
+#### Optional SQL Query Logging
+
+For debugging purposes, you can enable SQL query logging using the standard library's `log/slog`:
+
+```go
+import "log/slog"
+
+// Create a debug logger 
+logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+// Use with any adapter
+eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool, 
+    postgresengine.WithLogger(logger))
+if err != nil {
+    log.Fatal(err)
+}
+
+// Combine with other options
+eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
+    postgresengine.WithTableName("my_events"),
+    postgresengine.WithLogger(logger))
+if err != nil {
+    log.Fatal(err)
+}
+```
+
 ### 3. Define Your Domain Events
 
 ```go
