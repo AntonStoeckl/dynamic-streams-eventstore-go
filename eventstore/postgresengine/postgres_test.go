@@ -3,7 +3,6 @@ package postgresengine_test
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/rand/v2"
 	"sync"
 	"sync/atomic"
@@ -47,7 +46,7 @@ func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
 	)
 
 	// assert
-	assert.NoError(t, err, "error in appending the event")
+	assert.NoError(t, err)
 }
 
 func Test_Append_When_SomeEvents_MatchTheQuery_BeforeAppend(t *testing.T) {
@@ -80,7 +79,7 @@ func Test_Append_When_SomeEvents_MatchTheQuery_BeforeAppend(t *testing.T) {
 	)
 
 	// assert
-	assert.NoError(t, err, "error in appending the events")
+	assert.NoError(t, err)
 }
 
 func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
@@ -151,9 +150,9 @@ func Test_AppendMultiple(t *testing.T) {
 	)
 
 	// assert
-	assert.NoError(t, err, "error in appending the event")
+	assert.NoError(t, err)
 	actualEvents, _, queryErr := es.Query(ctxWithTimeout, filter)
-	assert.NoError(t, queryErr, "error in querying the appended events back")
+	assert.NoError(t, queryErr)
 	assert.Len(t, actualEvents, 3, "there should be exactly 3 events") // 1 in arrange and 2 in act
 }
 
@@ -317,18 +316,18 @@ func Test_Append_EventWithMetadata(t *testing.T) {
 	)
 
 	// assert (append)
-	assert.NoError(t, err, "error in appending the event")
+	assert.NoError(t, err)
 
 	// act (query)
 	actualEvents, _, queryErr := es.Query(ctxWithTimeout, filter)
 
 	// assert (query)
-	assert.NoError(t, queryErr, "error in querying the events")
-	assert.Len(t, actualEvents, 1, "there should be exactly 1 event")
-	actualEventEnvelopes, mappingFooErr := shell.EventEnvelopesFrom(actualEvents)
-	assert.NoError(t, mappingFooErr, "error in mapping the storable events to event envelopes")
-	assert.Equal(t, bookCopyAddedToCirculation, actualEventEnvelopes[0].DomainEvent, "the queried domain event should be equal to the appended event")
-	assert.Equal(t, eventMetadata, actualEventEnvelopes[0].EventMetadata, "the queried event metadata should be equal to the appended event")
+	assert.NoError(t, queryErr)
+	assert.Len(t, actualEvents, 1)
+	actualEventEnvelope, mappingErr := shell.EventEnvelopeFrom(actualEvents[0])
+	assert.NoError(t, mappingErr)
+	assert.Equal(t, bookCopyAddedToCirculation, actualEventEnvelope.DomainEvent)
+	assert.Equal(t, eventMetadata, actualEventEnvelope.EventMetadata)
 }
 
 func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
@@ -640,14 +639,14 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			actualEvents, _, queryErr := es.Query(ctxWithTimeout, tc.filter)
 
 			// assert
-			assert.NoError(t, queryErr, "error in querying the events")
-			assert.Len(t, actualEvents, tc.expectedNumEvents, fmt.Sprintf("there should be exactly %d events", tc.expectedNumEvents))
+			assert.NoError(t, queryErr)
+			assert.Len(t, actualEvents, tc.expectedNumEvents)
 
 			actualDomainEvents, mappingErr := shell.DomainEventsFrom(actualEvents)
-			assert.NoError(t, mappingErr, "error in mapping the storable events to domain events")
+			assert.NoError(t, mappingErr)
 
 			for i := 0; i < len(tc.expectedEvents); i++ {
-				assert.Equal(t, tc.expectedEvents[i], actualDomainEvents[i], "the queried event should be equal to the appended event")
+				assert.Equal(t, tc.expectedEvents[i], actualDomainEvents[i])
 			}
 		})
 	}
@@ -680,7 +679,7 @@ func Test_Append_When_Context_Is_Cancelled(t *testing.T) {
 	)
 
 	// assert
-	assert.Error(t, err, "expected error due to cancelled context")
+	assert.Error(t, err, "expected an error due to cancelled context")
 	assert.Contains(t, err.Error(), "context canceled")
 	events, _, queryErr := es.Query(context.Background(), filter)
 	assert.NoError(t, queryErr, "verification query should succeed")
@@ -716,7 +715,7 @@ func Test_Append_When_Context_Times_out(t *testing.T) {
 	)
 
 	// assert
-	assert.Error(t, err, "expected error due to context timeout")
+	assert.Error(t, err, "expected an error due to context timeout")
 	assert.Contains(t, err.Error(), "context deadline exceeded")
 	events, _, queryErr := es.Query(context.Background(), filter)
 	assert.NoError(t, queryErr, "verification query should succeed")
@@ -746,7 +745,7 @@ func Test_Query_When_Context_Is_Cancelled(t *testing.T) {
 	events, maxSeq, err := es.Query(ctxWithCancel, filter)
 
 	// assert
-	assert.Error(t, err, "expected error due to cancelled context")
+	assert.Error(t, err, "expected an error due to cancelled context")
 	assert.Contains(t, err.Error(), "context canceled")
 	assert.Empty(t, events, "no events should be returned when context is cancelled")
 	assert.Equal(t, MaxSequenceNumberUint(0), maxSeq, "max sequence should be 0 when context is cancelled")
@@ -777,7 +776,7 @@ func Test_Query_When_Context_Times_Out(t *testing.T) {
 	events, maxSeq, err := es.Query(ctxWithTimeout, filter)
 
 	// assert
-	assert.Error(t, err, "expected error due to context timeout")
+	assert.Error(t, err, "expected an error due to context timeout")
 	assert.Contains(t, err.Error(), "context deadline exceeded")
 	assert.Empty(t, events, "no events should be returned when context times out")
 	assert.Equal(t, MaxSequenceNumberUint(0), maxSeq, "max sequence should be 0 when context times out")

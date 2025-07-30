@@ -50,15 +50,15 @@ func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 			appendTime += time.Since(start)
 			b.StopTimer()
 
-			assert.NoError(b, err, "error in running benchmark action")
+			assert.NoError(b, err)
 
 			rowsAffected, dbErr := CleanUpBookEvents(wrapper, bookID)
-			assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
+			assert.NoError(b, dbErr)
 			assert.Equal(b, int64(1), rowsAffected)
 
 			if i%100 == 0 {
 				dbErr = OptimizeDBWhileBenchmarking(wrapper)
-				assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
+				assert.NoError(b, dbErr)
 			}
 		}
 
@@ -112,15 +112,15 @@ func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 			appendTime += time.Since(start)
 			b.StopTimer()
 
-			assert.NoError(b, err, "error in running benchmark action")
+			assert.NoError(b, err)
 
 			rowsAffected, dbErr := CleanUpBookEvents(wrapper, bookID)
-			assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
+			assert.NoError(b, dbErr)
 			assert.Equal(b, int64(5), rowsAffected)
 
 			if i%100 == 0 {
 				dbErr = OptimizeDBWhileBenchmarking(wrapper)
-				assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
+				assert.NoError(b, dbErr)
 			}
 		}
 
@@ -152,7 +152,7 @@ func Benchmark_Query_With_Many_Events_InTheStore(b *testing.B) {
 			_, _, queryErr := es.Query(ctx, filter)
 			queryTime += time.Since(start)
 			b.StopTimer()
-			assert.NoError(b, queryErr, "error in running benchmark action")
+			assert.NoError(b, queryErr)
 		}
 
 		b.ReportMetric(float64(queryTime.Milliseconds())/float64(b.N), "ms/query-op")
@@ -190,14 +190,14 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 			queryTime += time.Since(start)
 			b.StopTimer()
 
-			assert.NoError(b, queryErr, "error in running benchmark query")
+			assert.NoError(b, queryErr)
 
 			b.StartTimer()
 			start = time.Now()
 			domainEvents, mappingErr := shell.DomainEventsFrom(storableEvents)
 			unmarshalTime += time.Since(start)
 			b.StopTimer()
-			assert.NoError(b, mappingErr, "error in mapping events for benchmark")
+			assert.NoError(b, mappingErr)
 
 			// business logic for this feature/use-case
 			b.StartTimer()
@@ -216,7 +216,7 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 			bizTime += time.Since(start)
 			b.StopTimer()
 
-			assert.True(b, bookExists, "book should exist")
+			assert.True(b, bookExists, "book should exist, seems the business logic is wrong")
 
 			fakeClock = fakeClock.Add(time.Second)
 			event := ToStorable(b, FixtureBookCopyRemovedFromCirculation(bookID, fakeClock))
@@ -233,15 +233,15 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 			appendTime += time.Since(start)
 			b.StopTimer()
 
-			assert.NoError(b, err, "error in running benchmark action")
+			assert.NoError(b, err)
 
 			rowsAffected, dbErr := CleanUpBookEvents(wrapper, bookID)
-			assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
+			assert.NoError(b, dbErr)
 			assert.Equal(b, int64(2), rowsAffected)
 
 			if i%100 == 0 {
 				dbErr = OptimizeDBWhileBenchmarking(wrapper)
-				assert.NoError(b, dbErr, "error in cleaning up benchmark artefacts")
+				assert.NoError(b, dbErr)
 			}
 		}
 

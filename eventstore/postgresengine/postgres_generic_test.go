@@ -167,8 +167,8 @@ func Test_Generic_Eventstore_WithLogger_LogsQueries(t *testing.T) {
 	_, _, err := es.Query(ctxWithTimeout, filter)
 
 	// assert
-	assert.NoError(t, err, "error in querying the event")
-	assert.Equal(t, 1, testHandler.GetRecordCount(), "Query should log exactly one SQL statement")
+	assert.NoError(t, err)
+	assert.Equal(t, 1, testHandler.GetRecordCount(), "query should log exactly one SQL statement")
 	assert.True(t, testHandler.HasDebugLogWithMessage("executing sql for: query"), "should log with correct message")
 }
 
@@ -200,7 +200,7 @@ func Test_Generic_Eventstore_WithLogger_LogsAppends(t *testing.T) {
 	)
 
 	// assert
-	assert.NoError(t, err, "error in appending the event")
+	assert.NoError(t, err)
 	assert.Equal(t, 2, testHandler.GetRecordCount(), "query and append should log exactly one sql statement each")
 	assert.True(t, testHandler.HasDebugLogWithMessage("executing sql for: query"), "Should log with correct message")
 	assert.True(t, testHandler.HasDebugLogWithMessage("executing sql for: append"), "Should log with correct message")
