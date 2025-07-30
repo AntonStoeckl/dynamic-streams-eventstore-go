@@ -287,6 +287,7 @@ func CleanUpBookEvents(wrapper Wrapper, bookID uuid.UUID) (rowsAffected int64, e
 		if execErr != nil {
 			return 0, execErr
 		}
+
 		return cmdTag.RowsAffected(), nil
 
 	case *SQLDBWrapper:
@@ -294,6 +295,7 @@ func CleanUpBookEvents(wrapper Wrapper, bookID uuid.UUID) (rowsAffected int64, e
 		if execErr != nil {
 			return 0, execErr
 		}
+
 		return result.RowsAffected()
 
 	case *SQLXWrapper:
@@ -301,6 +303,7 @@ func CleanUpBookEvents(wrapper Wrapper, bookID uuid.UUID) (rowsAffected int64, e
 		if execErr != nil {
 			return 0, execErr
 		}
+
 		return result.RowsAffected()
 
 	default:

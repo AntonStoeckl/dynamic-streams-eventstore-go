@@ -83,11 +83,21 @@ func FixtureBookCopyRemovedFromCirculation(bookID uuid.UUID, fakeClock time.Time
 	return BuildBookCopyRemovedFromCirculation(bookID, fakeClock)
 }
 
-func FixtureBookCopyLentToReader(bookID uuid.UUID, readerID uuid.UUID, fakeClock time.Time) DomainEvent {
+func FixtureBookCopyLentToReader(
+	bookID uuid.UUID,
+	readerID uuid.UUID,
+	fakeClock time.Time,
+) DomainEvent {
+
 	return BuildBookCopyLentToReader(bookID, readerID, fakeClock)
 }
 
-func FixtureBookCopyReturnedByReader(bookID uuid.UUID, readerID uuid.UUID, fakeClock time.Time) DomainEvent {
+func FixtureBookCopyReturnedByReader(
+	bookID uuid.UUID,
+	readerID uuid.UUID,
+	fakeClock time.Time,
+) DomainEvent {
+
 	return BuildBookCopyReturnedFromReader(bookID, readerID, fakeClock)
 }
 
@@ -98,14 +108,26 @@ func ToStorable(t testing.TB, domainEvent DomainEvent) StorableEvent {
 	return storableEvent
 }
 
-func ToStorableWithMetadata(t testing.TB, domainEvent DomainEvent, eventMetadata EventMetadata) StorableEvent {
+func ToStorableWithMetadata(
+	t testing.TB,
+	domainEvent DomainEvent,
+	eventMetadata EventMetadata,
+) StorableEvent {
+
 	storableEvent, err := StorableEventFrom(domainEvent, eventMetadata)
 	assert.NoError(t, err, "error in arranging test data")
 
 	return storableEvent
 }
 
-func GivenBookCopyAddedToCirculationWasAppended(t testing.TB, ctx context.Context, es EventStore, bookID uuid.UUID, fakeClock time.Time) DomainEvent {
+func GivenBookCopyAddedToCirculationWasAppended(
+	t testing.TB,
+	ctx context.Context,
+	es EventStore,
+	bookID uuid.UUID,
+	fakeClock time.Time,
+) DomainEvent {
+
 	filter := FilterAllEventTypesForOneBook(bookID)
 	event := FixtureBookCopyAddedToCirculation(bookID, fakeClock)
 	err := es.Append(
@@ -119,7 +141,14 @@ func GivenBookCopyAddedToCirculationWasAppended(t testing.TB, ctx context.Contex
 	return event
 }
 
-func GivenBookCopyRemovedFromCirculationWasAppended(t testing.TB, ctx context.Context, es EventStore, bookID uuid.UUID, fakeClock time.Time) DomainEvent {
+func GivenBookCopyRemovedFromCirculationWasAppended(
+	t testing.TB,
+	ctx context.Context,
+	es EventStore,
+	bookID uuid.UUID,
+	fakeClock time.Time,
+) DomainEvent {
+
 	filter := FilterAllEventTypesForOneBook(bookID)
 	event := FixtureBookCopyRemovedFromCirculation(bookID, fakeClock)
 	err := es.Append(
@@ -133,7 +162,15 @@ func GivenBookCopyRemovedFromCirculationWasAppended(t testing.TB, ctx context.Co
 	return event
 }
 
-func GivenBookCopyLentToReaderWasAppended(t testing.TB, ctx context.Context, es EventStore, bookID uuid.UUID, readerID uuid.UUID, fakeClock time.Time) DomainEvent {
+func GivenBookCopyLentToReaderWasAppended(
+	t testing.TB,
+	ctx context.Context,
+	es EventStore,
+	bookID uuid.UUID,
+	readerID uuid.UUID,
+	fakeClock time.Time,
+) DomainEvent {
+
 	filter := FilterAllEventTypesForOneBookOrReader(bookID, readerID)
 	event := FixtureBookCopyLentToReader(bookID, readerID, fakeClock)
 	err := es.Append(
@@ -147,7 +184,15 @@ func GivenBookCopyLentToReaderWasAppended(t testing.TB, ctx context.Context, es 
 	return event
 }
 
-func GivenBookCopyReturnedByReaderWasAppended(t testing.TB, ctx context.Context, es EventStore, bookID uuid.UUID, readerID uuid.UUID, fakeClock time.Time) DomainEvent {
+func GivenBookCopyReturnedByReaderWasAppended(
+	t testing.TB,
+	ctx context.Context,
+	es EventStore,
+	bookID uuid.UUID,
+	readerID uuid.UUID,
+	fakeClock time.Time,
+) DomainEvent {
+
 	filter := FilterAllEventTypesForOneBookOrReader(bookID, readerID)
 	event := FixtureBookCopyReturnedByReader(bookID, readerID, fakeClock)
 	err := es.Append(
@@ -161,7 +206,15 @@ func GivenBookCopyReturnedByReaderWasAppended(t testing.TB, ctx context.Context,
 	return event
 }
 
-func GivenSomeOtherEventsWereAppended(t testing.TB, ctx context.Context, es EventStore, numEvents int, startFrom MaxSequenceNumberUint, fakeClock time.Time) time.Time {
+func GivenSomeOtherEventsWereAppended(
+	t testing.TB,
+	ctx context.Context,
+	es EventStore,
+	numEvents int,
+	startFrom MaxSequenceNumberUint,
+	fakeClock time.Time,
+) time.Time {
+
 	maxSequenceNumber := startFrom
 	totalEvent := 0
 	eventPostfix := 0
@@ -175,7 +228,8 @@ func GivenSomeOtherEventsWereAppended(t testing.TB, ctx context.Context, es Even
 			id.String(),
 			"lorem ipsum dolor sit amet: "+id.String(),
 			fakeClock,
-			SomethingHasHappenedEventTypePrefix+strconv.Itoa(eventPostfix))
+			SomethingHasHappenedEventTypePrefix+strconv.Itoa(eventPostfix),
+		)
 
 		amountOfSameEvents := rand.IntN(3) + 1
 
