@@ -56,6 +56,15 @@ type BookCopyReturnedByReader struct {
 ### Core Use Case: Lending a Book
 
 ```go
+import (
+    "context"
+    "encoding/json"
+    "errors"
+    "time"
+    
+    . "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
+)
+
 func LendBookToReader(ctx context.Context, es EventStore, bookID, readerID string) error {
     // 1. Query entity-independent events  
     filter := BuildEventFilter().
@@ -83,9 +92,16 @@ func LendBookToReader(ctx context.Context, es EventStore, bookID, readerID strin
         return errors.New("reader quota exceeded")
     }
     
-    // 4. Append new event atomically
-    lendEvent := BuildStorableEvent("BookCopyLentToReader", time.Now(), 
-        map[string]string{"BookID": bookID, "ReaderID": readerID})
+    // 4. Create and append new event atomically
+    payloadJSON, err := json.Marshal(map[string]string{"BookID": bookID, "ReaderID": readerID})
+    if err != nil {
+        return err
+    }
+    
+    lendEvent, err := BuildStorableEventWithEmptyMetadata("BookCopyLentToReader", time.Now(), payloadJSON)
+    if err != nil {
+        return err
+    }
     
     return es.Append(ctx, filter, maxSeq, lendEvent)
 }

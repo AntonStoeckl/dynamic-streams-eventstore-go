@@ -175,11 +175,14 @@ if err != nil {
     log.Fatal(err)
 }
 
-storableEvent := BuildStorableEventWithEmptyMetadata(
+storableEvent, err := BuildStorableEventWithEmptyMetadata(
     event.EventType(),
     event.HasOccurredAt(),
     payloadJSON,
 )
+if err != nil {
+    log.Fatal(err)
+}
 
 // Create filter for this book
 filter := BuildEventFilter().

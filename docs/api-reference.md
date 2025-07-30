@@ -173,20 +173,38 @@ func BuildStorableEvent(
     occurredAt time.Time, 
     payloadJSON []byte, 
     metadataJSON []byte,
-) StorableEvent
+) (StorableEvent, error)
 ```
 
-Creates a StorableEvent with full metadata.
+Creates a StorableEvent with full metadata. Returns an error if payloadJSON or metadataJSON are not valid JSON.
+
+**Example:**
+```go
+storableEvent, err := BuildStorableEvent("BookCopyLentToReader", time.Now(), payloadJSON, metadataJSON)
+if err != nil {
+    // Handle JSON validation error
+    return err
+}
+```
 
 ```go
 func BuildStorableEventWithEmptyMetadata(
     eventType string, 
     occurredAt time.Time, 
     payloadJSON []byte,
-) StorableEvent
+) (StorableEvent, error)
 ```
 
-Creates a StorableEvent with empty JSON metadata (`{}`).
+Creates a StorableEvent with empty JSON metadata (`{}`). Returns an error if payloadJSON is not valid JSON.
+
+**Example:**
+```go
+storableEvent, err := BuildStorableEventWithEmptyMetadata("BookCopyLentToReader", time.Now(), payloadJSON)
+if err != nil {
+    // Handle JSON validation error
+    return err
+}
+```
 
 ### StorableEvents
 
@@ -310,20 +328,38 @@ P("BookID", "book-123")  // Matches: payload @> '{"BookID": "book-123"}'
 // From eventstore package
 var ErrEmptyTableNameSupplied = errors.New("empty eventTableName supplied")
 var ErrConcurrencyConflict = errors.New("concurrency error, no rows were affected")
+var ErrInvalidPayloadJSON = errors.New("payload json is not valid")
+var ErrInvalidMetadataJSON = errors.New("metadata json is not valid")
 ```
 
 #### ErrConcurrencyConflict
 
 Returned when an append operation fails due to optimistic concurrency control. This means another process modified the event stream between your Query and Append operations.
 
+#### ErrInvalidPayloadJSON / ErrInvalidMetadataJSON
+
+Returned by `BuildStorableEvent` and `BuildStorableEventWithEmptyMetadata` when the provided JSON data is not valid.
+
 **Handling:**
 ```go
 import "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 
+// Concurrency conflict handling
 err := eventStore.Append(ctx, filter, maxSeq, event)
 if errors.Is(err, eventstore.ErrConcurrencyConflict) {
     // Retry the entire operation: Query -> Business Logic -> Append
     return retryOperation()
+}
+
+// JSON validation error handling
+storableEvent, err := BuildStorableEvent(eventType, time.Now(), payloadJSON, metadataJSON)
+if errors.Is(err, eventstore.ErrInvalidPayloadJSON) {
+    // Handle invalid payload JSON
+    return fmt.Errorf("invalid payload: %w", err)
+}
+if errors.Is(err, eventstore.ErrInvalidMetadataJSON) {
+    // Handle invalid metadata JSON  
+    return fmt.Errorf("invalid metadata: %w", err)
 }
 ```
 
