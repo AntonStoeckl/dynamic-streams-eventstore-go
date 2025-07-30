@@ -22,12 +22,16 @@ func StorableEventFrom(event core.DomainEvent, metadata EventMetadata) (eventsto
 		return eventstore.StorableEvent{}, errors.Join(ErrMappingToStorableEventFailedForMetadata, err)
 	}
 
-	storableEvent := eventstore.BuildStorableEvent(
+	storableEvent, err := eventstore.BuildStorableEvent(
 		event.EventType(),
 		event.HasOccurredAt(),
 		payloadJSON,
 		metadataJSON,
 	)
+
+	if err != nil {
+		return eventstore.StorableEvent{}, errors.Join(ErrMappingToStorableEventFailedForDomainEvent, err)
+	}
 
 	return storableEvent, nil
 }
@@ -38,11 +42,15 @@ func StorableEventWithEmptyMetadataFrom(event core.DomainEvent) (eventstore.Stor
 		return eventstore.StorableEvent{}, errors.Join(ErrMappingToStorableEventFailedForDomainEvent, err)
 	}
 
-	storableEvent := eventstore.BuildStorableEventWithEmptyMetadata(
+	storableEvent, err := eventstore.BuildStorableEventWithEmptyMetadata(
 		event.EventType(),
 		event.HasOccurredAt(),
 		payloadJSON,
 	)
+
+	if err != nil {
+		return eventstore.StorableEvent{}, errors.Join(ErrMappingToStorableEventFailedForDomainEvent, err)
+	}
 
 	return storableEvent, nil
 }

@@ -145,10 +145,15 @@ func (es EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 			return empty, 0, errors.Join(errors.New("scanning db row failed"), rowScanErr)
 		}
 
+		event, buildStorableErr := eventstore.BuildStorableEvent(result.eventType, result.occurredAt, result.payload, result.metadata)
 		eventStream = append(
 			eventStream,
-			eventstore.BuildStorableEvent(result.eventType, result.occurredAt, result.payload, result.metadata),
+			event,
 		)
+
+		if buildStorableErr != nil {
+			return empty, 0, errors.Join(errors.New("building storable event failed"), rowScanErr)
+		}
 
 		maxSequenceNumber = result.maxSequenceNumber
 	}
