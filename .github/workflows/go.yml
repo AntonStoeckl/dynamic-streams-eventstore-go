@@ -48,17 +48,20 @@ jobs:
 
       - name: Run tests
         run: |
-          echo "Running tests with pgxpool adapter..."
-          ADAPTER_TYPE=pgx.pool go test -race -coverprofile=coverage-pgxpool.out -coverpkg=./eventstore/... -covermode=atomic $(go list ./... | grep '/eventstore')
+          echo "Running generic tests (adapter-independent factory tests)..."
+          go test -race -coverprofile=coverage-generic.out -coverpkg=./eventstore/... -covermode=atomic ./eventstore/postgresengine -run "^Test_Generic_"
           
-          echo "Running tests with sqldb adapter..."
-          ADAPTER_TYPE=sql.db go test -race -coverprofile=coverage-sqldb.out -coverpkg=./eventstore/... -covermode=atomic $(go list ./... | grep '/eventstore')
+          echo "Running functional tests with pgxpool adapter..."
+          ADAPTER_TYPE=pgx.pool go test -race -coverprofile=coverage-pgxpool.out -coverpkg=./eventstore/... -covermode=atomic ./eventstore/postgresengine -run "^Test_" -skip "^Test_Generic_"
           
-          echo "Running tests with sqlxdb adapter..."
-          ADAPTER_TYPE=sqlx.db go test -race -coverprofile=coverage-sqlxdb.out -coverpkg=./eventstore/... -covermode=atomic $(go list ./... | grep '/eventstore')
+          echo "Running functional tests with sqldb adapter..."
+          ADAPTER_TYPE=sql.db go test -race -coverprofile=coverage-sqldb.out -coverpkg=./eventstore/... -covermode=atomic ./eventstore/postgresengine -run "^Test_" -skip "^Test_Generic_"
+          
+          echo "Running functional tests with sqlxdb adapter..."
+          ADAPTER_TYPE=sqlx.db go test -race -coverprofile=coverage-sqlxdb.out -coverpkg=./eventstore/... -covermode=atomic ./eventstore/postgresengine -run "^Test_" -skip "^Test_Generic_"
           
           echo "Merging coverage profiles..."
-          gocovmerge coverage-pgxpool.out coverage-sqldb.out coverage-sqlxdb.out > coverage.out
+          gocovmerge coverage-generic.out coverage-pgxpool.out coverage-sqldb.out coverage-sqlxdb.out > coverage.out
 
       - name: Upload results to Codecov
         uses: codecov/codecov-action@v5

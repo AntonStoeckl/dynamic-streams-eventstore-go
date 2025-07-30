@@ -48,7 +48,8 @@ go test ./eventstore/postgresengine/
 │   │   │   ├── pgx_adapter.go          # pgx.Pool adapter
 │   │   │   ├── sql_adapter.go          # database/sql adapter  
 │   │   │   └── sqlx_adapter.go         # sqlx adapter
-│   │   ├── postgres_test.go            # Functional tests
+│   │   ├── postgres_test.go            # Functional tests (adapter-dependent)
+│   │   ├── postgres_generic_test.go    # Generic tests (adapter-independent)
 │   │   └── postgres_benchmark_test.go  # Performance benchmarks
 │   ├── filter.go                       # Filter builder implementation
 │   └── storable_event.go               # Event data structures
@@ -78,9 +79,13 @@ go test ./eventstore/postgresengine/
 # Run all tests with default adapter (pgx.Pool)
 go test ./...
 
-# Test with specific database adapters
-ADAPTER_TYPE=sql.db go test ./eventstore/postgresengine/   # database/sql
-ADAPTER_TYPE=sqlx.db go test ./eventstore/postgresengine/  # sqlx
+# Run generic tests (adapter-independent factory tests)
+go test ./eventstore/postgresengine/ -run "^Test_Generic_"
+
+# Run functional tests with specific database adapters
+go test ./eventstore/postgresengine/ -run "^Test_" -skip "^Test_Generic_"                    # pgx.Pool (default)
+ADAPTER_TYPE=sql.db go test ./eventstore/postgresengine/ -run "^Test_" -skip "^Test_Generic_"  # database/sql
+ADAPTER_TYPE=sqlx.db go test ./eventstore/postgresengine/ -run "^Test_" -skip "^Test_Generic_" # sqlx
 
 # Run tests with verbose output
 go test -v ./eventstore/postgresengine/
