@@ -136,7 +136,7 @@ func (es EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 
 	rows, queryErr := es.db.Query(ctx, sqlQuery)
 	if queryErr != nil {
-		return empty, 0, errors.Join(errors.New("querying events failed"), queryErr)
+		return empty, 0, errors.Join(eventstore.ErrQueryingEventsFailed, queryErr)
 	}
 
 	defer func() {
@@ -152,7 +152,7 @@ func (es EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 	for rows.Next() {
 		rowScanErr := rows.Scan(&result.eventType, &result.occurredAt, &result.payload, &result.metadata, &result.maxSequenceNumber)
 		if rowScanErr != nil {
-			return empty, 0, errors.Join(errors.New("scanning db row failed"), rowScanErr)
+			return empty, 0, errors.Join(eventstore.ErrScanningDBRowFailed, rowScanErr)
 		}
 
 		event, buildStorableErr := eventstore.BuildStorableEvent(result.eventType, result.occurredAt, result.payload, result.metadata)
@@ -162,7 +162,7 @@ func (es EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 		)
 
 		if buildStorableErr != nil {
-			return empty, 0, errors.Join(errors.New("building storable event failed"), rowScanErr)
+			return empty, 0, errors.Join(eventstore.ErrBuildingStorableEventFailed, rowScanErr)
 		}
 
 		maxSequenceNumber = result.maxSequenceNumber
@@ -208,12 +208,12 @@ func (es EventStore) Append(
 
 	tag, execErr := es.db.Exec(ctx, sqlQuery)
 	if execErr != nil {
-		return errors.Join(errors.New("appending the event failed"), execErr)
+		return errors.Join(eventstore.ErrAppendingEventFailed, execErr)
 	}
 
 	rowsAffected, rowsAffectedErr := tag.RowsAffected()
 	if rowsAffectedErr != nil {
-		return errors.Join(errors.New("getting rows affected failed"), rowsAffectedErr)
+		return errors.Join(eventstore.ErrGettingRowsAffectedFailed, rowsAffectedErr)
 	}
 
 	if rowsAffected < int64(len(allEvents)) {
@@ -233,7 +233,7 @@ func (es EventStore) buildSelectQuery(filter eventstore.Filter) (sqlQueryString,
 
 	sqlQuery, _, toSqlErr := selectStmt.ToSQL()
 	if toSqlErr != nil {
-		return "", errors.Join(errors.New("building the query failed"), toSqlErr)
+		return "", errors.Join(eventstore.ErrBuildingQueryFailed, toSqlErr)
 	}
 
 	return sqlQuery, nil
@@ -269,7 +269,7 @@ func (es EventStore) buildInsertQueryForSingleEvent(
 
 	sqlQuery, _, toSqlErr := insertStmt.ToSQL()
 	if toSqlErr != nil {
-		return "", errors.Join(errors.New("building the query failed"), toSqlErr)
+		return "", errors.Join(eventstore.ErrBuildingQueryFailed, toSqlErr)
 	}
 
 	return sqlQuery, nil
@@ -321,7 +321,7 @@ func (es EventStore) buildInsertQueryForMultipleEvents(
 
 	sqlQuery, _, toSqlErr := insertStmt.ToSQL()
 	if toSqlErr != nil {
-		return "", errors.Join(errors.New("building the query failed"), toSqlErr)
+		return "", errors.Join(eventstore.ErrBuildingQueryFailed, toSqlErr)
 	}
 
 	return sqlQuery, nil
