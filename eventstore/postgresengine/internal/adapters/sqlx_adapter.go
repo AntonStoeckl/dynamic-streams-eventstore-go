@@ -21,7 +21,7 @@ func (s *SQLXAdapter) Query(ctx context.Context, query string) (DBRows, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &sqlRows{rows: rows}, nil
+	return &stdRows{rows: rows}, nil
 }
 
 func (s *SQLXAdapter) Exec(ctx context.Context, query string) (DBResult, error) {
@@ -29,5 +29,5 @@ func (s *SQLXAdapter) Exec(ctx context.Context, query string) (DBResult, error) 
 	if err != nil {
 		return nil, err
 	}
-	return &sqlResult{result: result}, nil
+	return &stdResult{result: result}, nil
 }

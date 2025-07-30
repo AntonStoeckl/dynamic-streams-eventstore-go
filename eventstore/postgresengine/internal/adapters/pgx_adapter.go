@@ -3,6 +3,8 @@ package adapters
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -33,18 +35,14 @@ func (p *PGXAdapter) Exec(ctx context.Context, query string) (DBResult, error) {
 }
 
 type pgxRows struct {
-	rows interface {
-		Next() bool
-		Scan(dest ...interface{}) error
-		Close()
-	}
+	rows pgx.Rows
 }
 
 func (p *pgxRows) Next() bool {
 	return p.rows.Next()
 }
 
-func (p *pgxRows) Scan(dest ...interface{}) error {
+func (p *pgxRows) Scan(dest ...any) error {
 	return p.rows.Scan(dest...)
 }
 
@@ -54,9 +52,7 @@ func (p *pgxRows) Close() error {
 }
 
 type pgxResult struct {
-	tag interface {
-		RowsAffected() int64
-	}
+	tag pgconn.CommandTag
 }
 
 func (p *pgxResult) RowsAffected() (int64, error) {

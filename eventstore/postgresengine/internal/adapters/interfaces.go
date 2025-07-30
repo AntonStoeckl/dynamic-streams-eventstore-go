@@ -11,7 +11,7 @@ type DBAdapter interface {
 // DBRows defines the interface for query result rows
 type DBRows interface {
 	Next() bool
-	Scan(dest ...interface{}) error
+	Scan(dest ...any) error
 	Close() error
 }
 
