@@ -31,7 +31,7 @@ type Option func(*EventStore) error
 func WithTableName(tableName string) Option {
 	return func(es *EventStore) error {
 		if tableName == "" {
-			return eventstore.ErrEmptyTableNameSupplied
+			return eventstore.ErrEmptyEventsTableName
 		}
 		es.eventTableName = tableName
 		return nil
@@ -48,6 +48,10 @@ type queryResultRow struct {
 
 // NewEventStoreFromPGXPool creates a new EventStore using a pgx Pool with optional configuration
 func NewEventStoreFromPGXPool(db *pgxpool.Pool, options ...Option) (EventStore, error) {
+	if db == nil {
+		return EventStore{}, eventstore.ErrNilDatabaseConnection
+	}
+
 	es := EventStore{
 		db:             adapters.NewPGXAdapter(db),
 		eventTableName: "events", // default
@@ -64,6 +68,10 @@ func NewEventStoreFromPGXPool(db *pgxpool.Pool, options ...Option) (EventStore, 
 
 // NewEventStoreFromSQLDB creates a new EventStore using a sql.DB with optional configuration
 func NewEventStoreFromSQLDB(db *sql.DB, options ...Option) (EventStore, error) {
+	if db == nil {
+		return EventStore{}, eventstore.ErrNilDatabaseConnection
+	}
+
 	es := EventStore{
 		db:             adapters.NewSQLAdapter(db),
 		eventTableName: "events", // default
@@ -80,6 +88,10 @@ func NewEventStoreFromSQLDB(db *sql.DB, options ...Option) (EventStore, error) {
 
 // NewEventStoreFromSQLX creates a new EventStore using a sqlx.DB with optional configuration
 func NewEventStoreFromSQLX(db *sqlx.DB, options ...Option) (EventStore, error) {
+	if db == nil {
+		return EventStore{}, eventstore.ErrNilDatabaseConnection
+	}
+
 	es := EventStore{
 		db:             adapters.NewSQLXAdapter(db),
 		eventTableName: "events", // default

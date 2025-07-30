@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/core"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shell"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
@@ -79,7 +80,43 @@ func Test_NewEventStoreWithTableName_ShouldFail_WithEmptyTableName(t *testing.T)
 	assert.NotPanics(t, func() {
 		err = TryCreateEventStoreWithTableName(t, "")
 	})
-	assert.ErrorContains(t, err, ErrEmptyTableNameSupplied.Error())
+	assert.ErrorContains(t, err, ErrEmptyEventsTableName.Error())
+}
+
+func Test_NewEventStore_ShouldFail_WithNilDatabaseConnection(t *testing.T) {
+	testCases := []struct {
+		name        string
+		factoryFunc func() (EventStore, error)
+	}{
+		{
+			name: "NewEventStoreFromPGXPool with nil",
+			factoryFunc: func() (EventStore, error) {
+				return NewEventStoreFromPGXPool(nil)
+			},
+		},
+		{
+			name: "NewEventStoreFromSQLDB with nil",
+			factoryFunc: func() (EventStore, error) {
+				return NewEventStoreFromSQLDB(nil)
+			},
+		},
+		{
+			name: "NewEventStoreFromSQLX with nil",
+			factoryFunc: func() (EventStore, error) {
+				return NewEventStoreFromSQLX(nil)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// act
+			_, err := tc.factoryFunc()
+
+			// assert
+			assert.ErrorContains(t, err, ErrNilDatabaseConnection.Error())
+		})
+	}
 }
 
 func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
