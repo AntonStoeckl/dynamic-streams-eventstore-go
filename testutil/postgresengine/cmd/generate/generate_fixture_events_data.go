@@ -300,7 +300,12 @@ func formatNumber(n int) string {
 	return strconv.Itoa(n)
 }
 
-func reportProgress(phase string, current, total int) {
+func reportProgress(
+	phase string,
+	current int,
+	total int,
+) {
+
 	percentage := float64(current) / float64(total) * 100
 	if int(percentage)%5 == 0 && current > 0 {
 		var spinChar string

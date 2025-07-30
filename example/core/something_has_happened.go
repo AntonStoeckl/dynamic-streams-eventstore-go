@@ -13,7 +13,13 @@ type SomethingHasHappened struct {
 	DynamicEventType string
 }
 
-func BuildSomethingHasHappened(id string, someInformation string, occurredAt time.Time, dynamicEventType string) SomethingHasHappened {
+func BuildSomethingHasHappened(
+	id string,
+	someInformation string,
+	occurredAt time.Time,
+	dynamicEventType string,
+) SomethingHasHappened {
+
 	return SomethingHasHappened{
 		ID:               id,
 		SomeInformation:  someInformation,
