@@ -1,13 +1,17 @@
 package postgresengine_test
 
 import (
+	"context"
 	"os"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/lib/pq" // postgres driver
 	"github.com/stretchr/testify/assert"
 
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/config"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper"
 )
 
@@ -57,22 +61,6 @@ func Test_Generic_NewEventStoreWithTableName_ShouldPanic_WithUnsupportedAdapterT
 	})
 }
 
-func Test_Generic_NewEventStoreWithTableName_Success(t *testing.T) {
-	var err error
-	assert.NotPanics(t, func() {
-		err = TryCreateEventStoreWithTableName(t, "event_data")
-	})
-	assert.NoError(t, err)
-}
-
-func Test_Generic_NewEventStoreWithTableName_ShouldFail_WithEmptyTableName(t *testing.T) {
-	var err error
-	assert.NotPanics(t, func() {
-		err = TryCreateEventStoreWithTableName(t, "")
-	})
-	assert.ErrorContains(t, err, ErrEmptyEventsTableName.Error())
-}
-
 func Test_Generic_NewEventStore_ShouldFail_WithNilDatabaseConnection(t *testing.T) {
 	testCases := []struct {
 		name        string
@@ -105,6 +93,52 @@ func Test_Generic_NewEventStore_ShouldFail_WithNilDatabaseConnection(t *testing.
 
 			// assert
 			assert.ErrorContains(t, err, ErrNilDatabaseConnection.Error())
+		})
+	}
+}
+
+func Test_Generic_FactoryFunctions_ShouldFail_WithEmptyTableName(t *testing.T) {
+	testCases := []struct {
+		name        string
+		factoryFunc func(t *testing.T) (EventStore, error)
+	}{
+		{
+			name: "NewEventStoreFromPGXPool with empty table name",
+			factoryFunc: func(t *testing.T) (EventStore, error) {
+				connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
+				assert.NoError(t, err, "error connecting to DB pool in test setup")
+				defer connPool.Close()
+
+				return NewEventStoreFromPGXPool(connPool, WithTableName(""))
+			},
+		},
+		{
+			name: "NewEventStoreFromSQLDB with empty table name",
+			factoryFunc: func(t *testing.T) (EventStore, error) {
+				db := config.PostgresSQLDBTestConfig()
+				defer func() { _ = db.Close() }()
+
+				return NewEventStoreFromSQLDB(db, WithTableName(""))
+			},
+		},
+		{
+			name: "NewEventStoreFromSQLX with empty table name",
+			factoryFunc: func(t *testing.T) (EventStore, error) {
+				db := config.PostgresSQLXTestConfig()
+				defer func() { _ = db.Close() }()
+
+				return NewEventStoreFromSQLX(db, WithTableName(""))
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// act
+			_, err := tc.factoryFunc(t)
+
+			// assert
+			assert.ErrorContains(t, err, ErrEmptyEventsTableName.Error())
 		})
 	}
 }
