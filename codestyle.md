@@ -13,6 +13,21 @@ This document outlines code style conventions for this project beyond what `gofm
 
 #### Switch/Case blocks
 - Always separate cases with an empty line in between
+- Unless it's the last case (or default), then no empty line
+
+Example:
+
+```go
+for _, domainEvent := range domainEvents {
+    switch domainEvent.EventType() {
+    case core.BookCopyAddedToCirculationEventType:
+        bookExists = true
+
+    case core.BookCopyRemovedFromCirculationEventType:
+        bookExists = false
+    }
+}
+```
 
 #### Functions
 - If a function has more than two input parameters, wrap the input parameters
