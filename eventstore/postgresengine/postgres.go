@@ -37,6 +37,7 @@ func WithTableName(tableName string) Option {
 		if tableName == "" {
 			return eventstore.ErrEmptyEventsTableName
 		}
+
 		es.eventTableName = tableName
 
 		return nil
@@ -47,6 +48,7 @@ func WithTableName(tableName string) Option {
 func WithSQLQueryLogger(logger *slog.Logger) Option {
 	return func(es *EventStore) error {
 		es.sqlQueryLogger = logger
+
 		return nil
 	}
 }
@@ -128,7 +130,7 @@ func (es EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 	error,
 ) {
 
-	empty := make(eventstore.StorableEvents, 0)
+	var empty eventstore.StorableEvents
 
 	sqlQuery, buildQueryErr := es.buildSelectQuery(filter)
 	if buildQueryErr != nil {
