@@ -2,7 +2,6 @@ package removebookcopy
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,8 +12,6 @@ import (
 
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
 )
-
-var ErrExpectedExactlyOneEventGotMultiple = errors.New("got more than one event to append, expected exactly one")
 
 // EventStore defines the interface needed by the CommandHandler for event store operations
 type EventStore interface {
