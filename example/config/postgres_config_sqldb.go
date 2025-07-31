@@ -8,6 +8,7 @@ import (
 	_ "github.com/lib/pq" // postgres driver
 )
 
+// PostgresSQLDBTestConfig creates a configured *sql.DB for the test database
 func PostgresSQLDBTestConfig() *sql.DB {
 	const defaultMaxOpenConnections = 8
 	const defaultMaxIdleConnections = 2
@@ -33,6 +34,7 @@ func PostgresSQLDBTestConfig() *sql.DB {
 	return db
 }
 
+// PostgresSQLDBBenchmarkConfig creates a configured *sql.DB for the benchmark database
 func PostgresSQLDBBenchmarkConfig() *sql.DB {
 	const defaultMaxOpenConnections = 8
 	const defaultMaxIdleConnections = 2

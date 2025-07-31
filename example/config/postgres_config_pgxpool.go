@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// PostgresPGXPoolTestConfig creates a pgxpool.Config for the test database
 func PostgresPGXPoolTestConfig() *pgxpool.Config {
 	const defaultMaxConnections = int32(8)
 	const defaultMinConnections = int32(2)
@@ -30,6 +31,7 @@ func PostgresPGXPoolTestConfig() *pgxpool.Config {
 	return dbConfig
 }
 
+// PostgresPGXPoolBenchmarkConfig creates a pgxpool.Config for the benchmark database
 func PostgresPGXPoolBenchmarkConfig() *pgxpool.Config {
 	const defaultMaxConnections = int32(8)
 	const defaultMinConnections = int32(2)

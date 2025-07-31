@@ -10,9 +10,13 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/core"
 )
 
+// ErrMappingToDomainEventFailed is returned when domain event conversion fails
 var ErrMappingToDomainEventFailed = errors.New("mapping to domain event failed")
+
+// ErrMappingToDomainEventUnknownEventType is returned for unrecognized event types
 var ErrMappingToDomainEventUnknownEventType = errors.New("unknown event type")
 
+// DomainEventsFrom converts multiple StorableEvents to DomainEvents
 func DomainEventsFrom(storableEvents eventstore.StorableEvents) (core.DomainEvents, error) {
 	domainEvents := make(core.DomainEvents, 0)
 
@@ -28,6 +32,7 @@ func DomainEventsFrom(storableEvents eventstore.StorableEvents) (core.DomainEven
 	return domainEvents, nil
 }
 
+// DomainEventFrom converts a StorableEvent to its corresponding DomainEvent
 func DomainEventFrom(storableEvent eventstore.StorableEvent) (core.DomainEvent, error) {
 	switch storableEvent.EventType {
 	case core.BookCopyAddedToCirculationEventType:

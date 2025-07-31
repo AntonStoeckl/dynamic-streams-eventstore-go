@@ -8,6 +8,7 @@ import (
 	_ "github.com/lib/pq" // postgres driver
 )
 
+// PostgresSQLXTestConfig creates a configured *sqlx.DB for the test database
 func PostgresSQLXTestConfig() *sqlx.DB {
 	const defaultMaxOpenConnections = 8
 	const defaultMaxIdleConnections = 2
@@ -33,6 +34,7 @@ func PostgresSQLXTestConfig() *sqlx.DB {
 	return db
 }
 
+// PostgresSQLXBenchmarkConfig creates a configured *sqlx.DB for the benchmark database
 func PostgresSQLXBenchmarkConfig() *sqlx.DB {
 	const defaultMaxOpenConnections = 8
 	const defaultMaxIdleConnections = 2

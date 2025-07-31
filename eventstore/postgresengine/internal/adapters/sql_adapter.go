@@ -15,6 +15,7 @@ func NewSQLAdapter(db *sql.DB) *SQLAdapter {
 	return &SQLAdapter{db: db}
 }
 
+// Query executes a query using the sql.DB and returns wrapped rows.
 func (s *SQLAdapter) Query(ctx context.Context, query string) (DBRows, error) {
 	rows, err := s.db.QueryContext(ctx, query)
 	if err != nil {
@@ -23,6 +24,7 @@ func (s *SQLAdapter) Query(ctx context.Context, query string) (DBRows, error) {
 	return &stdRows{rows: rows}, nil
 }
 
+// Exec executes a query using the sql.DB and returns wrapped result.
 func (s *SQLAdapter) Exec(ctx context.Context, query string) (DBResult, error) {
 	result, err := s.db.ExecContext(ctx, query)
 	if err != nil {
