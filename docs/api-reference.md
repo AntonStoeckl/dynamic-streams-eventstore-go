@@ -132,7 +132,7 @@ time=2024-01-01T12:00:01.000Z level=DEBUG msg="executed sql for: append" duratio
 
 Operations Logger (INFO level):
 ```
-time=2024-01-01T12:00:00.000Z level=INFO msg="eventstore operation: query completed" event_count=5 max_sequence=42 duration_ms=0.123
+time=2024-01-01T12:00:00.000Z level=INFO msg="eventstore operation: query completed" event_count=5 duration_ms=0.123
 time=2024-01-01T12:00:01.000Z level=INFO msg="eventstore operation: events appended" event_count=1 duration_ms=2.456
 time=2024-01-01T12:00:02.000Z level=INFO msg="eventstore operation: concurrency conflict detected" expected_events=1 rows_affected=0 expected_sequence=42
 ```

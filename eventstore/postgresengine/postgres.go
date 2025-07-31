@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/doug-martin/goqu/v9"
@@ -193,8 +194,7 @@ func (es EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 	es.logOperation(
 		"query completed",
 		"event_count", len(eventStream),
-		"max_sequence", maxSequenceNumber,
-		"duration_ms", duration.Milliseconds())
+		"duration_ms", es.durationToMilliseconds(duration))
 
 	return eventStream, maxSequenceNumber, nil
 }
@@ -260,7 +260,7 @@ func (es EventStore) Append(
 	es.logOperation(
 		"events appended",
 		"event_count", len(allEvents),
-		"duration_ms", duration.Milliseconds(),
+		"duration_ms", es.durationToMilliseconds(duration),
 	)
 
 	return nil
@@ -437,7 +437,7 @@ func (es EventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.S
 // logQueryWithDuration logs SQL queries with execution time at debug level if sqlQueryLogger is configured
 func (es EventStore) logQueryWithDuration(sqlQuery string, action string, duration time.Duration) {
 	if es.sqlQueryLogger != nil {
-		es.sqlQueryLogger.Debug("executed sql for: "+action, "duration_ms", duration.Milliseconds(), "query", sqlQuery)
+		es.sqlQueryLogger.Debug("executed sql for: "+action, "duration_ms", es.durationToMilliseconds(duration), "query", sqlQuery)
 	}
 }
 
@@ -446,4 +446,9 @@ func (es EventStore) logOperation(action string, args ...any) {
 	if es.opsLogger != nil {
 		es.opsLogger.Info("eventstore operation: "+action, args...)
 	}
+}
+
+// durationToMilliseconds converts a time.Duration to float64 milliseconds with 3 decimal places
+func (es EventStore) durationToMilliseconds(d time.Duration) float64 {
+	return math.Round(float64(d.Nanoseconds())/1e6*1000) / 1000
 }

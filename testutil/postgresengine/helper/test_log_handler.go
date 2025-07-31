@@ -3,27 +3,45 @@ package helper
 import (
 	"context"
 	"log/slog"
+	"os"
 	"sync"
 )
 
 // TestLogHandler is a slog.Handler implementation that captures log records for testing
 type TestLogHandler struct {
-	records []slog.Record
-	mu      sync.Mutex
+	records     []slog.Record
+	mu          sync.Mutex
+	logToStdout bool
 }
 
 // NewTestLogHandler creates a new TestLogHandler
 func NewTestLogHandler() *TestLogHandler {
 	return &TestLogHandler{
-		records: make([]slog.Record, 0),
+		records:     make([]slog.Record, 0),
+		logToStdout: false,
+	}
+}
+
+// NewTestLogHandlerWithStdout creates a new TestLogHandler that also logs to stdout
+// Useful for debugging tests by seeing the actual log output
+func NewTestLogHandlerWithStdout() *TestLogHandler {
+	return &TestLogHandler{
+		records:     make([]slog.Record, 0),
+		logToStdout: true,
 	}
 }
 
 // Handle implements slog.Handler interface
-func (h *TestLogHandler) Handle(_ context.Context, record slog.Record) error {
+func (h *TestLogHandler) Handle(ctx context.Context, record slog.Record) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.records = append(h.records, record)
+
+	// Optionally also log to stdout for debugging
+	if h.logToStdout {
+		jsonHandler := slog.NewJSONHandler(os.Stdout, nil)
+		_ = jsonHandler.Handle(ctx, record)
+	}
 
 	return nil
 }
@@ -168,9 +186,24 @@ func (m *LogRecordMatcher) WithDurationMS() *LogRecordMatcher {
 
 	hasDurationMS := false
 	m.record.Attrs(func(attr slog.Attr) bool {
-		if attr.Key == "duration_ms" && attr.Value.Int64() >= 0 {
-			hasDurationMS = true
-			return false // Stop iteration
+		if attr.Key == "duration_ms" {
+			// Handle both Int64 and Float64 values for duration
+			switch attr.Value.Kind() {
+			case slog.KindInt64:
+				if attr.Value.Int64() >= 0 {
+					hasDurationMS = true
+					return false // Stop iteration
+				}
+
+			case slog.KindFloat64:
+				if attr.Value.Float64() >= 0 {
+					hasDurationMS = true
+					return false // Stop iteration
+				}
+
+			default:
+				// Other types are not supported for duration
+			}
 		}
 
 		return true // Continue iteration
