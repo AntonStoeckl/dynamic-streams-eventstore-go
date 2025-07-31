@@ -324,10 +324,12 @@ func Test_Append_EventWithMetadata(t *testing.T) {
 	// assert (query)
 	assert.NoError(t, queryErr)
 	assert.Len(t, actualEvents, 1)
-	actualEventEnvelope, mappingErr := shell.EventEnvelopeFrom(actualEvents[0])
+	actualDomainEvent, mappingErr := shell.DomainEventFrom(actualEvents[0])
 	assert.NoError(t, mappingErr)
-	assert.Equal(t, bookCopyAddedToCirculation, actualEventEnvelope.DomainEvent)
-	assert.Equal(t, eventMetadata, actualEventEnvelope.EventMetadata)
+	actualEventMetadata, mappingErr := shell.EventMetadataFrom(actualEvents[0])
+	assert.NoError(t, mappingErr)
+	assert.Equal(t, bookCopyAddedToCirculation, actualDomainEvent)
+	assert.Equal(t, eventMetadata, actualEventMetadata)
 }
 
 func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
