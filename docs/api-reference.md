@@ -21,6 +21,13 @@ type Option func(*EventStore) error
 
 func WithTableName(tableName string) Option
 func WithSQLQueryLogger(logger Logger) Option
+func WithOpsLogger(logger Logger) Option
+
+// Logger interface for both SQL query and operational logging
+type Logger interface {
+    Debug(msg string, args ...any)
+    Info(msg string, args ...any)
+}
 ```
 
 #### Factory Function Examples
@@ -70,27 +77,64 @@ if err != nil {
 }
 ```
 
-**Using logger for SQL query debugging:**
+**Using loggers for debugging and monitoring:**
+
+The EventStore supports two types of logging:
+- **SQL Query Logger** (`WithSQLQueryLogger`): Debug-level logging of SQL queries with execution timing - for development and debugging
+- **Operations Logger** (`WithOpsLogger`): Info-level logging of operational metrics - production-safe monitoring
+
 ```go
 import "log/slog"
 
-// Create a debug logger
-logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+// Create loggers for different purposes
+debugLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+opsLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
-// Using pgx.Pool with logger
+// Development setup: Both SQL query debugging and operational logging
 eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool, 
-    postgresengine.WithSQLQueryLogger(logger))
+    postgresengine.WithSQLQueryLogger(debugLogger),
+    postgresengine.WithOpsLogger(opsLogger))
 if err != nil {
     return err
 }
 
-// Combining multiple options
+// Production setup: Only operational logging (production-safe)
+eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
+    postgresengine.WithOpsLogger(opsLogger))
+if err != nil {
+    return err
+}
+
+// Debug setup: Only SQL query logging for development
+eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
+    postgresengine.WithSQLQueryLogger(debugLogger))
+if err != nil {
+    return err
+}
+
+// Full configuration with all options
 eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
     postgresengine.WithTableName("my_events"),
-    postgresengine.WithSQLQueryLogger(logger))
+    postgresengine.WithSQLQueryLogger(debugLogger),
+    postgresengine.WithOpsLogger(opsLogger))
 if err != nil {
     return err
 }
+```
+
+**Example logging output:**
+
+SQL Query Logger (DEBUG level):
+```
+time=2024-01-01T12:00:00.000Z level=DEBUG msg="executed sql for: query" duration_ms=0.123 query="SELECT ..."
+time=2024-01-01T12:00:01.000Z level=DEBUG msg="executed sql for: append" duration_ms=2.456 query="INSERT ..."
+```
+
+Operations Logger (INFO level):
+```
+time=2024-01-01T12:00:00.000Z level=INFO msg="eventstore operation: query completed" event_count=5 max_sequence=42 duration_ms=0.123
+time=2024-01-01T12:00:01.000Z level=INFO msg="eventstore operation: events appended" event_count=1 duration_ms=2.456
+time=2024-01-01T12:00:02.000Z level=INFO msg="eventstore operation: concurrency conflict detected" expected_events=1 rows_affected=0 expected_sequence=42
 ```
 
 #### Methods

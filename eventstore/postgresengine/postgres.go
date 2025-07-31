@@ -21,15 +21,17 @@ const defaultEventTableName = "events"
 
 type sqlQueryString = string
 
-// Logger interface for SQL query logging
+// Logger interface for SQL query logging and general operations
 type Logger interface {
 	Debug(msg string, args ...any)
+	Info(msg string, args ...any)
 }
 
 type EventStore struct {
 	db             adapters.DBAdapter
 	eventTableName string
 	sqlQueryLogger Logger
+	opsLogger      Logger
 }
 
 // Option defines a functional option for configuring EventStore
@@ -48,10 +50,19 @@ func WithTableName(tableName string) Option {
 	}
 }
 
-// WithSQLQueryLogger sets the logger for the EventStore
+// WithSQLQueryLogger sets the opsLogger for the EventStore
 func WithSQLQueryLogger(logger Logger) Option {
 	return func(es *EventStore) error {
 		es.sqlQueryLogger = logger
+
+		return nil
+	}
+}
+
+// WithOpsLogger sets the general opsLogger for the EventStore
+func WithOpsLogger(logger Logger) Option {
+	return func(es *EventStore) error {
+		es.opsLogger = logger
 
 		return nil
 	}
@@ -179,6 +190,12 @@ func (es EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 		maxSequenceNumber = result.maxSequenceNumber
 	}
 
+	es.logOperation(
+		"query completed",
+		"event_count", len(eventStream),
+		"max_sequence", maxSequenceNumber,
+		"duration_ms", duration.Milliseconds())
+
 	return eventStream, maxSequenceNumber, nil
 }
 
@@ -230,8 +247,21 @@ func (es EventStore) Append(
 	}
 
 	if rowsAffected < int64(len(allEvents)) {
+		es.logOperation(
+			"concurrency conflict detected",
+			"expected_events", len(allEvents),
+			"rows_affected", rowsAffected,
+			"expected_sequence", expectedMaxSequenceNumber,
+		)
+
 		return eventstore.ErrConcurrencyConflict
 	}
+
+	es.logOperation(
+		"events appended",
+		"event_count", len(allEvents),
+		"duration_ms", duration.Milliseconds(),
+	)
 
 	return nil
 }
@@ -407,6 +437,13 @@ func (es EventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.S
 // logQueryWithDuration logs SQL queries with execution time at debug level if sqlQueryLogger is configured
 func (es EventStore) logQueryWithDuration(sqlQuery string, action string, duration time.Duration) {
 	if es.sqlQueryLogger != nil {
-		es.sqlQueryLogger.Debug("executed sql for: "+action, "duration_ns", duration.Nanoseconds(), "query", sqlQuery)
+		es.sqlQueryLogger.Debug("executed sql for: "+action, "duration_ms", duration.Milliseconds(), "query", sqlQuery)
+	}
+}
+
+// logOperation logs operational information at info level if the opsLogger is configured
+func (es EventStore) logOperation(action string, args ...any) {
+	if es.opsLogger != nil {
+		es.opsLogger.Info("eventstore operation: "+action, args...)
 	}
 }

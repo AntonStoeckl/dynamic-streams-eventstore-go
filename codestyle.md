@@ -9,10 +9,13 @@ This document outlines code style conventions for this project beyond what `gofm
 ### Additional Formating Preferences
 
 #### Return Statements
-- Always put an empty line before return statements, unless it's the only line in a block (if, function, ...)
+- Always put an empty line before return statements, **except**:
+  - When it's the only line in a block (if, function, case, etc.)
+  - When it's in a block with only one line of code before it (e.g., assignment then return)
+- **Special case**: The final return statement in a function **always** gets an empty line before it (unless it's the only line in the function)
 - This applies to all functions, including helper methods and business logic functions
 
-Example:
+Examples:
 ```go
 func Example() bool {
     someValue := doSomething()
@@ -21,9 +24,21 @@ func Example() bool {
         return true  // No empty line - only line in if block
     }
     
+    switch someValue {
+    case 1:
+        variable := calculate()
+        return variable  // No empty line - only one line before return in case block
+        
+    case 2:
+        process()
+        validate()
+        
+        return true  // Empty line - multiple lines before return
+    }
+    
     moreProcessing()
     
-    return false  // Empty line before return - not the only line in function
+    return false  // Empty line before return - FINAL return in function (special case)
 }
 ```
 
