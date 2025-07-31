@@ -116,7 +116,7 @@ See [Performance Documentation](./docs/performance.md) for detailed benchmarks a
 
 See [Development Guide](./docs/development.md) for complete testing instructions including adapter switching and benchmarks.
 
-Note: The `example/` directory contains test fixtures and simple usage examples used by the test suite.
+Note: The `example/` directory contains shared domain components and feature examples used by the test suite.
 
 ## 🤝 Contributing
 

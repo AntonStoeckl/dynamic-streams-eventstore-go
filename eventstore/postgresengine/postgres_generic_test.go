@@ -13,7 +13,7 @@ import (
 
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/config"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper"
 )

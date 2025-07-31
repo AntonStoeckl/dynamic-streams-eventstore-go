@@ -7,7 +7,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/core"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
 
 // ErrMappingToDomainEventFailed is returned when domain event conversion fails

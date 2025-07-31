@@ -12,8 +12,8 @@ import (
 
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/core"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shell"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
 )
 
 func GivenUniqueID(t testing.TB) uuid.UUID {

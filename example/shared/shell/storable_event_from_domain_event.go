@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/core"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
 
 // ErrMappingToStorableEventFailedForDomainEvent is returned when domain event serialization fails

@@ -2,7 +2,7 @@
 
 Practical examples demonstrating entity-independent operations with dynamic-streams-eventstore-go.
 
-**Note:** The `example/` directory contains working test fixtures and usage examples used by the test suite.
+**Note:** The `example/` directory contains shared domain components (`example/shared/core/` and `example/shared/shell/`) and complete feature implementations (`example/features/`) used by the test suite.
 
 ## Example: Library Book Lending System
 

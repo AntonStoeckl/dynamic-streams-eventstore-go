@@ -4,16 +4,19 @@ This document outlines code style conventions for this project beyond what `gofm
 
 ## Code Formatting
 - Follow `gofmt`
-- Follow `goimports` for imports structuring
+- Follow `goimports` for imports structuring (alphabetical sorting within groups, dot imports separated last)
 
 ### Additional Formating Preferences
 
 #### Return Statements
 - Always put an empty line before return statements, unless it's the only line in a block (if, function, ...)
+- This applies to all functions, including helper methods and business logic functions
 
-#### Switch/Case blocks
-- Always separate cases with an empty line in between
-- Unless it's the last case (or default), then no empty line
+#### Control Flow Structures
+- **Switch/Case blocks**: Always separate cases with an empty line in between (unless it's the last case or default, then no empty line)
+- **For loops**: Always put empty lines before and after for loops
+- **If blocks**: Always put empty lines before and after if blocks, **except** for `if err != nil` error handling blocks
+- **Error handling**: `if err != nil` blocks should directly follow the function call that created the error, with no intervening code
 
 Example:
 
@@ -29,11 +32,12 @@ for _, domainEvent := range domainEvents {
 }
 ```
 
-#### Functions
+#### Functions and Methods
 - If a function has more than two input parameters, wrap the input parameters
 - If a function has more than two return parameters, wrap the return parameters
 - If a function is more than 130 characters long, also wrap parameters, prefer wrapping the input parameters
 - In any of those cases, start the function body with an empty line
+- These rules apply to: regular functions, struct methods, and interface method signatures
 - Ignore this for *_test.go!
 
 Full example:
@@ -85,6 +89,12 @@ func SomeFunction(
 - Struct names should be nouns describing the entity
 - Avoid generic names like `Manager`, `Handler` unless they accurately describe the role
 
+### Value vs Pointer Semantics
+- Use value semantics for small, stateless structs (e.g., `Decider`, `TimingCollector`)
+- Factory functions should return values, not pointers, for such structs
+- Use value receivers for methods on stateless structs
+- Use pointer semantics only when you need to modify state or avoid copying large structs
+
 ## Error Handling Patterns
 
 ### Sentinel Errors
@@ -96,6 +106,11 @@ func SomeFunction(
 - Use single `assert.ErrorContains()` for expected errors
 - Always use `err.Error()` when asserting sentinel error messages
 - Trust developers to check errors properly—avoid over-assertion
+
+### Variable Shadow Declaration
+- Avoid shadow declarations of error variables within the same function scope
+- Use descriptive names for different error types (e.g., `marshalErr`, `appendErr`, `queryErr`)
+- This improves code readability and prevents confusion about which error is being handled
 
 ## Interface Design Principles
 

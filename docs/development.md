@@ -64,9 +64,12 @@ go test ./eventstore/postgresengine/
 │       ├── fixtures/                   # Generated fixture data
 │       └── helper.go                   # Test utilities
 ├── example/                            # Example domain (used in tests)
-│   ├── core/                           # Domain events and business logic
-│   ├── shell/                          # Event mapping layer
-│   └── config/                         # Test database configuration
+│   ├── shared/                         # Shared components
+│   │   ├── core/                       # Domain events (domain layer)
+│   │   └── shell/                      # Event mapping (infrastructure layer)
+│   │       └── config/                 # Test database configuration
+│   └── features/                       # Feature implementations
+│       └── removebookcopy/             # Complete feature slice example
 ├── docs/                               # Documentation
 └── go.mod                              # Go module definition
 ```

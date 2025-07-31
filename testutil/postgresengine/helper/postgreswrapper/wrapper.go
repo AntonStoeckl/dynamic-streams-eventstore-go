@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/config"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"
 )
 
 // Engine type constants

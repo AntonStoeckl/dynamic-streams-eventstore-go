@@ -7,8 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/core"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shell"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/removebookcopy"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper"
 )
@@ -171,12 +170,14 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 	fakeClock := GetGreatestOccurredAtTimeFromDB(b, wrapper).Add(time.Second)
 
 	bookID := GivenUniqueID(b)
-	filter := FilterAllEventTypesForOneBook(bookID)
 
 	// act
 	b.Run("query decide append", func(b *testing.B) {
 		b.ResetTimer()
 		var queryTime, appendTime, unmarshalTime, bizTime time.Duration
+
+		commandHandler := removebookcopy.NewCommandHandler(es)
+		timingCollector := NewTimingCollector(&queryTime, &unmarshalTime, &bizTime, &appendTime)
 
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
@@ -184,52 +185,11 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 			fakeClock = fakeClock.Add(time.Second)
 			GivenBookCopyAddedToCirculationWasAppended(b, ctx, es, bookID, fakeClock)
 
-			b.StartTimer()
-			start := time.Now()
-			storableEvents, maxSequenceNumberBeforeAppend, queryErr := es.Query(ctx, filter)
-			queryTime += time.Since(start)
-			b.StopTimer()
-
-			assert.NoError(b, queryErr)
-
-			b.StartTimer()
-			start = time.Now()
-			domainEvents, mappingErr := shell.DomainEventsFrom(storableEvents)
-			unmarshalTime += time.Since(start)
-			b.StopTimer()
-			assert.NoError(b, mappingErr)
-
-			// business logic for this feature/use-case
-			b.StartTimer()
-			start = time.Now()
-			bookExists := false
-			for _, domainEvent := range domainEvents {
-				switch domainEvent.EventType() {
-				case core.BookCopyAddedToCirculationEventType:
-					bookExists = true
-
-				case core.BookCopyRemovedFromCirculationEventType:
-					bookExists = false
-				}
-			}
-			bizTime += time.Since(start)
-			b.StopTimer()
-
-			assert.True(b, bookExists, "book should exist, seems the business logic is wrong")
-
 			fakeClock = fakeClock.Add(time.Second)
-			event := ToStorable(b, FixtureBookCopyRemovedFromCirculation(bookID, fakeClock))
+			command := removebookcopy.BuildCommand(bookID, fakeClock)
 
 			b.StartTimer()
-			start = time.Now()
-
-			err := es.Append(
-				ctx,
-				filter,
-				maxSequenceNumberBeforeAppend,
-				event,
-			)
-			appendTime += time.Since(start)
+			err := commandHandler.Handle(ctx, command, timingCollector)
 			b.StopTimer()
 
 			assert.NoError(b, err)

@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/core"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shell"
+	core2 "github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
+	shell2 "github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper"
 )
@@ -305,7 +305,7 @@ func Test_Append_EventWithMetadata(t *testing.T) {
 	messageID := GivenUniqueID(t)
 	causationID := GivenUniqueID(t)
 	correlationID := GivenUniqueID(t)
-	eventMetadata := shell.BuildEventMetadata(messageID, causationID, correlationID)
+	eventMetadata := shell2.BuildEventMetadata(messageID, causationID, correlationID)
 
 	// act (append)
 	err := es.Append(
@@ -324,7 +324,7 @@ func Test_Append_EventWithMetadata(t *testing.T) {
 	// assert (query)
 	assert.NoError(t, queryErr)
 	assert.Len(t, actualEvents, 1)
-	actualEventEnvelope, mappingErr := shell.EventEnvelopeFrom(actualEvents[0])
+	actualEventEnvelope, mappingErr := shell2.EventEnvelopeFrom(actualEvents[0])
 	assert.NoError(t, mappingErr)
 	assert.Equal(t, bookCopyAddedToCirculation, actualEventEnvelope.DomainEvent)
 	assert.Equal(t, eventMetadata, actualEventEnvelope.EventMetadata)
@@ -377,13 +377,13 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 		description       string
 		filter            Filter
 		expectedNumEvents int
-		expectedEvents    core.DomainEvents
+		expectedEvents    core2.DomainEvents
 	}{
 		{
 			description:       "empty filter",
 			filter:            BuildEventFilter().MatchingAnyEvent(),
 			expectedNumEvents: numOtherEvents + 9,
-			expectedEvents:    core.DomainEvents{}, // we don't want to assert the concrete events here
+			expectedEvents:    core2.DomainEvents{}, // we don't want to assert the concrete events here
 		},
 		{
 			description: "only (occurredFrom)",
@@ -391,7 +391,7 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 				OccurredFrom(bookCopy2AddedToCirculationBook.HasOccurredAt()).
 				Finalize(),
 			expectedNumEvents: 5,
-			expectedEvents:    core.DomainEvents{}, // we don't want to assert the concrete events here
+			expectedEvents:    core2.DomainEvents{}, // we don't want to assert the concrete events here
 		},
 		{
 			description: "only (occurredUntil)",
@@ -399,7 +399,7 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 				OccurredUntil(bookCopy1AddedToCirculationBook.HasOccurredAt()).
 				Finalize(),
 			expectedNumEvents: numOtherEvents + 1,
-			expectedEvents:    core.DomainEvents{}, // we don't want to assert the concrete events here
+			expectedEvents:    core2.DomainEvents{}, // we don't want to assert the concrete events here
 		},
 		{
 			description: "only (occurredFrom to occurredUntil)",
@@ -408,16 +408,16 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 				AndOccurredUntil(bookCopy2ReturnedByReader2.HasOccurredAt()).
 				Finalize(),
 			expectedNumEvents: 6,
-			expectedEvents:    core.DomainEvents{}, // we don't want to assert the concrete events here
+			expectedEvents:    core2.DomainEvents{}, // we don't want to assert the concrete events here
 		},
 		{
 			description: "(EventType)",
 			filter: BuildEventFilter().
 				Matching().
-				AnyEventTypeOf(core.BookCopyAddedToCirculationEventType).
+				AnyEventTypeOf(core2.BookCopyAddedToCirculationEventType).
 				Finalize(),
 			expectedNumEvents: 2,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: core2.DomainEvents{
 				bookCopy1AddedToCirculationBook,
 				bookCopy2AddedToCirculationBook},
 		},
@@ -426,11 +426,11 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			filter: BuildEventFilter().
 				Matching().
 				AnyEventTypeOf(
-					core.BookCopyAddedToCirculationEventType,
-					core.BookCopyRemovedFromCirculationEventType).
+					core2.BookCopyAddedToCirculationEventType,
+					core2.BookCopyRemovedFromCirculationEventType).
 				Finalize(),
 			expectedNumEvents: 3,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: core2.DomainEvents{
 				bookCopy1AddedToCirculationBook,
 				bookCopy1RemovedFromCirculationBook,
 				bookCopy2AddedToCirculationBook},
@@ -442,7 +442,7 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 				AnyPredicateOf(P("BookID", bookID1.String())).
 				Finalize(),
 			expectedNumEvents: 4,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: core2.DomainEvents{
 				bookCopy1AddedToCirculationBook,
 				bookCopy1LentToReader1,
 				bookCopy1ReturnedByReader1,
@@ -457,7 +457,7 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 					P("ReaderID", readerID1.String())).
 				Finalize(),
 			expectedNumEvents: 6,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: core2.DomainEvents{
 				bookCopy1AddedToCirculationBook,
 				bookCopy1LentToReader1,
 				bookCopy1ReturnedByReader1,
@@ -474,7 +474,7 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 					P("ReaderID", readerID1.String())).
 				Finalize(),
 			expectedNumEvents: 2,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: core2.DomainEvents{
 				bookCopy1LentToReader1,
 				bookCopy1ReturnedByReader1},
 		},
@@ -482,11 +482,11 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			description: "(EventType AND Predicate)",
 			filter: BuildEventFilter().
 				Matching().
-				AnyEventTypeOf(core.BookCopyLentToReaderEventType).
+				AnyEventTypeOf(core2.BookCopyLentToReaderEventType).
 				AndAnyPredicateOf(P("ReaderID", readerID1.String())).
 				Finalize(),
 			expectedNumEvents: 2,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: core2.DomainEvents{
 				bookCopy1LentToReader1,
 				bookCopy2LentToReader1},
 		},
@@ -494,13 +494,13 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			description: "(EventType AND (Predicate OR Predicate...))",
 			filter: BuildEventFilter().
 				Matching().
-				AnyEventTypeOf(core.BookCopyLentToReaderEventType).
+				AnyEventTypeOf(core2.BookCopyLentToReaderEventType).
 				AndAnyPredicateOf(
 					P("BookID", bookID1.String()),
 					P("ReaderID", readerID2.String())).
 				Finalize(),
 			expectedNumEvents: 2,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: core2.DomainEvents{
 				bookCopy1LentToReader1,
 				bookCopy2LentToReader2},
 		},
@@ -508,25 +508,25 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			description: "(EventType AND (Predicate AND Predicate...))",
 			filter: BuildEventFilter().
 				Matching().
-				AnyEventTypeOf(core.BookCopyLentToReaderEventType).
+				AnyEventTypeOf(core2.BookCopyLentToReaderEventType).
 				AndAllPredicatesOf(
 					P("BookID", bookID2.String()),
 					P("ReaderID", readerID1.String())).
 				Finalize(),
 			expectedNumEvents: 1,
-			expectedEvents:    core.DomainEvents{bookCopy2LentToReader1},
+			expectedEvents:    core2.DomainEvents{bookCopy2LentToReader1},
 		},
 		{
 			description: "((EventType OR EventType...) AND Predicate...)",
 			filter: BuildEventFilter().
 				Matching().
 				AnyEventTypeOf(
-					core.BookCopyAddedToCirculationEventType,
-					core.BookCopyRemovedFromCirculationEventType).
+					core2.BookCopyAddedToCirculationEventType,
+					core2.BookCopyRemovedFromCirculationEventType).
 				AndAnyPredicateOf(P("BookID", bookID1.String())).
 				Finalize(),
 			expectedNumEvents: 2,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: core2.DomainEvents{
 				bookCopy1AddedToCirculationBook,
 				bookCopy1RemovedFromCirculationBook},
 		},
@@ -535,14 +535,14 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			filter: BuildEventFilter().
 				Matching().
 				AnyEventTypeOf(
-					core.BookCopyLentToReaderEventType,
-					core.BookCopyReturnedByReaderEventType).
+					core2.BookCopyLentToReaderEventType,
+					core2.BookCopyReturnedByReaderEventType).
 				AndAnyPredicateOf(
 					P("BookID", bookID1.String()),
 					P("BookID", bookID2.String())).
 				Finalize(),
 			expectedNumEvents: 6,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: core2.DomainEvents{
 				bookCopy1LentToReader1,
 				bookCopy1ReturnedByReader1,
 				bookCopy2LentToReader2,
@@ -555,14 +555,14 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			filter: BuildEventFilter().
 				Matching().
 				AnyEventTypeOf(
-					core.BookCopyLentToReaderEventType,
-					core.BookCopyReturnedByReaderEventType).
+					core2.BookCopyLentToReaderEventType,
+					core2.BookCopyReturnedByReaderEventType).
 				AndAllPredicatesOf(
 					P("BookID", bookID2.String()),
 					P("ReaderID", readerID1.String())).
 				Finalize(),
 			expectedNumEvents: 2,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: core2.DomainEvents{
 				bookCopy2LentToReader1,
 				bookCopy2ReturnedByReader1},
 		},
@@ -571,13 +571,13 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			filter: BuildEventFilter().
 				Matching().
 				AnyPredicateOf(P("BookID", bookID1.String())).
-				AndAnyEventTypeOf(core.BookCopyLentToReaderEventType).
+				AndAnyEventTypeOf(core2.BookCopyLentToReaderEventType).
 				OrMatching().
 				AnyPredicateOf(P("BookID", bookID2.String())).
-				AndAnyEventTypeOf(core.BookCopyReturnedByReaderEventType).
+				AndAnyEventTypeOf(core2.BookCopyReturnedByReaderEventType).
 				Finalize(),
 			expectedNumEvents: 3,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: core2.DomainEvents{
 				bookCopy1LentToReader1,
 				bookCopy2ReturnedByReader2,
 				bookCopy2ReturnedByReader1},
@@ -587,14 +587,14 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			filter: BuildEventFilter().
 				Matching().
 				AnyPredicateOf(P("BookID", bookID1.String())).
-				AndAnyEventTypeOf(core.BookCopyLentToReaderEventType).
+				AndAnyEventTypeOf(core2.BookCopyLentToReaderEventType).
 				OrMatching().
 				AnyPredicateOf(P("BookID", bookID2.String())).
-				AndAnyEventTypeOf(core.BookCopyReturnedByReaderEventType).
+				AndAnyEventTypeOf(core2.BookCopyReturnedByReaderEventType).
 				OccurredFrom(bookCopy2ReturnedByReader2.HasOccurredAt()).
 				Finalize(),
 			expectedNumEvents: 2,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: core2.DomainEvents{
 				bookCopy2ReturnedByReader2,
 				bookCopy2ReturnedByReader1},
 		},
@@ -603,14 +603,14 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			filter: BuildEventFilter().
 				Matching().
 				AnyPredicateOf(P("BookID", bookID1.String())).
-				AndAnyEventTypeOf(core.BookCopyLentToReaderEventType).
+				AndAnyEventTypeOf(core2.BookCopyLentToReaderEventType).
 				OrMatching().
 				AnyPredicateOf(P("BookID", bookID2.String())).
-				AndAnyEventTypeOf(core.BookCopyReturnedByReaderEventType).
+				AndAnyEventTypeOf(core2.BookCopyReturnedByReaderEventType).
 				OccurredUntil(bookCopy2ReturnedByReader2.HasOccurredAt()).
 				Finalize(),
 			expectedNumEvents: 2,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: core2.DomainEvents{
 				bookCopy1LentToReader1,
 				bookCopy2ReturnedByReader2},
 		},
@@ -619,15 +619,15 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			filter: BuildEventFilter().
 				Matching().
 				AnyPredicateOf(P("BookID", bookID1.String())).
-				AndAnyEventTypeOf(core.BookCopyLentToReaderEventType).
+				AndAnyEventTypeOf(core2.BookCopyLentToReaderEventType).
 				OrMatching().
 				AnyPredicateOf(P("BookID", bookID2.String())).
-				AndAnyEventTypeOf(core.BookCopyReturnedByReaderEventType).
+				AndAnyEventTypeOf(core2.BookCopyReturnedByReaderEventType).
 				OccurredFrom(bookCopy2ReturnedByReader2.HasOccurredAt()).
 				AndOccurredUntil(bookCopy2ReturnedByReader2.HasOccurredAt()).
 				Finalize(),
 			expectedNumEvents: 1,
-			expectedEvents:    core.DomainEvents{bookCopy2ReturnedByReader2},
+			expectedEvents:    core2.DomainEvents{bookCopy2ReturnedByReader2},
 		},
 	}
 
@@ -642,7 +642,7 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			assert.NoError(t, queryErr)
 			assert.Len(t, actualEvents, tc.expectedNumEvents)
 
-			actualDomainEvents, mappingErr := shell.DomainEventsFrom(actualEvents)
+			actualDomainEvents, mappingErr := shell2.DomainEventsFrom(actualEvents)
 			assert.NoError(t, mappingErr)
 
 			for i := 0; i < len(tc.expectedEvents); i++ {

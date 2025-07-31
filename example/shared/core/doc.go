@@ -8,4 +8,7 @@
 //
 // All domain events implement the DomainEvent interface with EventType() and
 // HasOccurredAt() methods for event sourcing integration.
+//
+// In Domain-Driven Design or Hexagonal Architecture terminology, this would be
+// called the 'domain' layer.
 package core
