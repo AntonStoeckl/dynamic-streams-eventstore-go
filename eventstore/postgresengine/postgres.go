@@ -36,6 +36,7 @@ func WithTableName(tableName string) Option {
 			return eventstore.ErrEmptyEventsTableName
 		}
 		es.eventTableName = tableName
+
 		return nil
 	}
 }
