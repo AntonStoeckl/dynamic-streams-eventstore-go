@@ -12,7 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
-	core2 "github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
 
 const (
@@ -325,7 +325,7 @@ func generateSomethingHappenedEvents(writers *Writers, numEvents int, fakeClock 
 
 	for totalGenerated := 0; totalGenerated < numEvents; totalGenerated++ {
 		id, _ := uuid.NewV7()
-		eventType := core2.SomethingHasHappenedEventTypePrefix + strconv.Itoa(eventPostfix)
+		eventType := core.SomethingHasHappenedEventTypePrefix + strconv.Itoa(eventPostfix)
 
 		*fakeClock = fakeClock.Add(time.Millisecond * 2)
 
@@ -393,7 +393,7 @@ func generateBookCopyEvents(writers *Writers, numEvents int, fakeClock *time.Tim
 
 		event := EventData{
 			OccurredAt: fakeClock.Format(time.RFC3339Nano),
-			EventType:  core2.BookCopyAddedToCirculationEventType,
+			EventType:  core.BookCopyAddedToCirculationEventType,
 			Payload:    payload,
 			Metadata:   metadata,
 		}
@@ -432,7 +432,7 @@ func generateBookCopyEvents(writers *Writers, numEvents int, fakeClock *time.Tim
 
 				lentEvent := EventData{
 					OccurredAt: fakeClock.Format(time.RFC3339Nano),
-					EventType:  core2.BookCopyLentToReaderEventType,
+					EventType:  core.BookCopyLentToReaderEventType,
 					Payload:    lentPayload,
 					Metadata:   lentMetadata,
 				}
@@ -462,7 +462,7 @@ func generateBookCopyEvents(writers *Writers, numEvents int, fakeClock *time.Tim
 
 				returnedEvent := EventData{
 					OccurredAt: fakeClock.Format(time.RFC3339Nano),
-					EventType:  core2.BookCopyReturnedByReaderEventType,
+					EventType:  core.BookCopyReturnedByReaderEventType,
 					Payload:    returnedPayload,
 					Metadata:   returnedMetadata,
 				}
@@ -492,7 +492,7 @@ func generateBookCopyEvents(writers *Writers, numEvents int, fakeClock *time.Tim
 
 				lentEvent := EventData{
 					OccurredAt: fakeClock.Format(time.RFC3339Nano),
-					EventType:  core2.BookCopyLentToReaderEventType,
+					EventType:  core.BookCopyLentToReaderEventType,
 					Payload:    lentPayload,
 					Metadata:   lentMetadata,
 				}
@@ -520,7 +520,7 @@ func generateBookCopyEvents(writers *Writers, numEvents int, fakeClock *time.Tim
 
 				removedEvent := EventData{
 					OccurredAt: fakeClock.Format(time.RFC3339Nano),
-					EventType:  core2.BookCopyRemovedFromCirculationEventType,
+					EventType:  core.BookCopyRemovedFromCirculationEventType,
 					Payload:    removedPayload,
 					Metadata:   removedMetadata,
 				}
