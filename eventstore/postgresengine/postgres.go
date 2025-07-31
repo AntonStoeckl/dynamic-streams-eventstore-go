@@ -18,6 +18,8 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine/internal/adapters"
 )
 
+const defaultEventTableName = "events"
+
 type sqlQueryString = string
 
 type EventStore struct {
@@ -65,7 +67,7 @@ func NewEventStoreFromPGXPool(db *pgxpool.Pool, options ...Option) (EventStore, 
 
 	es := EventStore{
 		db:             adapters.NewPGXAdapter(db),
-		eventTableName: "events", // default
+		eventTableName: defaultEventTableName,
 	}
 
 	for _, option := range options {
@@ -85,7 +87,7 @@ func NewEventStoreFromSQLDB(db *sql.DB, options ...Option) (EventStore, error) {
 
 	es := EventStore{
 		db:             adapters.NewSQLAdapter(db),
-		eventTableName: "events", // default
+		eventTableName: defaultEventTableName,
 	}
 
 	for _, option := range options {
@@ -105,7 +107,7 @@ func NewEventStoreFromSQLX(db *sqlx.DB, options ...Option) (EventStore, error) {
 
 	es := EventStore{
 		db:             adapters.NewSQLXAdapter(db),
-		eventTableName: "events", // default
+		eventTableName: defaultEventTableName,
 	}
 
 	for _, option := range options {
