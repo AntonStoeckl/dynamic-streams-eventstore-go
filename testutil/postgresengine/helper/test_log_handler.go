@@ -15,19 +15,11 @@ type TestLogHandler struct {
 }
 
 // NewTestLogHandler creates a new TestLogHandler
-func NewTestLogHandler() *TestLogHandler {
+// Switchable to log to stdout, which can be useful for debugging tests by seeing the actual log output
+func NewTestLogHandler(logToStdOut bool) *TestLogHandler {
 	return &TestLogHandler{
 		records:     make([]slog.Record, 0),
-		logToStdout: false,
-	}
-}
-
-// NewTestLogHandlerWithStdout creates a new TestLogHandler that also logs to stdout
-// Useful for debugging tests by seeing the actual log output
-func NewTestLogHandlerWithStdout() *TestLogHandler {
-	return &TestLogHandler{
-		records:     make([]slog.Record, 0),
-		logToStdout: true,
+		logToStdout: logToStdOut,
 	}
 }
 

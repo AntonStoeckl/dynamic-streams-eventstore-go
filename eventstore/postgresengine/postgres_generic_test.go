@@ -151,7 +151,7 @@ func Test_Generic_Eventstore_WithSQLQueryLogger_LogsQueries(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	testHandler := NewTestLogHandler()
+	testHandler := NewTestLogHandler(false)
 	logger := slog.New(testHandler)
 
 	wrapper := CreateWrapperWithTestConfig(t, WithSQLQueryLogger(logger))
@@ -182,7 +182,7 @@ func Test_Generic_Eventstore_WithSQLQueryLogger_LogsAppends(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	testHandler := NewTestLogHandler()
+	testHandler := NewTestLogHandler(false)
 	logger := slog.New(testHandler)
 
 	wrapper := CreateWrapperWithTestConfig(t, WithSQLQueryLogger(logger))
@@ -226,7 +226,7 @@ func Test_Generic_Eventstore_WithOpsLogger_LogsQueries(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	testHandler := NewTestLogHandler()
+	testHandler := NewTestLogHandler(false)
 	logger := slog.New(testHandler)
 
 	wrapper := CreateWrapperWithTestConfig(t, WithOpsLogger(logger))
@@ -257,7 +257,7 @@ func Test_Generic_Eventstore_WithOpsLogger_LogsAppends(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	testHandler := NewTestLogHandler()
+	testHandler := NewTestLogHandler(false)
 	logger := slog.New(testHandler)
 
 	wrapper := CreateWrapperWithTestConfig(t, WithOpsLogger(logger))
@@ -301,7 +301,7 @@ func Test_Generic_Eventstore_WithOpsLogger_LogsConcurrencyConflicts(t *testing.T
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	testHandler := NewTestLogHandler()
+	testHandler := NewTestLogHandler(false)
 	logger := slog.New(testHandler)
 
 	wrapper := CreateWrapperWithTestConfig(t, WithOpsLogger(logger))
