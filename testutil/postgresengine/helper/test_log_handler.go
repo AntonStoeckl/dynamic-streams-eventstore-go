@@ -82,3 +82,32 @@ func (h *TestLogHandler) HasDebugLogWithMessage(message string) bool {
 
 	return false
 }
+
+// HasDebugLogWithDurationNS checks if there is a debug-level log record with the specified message
+// that contains a duration_ns attribute with a non-negative value
+func (h *TestLogHandler) HasDebugLogWithDurationNS(message string) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	for _, record := range h.records {
+		if record.Level == slog.LevelDebug && record.Message == message {
+			hasDurationNS := false
+			record.Attrs(func(attr slog.Attr) bool {
+
+				if attr.Key == "duration_ns" && attr.Value.Int64() >= 0 {
+					hasDurationNS = true
+
+					return false // Stop iteration
+				}
+
+				return true // Continue iteration
+			})
+
+			if hasDurationNS {
+				return true
+			}
+		}
+	}
+
+	return false
+}

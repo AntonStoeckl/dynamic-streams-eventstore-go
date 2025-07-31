@@ -12,16 +12,43 @@ This document outlines code style conventions for this project beyond what `gofm
 - Always put an empty line before return statements, unless it's the only line in a block (if, function, ...)
 - This applies to all functions, including helper methods and business logic functions
 
+Example:
+```go
+func Example() bool {
+    someValue := doSomething()
+    
+    if someValue {
+        return true  // No empty line - only line in if block
+    }
+    
+    moreProcessing()
+    
+    return false  // Empty line before return - not the only line in function
+}
+```
+
 #### Control Flow Structures
 - **Switch/Case blocks**: Always separate cases with an empty line in between (unless it's the last case or default, then no empty line)
 - **For loops**: Always put empty lines before and after for loops
-- **If blocks**: Always put empty lines before and after if blocks, **except** for `if err != nil` error handling blocks
+- **If blocks**: Always put empty lines before and after if blocks, **except** for:
+  - `if err != nil` error handling blocks
+  - `if` blocks that are the first statement inside another control structure (for, switch, function, etc.)
 - **Error handling**: `if err != nil` blocks should directly follow the function call that created the error, with no intervening code
 
 Example:
 
 ```go
+// For loop with if as first statement - no empty line after for
 for _, domainEvent := range domainEvents {
+    if domainEvent == nil {
+        continue
+    }
+    
+    // Regular if block - empty lines before and after
+    if someCondition {
+        doSomething()
+    }
+    
     switch domainEvent.EventType() {
     case core.BookCopyAddedToCirculationEventType:
         bookExists = true
@@ -29,6 +56,17 @@ for _, domainEvent := range domainEvents {
     case core.BookCopyRemovedFromCirculationEventType:
         bookExists = false
     }
+}
+
+// Function call followed by error handling - no empty line
+result, err := someFunction()
+if err != nil {
+    return err
+}
+
+// Regular if block after processing - empty line before
+if result.IsValid() {
+    processResult(result)
 }
 ```
 

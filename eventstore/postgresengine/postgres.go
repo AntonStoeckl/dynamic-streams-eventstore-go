@@ -137,9 +137,11 @@ func (es EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 		return empty, 0, buildQueryErr
 	}
 
-	es.logQuery(sqlQuery, "query")
-
+	start := time.Now()
 	rows, queryErr := es.db.Query(ctx, sqlQuery)
+	duration := time.Since(start)
+	es.logQueryWithDuration(sqlQuery, "query", duration)
+
 	if queryErr != nil {
 		return empty, 0, errors.Join(eventstore.ErrQueryingEventsFailed, queryErr)
 	}
@@ -209,9 +211,11 @@ func (es EventStore) Append(
 		return buildQueryErr
 	}
 
-	es.logQuery(sqlQuery, "append")
-
+	start := time.Now()
 	tag, execErr := es.db.Exec(ctx, sqlQuery)
+	duration := time.Since(start)
+	es.logQueryWithDuration(sqlQuery, "append", duration)
+
 	if execErr != nil {
 		return errors.Join(eventstore.ErrAppendingEventFailed, execErr)
 	}
@@ -396,9 +400,9 @@ func (es EventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.S
 	return selectStmt
 }
 
-// logQuery logs SQL queries at debug level if sqlQueryLogger is configured
-func (es EventStore) logQuery(sqlQuery string, action string) {
+// logQueryWithDuration logs SQL queries with execution time at debug level if sqlQueryLogger is configured
+func (es EventStore) logQueryWithDuration(sqlQuery string, action string, duration time.Duration) {
 	if es.sqlQueryLogger != nil {
-		es.sqlQueryLogger.Debug("executing sql for: "+action, "query", sqlQuery)
+		es.sqlQueryLogger.Debug("executed sql for: "+action, "duration_ns", duration.Nanoseconds(), "query", sqlQuery)
 	}
 }
