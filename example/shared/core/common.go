@@ -6,19 +6,24 @@ import (
 
 // Instead of implementing full value objects, I'm using some alias types and helper methods here ...
 
-// BookIDString represents a book identifier
-type BookIDString = string
+type (
+	// BookIDString represents a book identifier
+	BookIDString = string
 
-// ReaderIDString represents a reader identifier
-type ReaderIDString = string
+	// ReaderIDString represents a reader identifier
+	ReaderIDString = string
 
-// ISBNString represents an ISBN identifier
-type ISBNString = string
+	// ISBNString represents an ISBN identifier
+	ISBNString = string
 
-// OccurredAt represents when an event occurred
-type OccurredAt = time.Time
+	// OccurredAtTS represents when an event occurred
+	OccurredAtTS = time.Time
 
-// ToOccurredAt converts a time to OccurredAt with UTC normalization and microsecond precision
-func ToOccurredAt(t time.Time) OccurredAt {
+	// ProducedNewEventToAppendBool indicates whether a new event has been produced and is ready to be appended.
+	ProducedNewEventToAppendBool = bool
+)
+
+// ToOccurredAt converts a time to OccurredAtTS with UTC normalization and microsecond precision
+func ToOccurredAt(t time.Time) OccurredAtTS {
 	return t.UTC().Truncate(time.Microsecond)
 }

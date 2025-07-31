@@ -13,7 +13,7 @@ import (
 //
 // In a real application there should be a unit test for this business logic, unless coarse-grained
 // feature tests are preferred. Complex business logic typically benefits from dedicated pure unit tests.
-func Decide(domainEvents core.DomainEvents, command Command) core.DomainEvents {
+func Decide(domainEvents core.DomainEvents, command Command) (core.DomainEvent, core.ProducedNewEventToAppendBool) {
 	bookExists := false
 
 	for _, domainEvent := range domainEvents {
@@ -27,9 +27,8 @@ func Decide(domainEvents core.DomainEvents, command Command) core.DomainEvents {
 	}
 
 	if bookExists {
-		removalEvent := core.BuildBookCopyRemovedFromCirculation(command.BookID, command.OccurredAt)
-		return core.DomainEvents{removalEvent}
+		return core.BuildBookCopyRemovedFromCirculation(command.BookID, command.OccurredAt), true
 	}
 
-	return core.DomainEvents{}
+	return nil, false
 }

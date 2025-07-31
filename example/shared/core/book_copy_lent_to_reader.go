@@ -13,7 +13,7 @@ const BookCopyLentToReaderEventType = "BookCopyLentToReader"
 type BookCopyLentToReader struct {
 	BookID     BookIDString
 	ReaderID   ReaderIDString
-	OccurredAt OccurredAt
+	OccurredAt OccurredAtTS
 }
 
 // BuildBookCopyLentToReader creates a new BookCopyLentToReader event

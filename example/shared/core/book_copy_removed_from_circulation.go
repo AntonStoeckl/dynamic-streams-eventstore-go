@@ -12,7 +12,7 @@ const BookCopyRemovedFromCirculationEventType = "BookCopyRemovedFromCirculation"
 // BookCopyRemovedFromCirculation represents when a book copy is removed from library circulation
 type BookCopyRemovedFromCirculation struct {
 	BookID     BookIDString
-	OccurredAt OccurredAt
+	OccurredAt OccurredAtTS
 }
 
 // BuildBookCopyRemovedFromCirculation creates a new BookCopyRemovedFromCirculation event

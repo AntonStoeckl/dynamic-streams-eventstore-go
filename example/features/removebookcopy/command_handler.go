@@ -2,6 +2,7 @@ package removebookcopy
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,6 +13,8 @@ import (
 
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
 )
+
+var ErrExpectedExactlyOneEventGotMultiple = errors.New("got more than one event to append, expected exactly one")
 
 // EventStore defines the interface needed by the CommandHandler for event store operations
 type EventStore interface {
@@ -67,23 +70,24 @@ func (h CommandHandler) Handle(ctx context.Context, command Command, timingColle
 
 	// Business logic phase - delegate to pure core function
 	start = time.Now()
-	eventsToAppend := Decide(domainEvents, command)
+	eventToAppend, producedNewEventToAppend := Decide(domainEvents, command)
 	timingCollector.RecordBusiness(time.Since(start))
 
 	// Append phase - only if there are events to append
-	if len(eventsToAppend) > 0 {
-		for _, domainEvent := range eventsToAppend {
-			storableEvent, marshalErr := shell.StorableEventFrom(domainEvent, shell.EventMetadata{})
-			if marshalErr != nil {
-				return marshalErr
-			}
+	if producedNewEventToAppend {
+		uid := uuid.New()
+		eventMetadata := shell.BuildEventMetadata(uid, uid, uid)
 
-			start = time.Now()
-			appendErr := h.eventStore.Append(ctx, filter, maxSequenceNumber, storableEvent)
-			timingCollector.RecordAppend(time.Since(start))
-			if appendErr != nil {
-				return appendErr
-			}
+		storableEvent, marshalErr := shell.StorableEventFrom(eventToAppend, eventMetadata)
+		if marshalErr != nil {
+			return marshalErr
+		}
+
+		start = time.Now()
+		appendErr := h.eventStore.Append(ctx, filter, maxSequenceNumber, storableEvent)
+		timingCollector.RecordAppend(time.Since(start))
+		if appendErr != nil {
+			return appendErr
 		}
 	}
 

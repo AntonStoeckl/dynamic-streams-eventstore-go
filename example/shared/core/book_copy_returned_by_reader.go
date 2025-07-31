@@ -13,7 +13,7 @@ const BookCopyReturnedByReaderEventType = "BookCopyReturnedByReader"
 type BookCopyReturnedByReader struct {
 	BookID     BookIDString
 	ReaderID   ReaderIDString
-	OccurredAt OccurredAt
+	OccurredAt OccurredAtTS
 }
 
 // BuildBookCopyReturnedFromReader creates a new BookCopyReturnedByReader event

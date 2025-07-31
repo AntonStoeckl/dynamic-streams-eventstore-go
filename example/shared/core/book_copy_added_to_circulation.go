@@ -18,7 +18,7 @@ type BookCopyAddedToCirculation struct {
 	Edition         string
 	Publisher       string
 	PublicationYear uint
-	OccurredAt      OccurredAt
+	OccurredAt      OccurredAtTS
 }
 
 // BuildBookCopyAddedToCirculation creates a new BookCopyAddedToCirculation event

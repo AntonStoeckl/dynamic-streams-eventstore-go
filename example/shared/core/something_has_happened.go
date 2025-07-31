@@ -11,7 +11,7 @@ const SomethingHasHappenedEventTypePrefix = "SomethingHasHappened"
 type SomethingHasHappened struct {
 	ID               string
 	SomeInformation  string
-	OccurredAt       OccurredAt
+	OccurredAt       OccurredAtTS
 	DynamicEventType string
 }
 
