@@ -50,7 +50,7 @@ func BuildStorableEvent(eventType string, occurredAt time.Time, payloadJSON []by
 // BuildStorableEventWithEmptyMetadata is a factory method for StorableEvent.
 //
 // It populates the StorableEvent with the given scalar input and creates valid empty JSON for MetadataJSON.
-// Returns an error if payloadJSON or metadataJSON are not valid JSON.
+// Returns an error if payloadJSON is not valid JSON.
 func BuildStorableEventWithEmptyMetadata(eventType string, occurredAt time.Time, payloadJSON []byte) (StorableEvent, error) {
 	return BuildStorableEvent(eventType, occurredAt, payloadJSON, []byte("{}"))
 }

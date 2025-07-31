@@ -70,32 +70,16 @@ func (fp FilterPredicate) Val() FilterValString {
 
 /***** FilterBuilder *****/
 
-// FilterBuilder builds a generic event filter to be used in DB type-specific eventstore implementations to build queries for
-// the specific query language, e.g.: Postgres, Mysql, MongoDB, ...
-// It is designed with the idea to only allow "useful" Filter combinations for event-sourced workflows:
-//
-//   - empty filter
-//   - (eventType)
-//   - (eventType OR eventType...)
-//   - (predicate)
-//   - (predicate OR predicate...)
-//   - (predicate AND predicate...)
-//   - (eventType AND predicate)
-//   - (eventType AND (predicate OR predicate...))
-//   - (eventType AND (predicate AND predicate...))
-//   - ((eventType OR eventType...) AND (predicate OR predicate...))
-//   - ((eventType OR eventType...) AND (predicate AND predicate...))
-//   - ((eventType AND predicate) OR (eventType AND predicate)...) -> multiple FilterItem(s)
-//
-// If occurredFrom or/and occurredUntil are added to the Filter, this will be AND concatenated to the whole Filter, e.g.:
-//
-//   - ((eventType AND (predicate OR predicate...)) AND (occurredAt >= _timestamp_))
-//   - ((eventType AND (predicate OR predicate...)) AND ((occurredAt >= occurredFrom) AND (occurredAt <= occurredUntil)))
+// FilterBuilder builds generic event filters for database-specific query implementations.
+// It enforces useful filter combinations for event-sourced workflows, supporting event types,
+// JSON payload predicates, and time ranges. Complex combinations are supported through multiple
+// FilterItems with OR logic between items and configurable AND/OR logic within items.
 type FilterBuilder interface {
 	// Matching starts a new FilterItem.
 	Matching() EmptyFilterItemBuilder
 
 	// MatchingAnyEvent directly creates an empty Filter.
+	// WARNING: This returns ALL events and should not be used in production.
 	MatchingAnyEvent() Filter
 
 	// OccurredFrom sets the lower boundary for occurredAt (including this timestamp) for the whole Filter.
@@ -232,6 +216,7 @@ type filterBuilder struct {
 }
 
 // BuildEventFilter creates a FilterBuilder which must eventually be finalized with Finalize() or MatchingAnyEvent().
+// Note: MatchingAnyEvent() returns ALL events and should not be used in production.
 func BuildEventFilter() FilterBuilder {
 	return filterBuilder{}
 }
@@ -423,6 +408,7 @@ func (fb filterBuilder) OrMatching() EmptyFilterItemBuilder {
 }
 
 // MatchingAnyEvent directly creates an empty filter.
+// WARNING: This returns ALL events and should not be used in production.
 func (fb filterBuilder) MatchingAnyEvent() Filter {
 	return fb.filter
 }

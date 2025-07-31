@@ -1,5 +1,5 @@
 // Package eventstore provides core abstractions and types for event sourcing
-// with dynamic event streams.
+// with Dynamic Event Streams.
 //
 // This package defines the fundamental interfaces and types used across
 // different event store implementations, including filters, storable events,
@@ -31,6 +31,9 @@
 //		// handle error
 //	}
 //
-//	newEvent := eventstore.BuildStorableEvent(eventType, time.Now(), payload, metadata)
+//	newEvent, err := eventstore.BuildStorableEvent(eventType, time.Now(), payload, metadata)
+//	if err != nil {
+//		// handle error
+//	}
 //	err = store.Append(ctx, filter, maxSeq, newEvent)
 package eventstore

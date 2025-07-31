@@ -7,7 +7,7 @@
 [![Go Version](https://img.shields.io/github/go-mod/go-version/AntonStoeckl/dynamic-streams-eventstore-go)](https://github.com/AntonStoeckl/dynamic-streams-eventstore-go)
 [![Release](https://img.shields.io/github/release-pre/AntonStoeckl/dynamic-streams-eventstore-go.svg)](https://github.com/AntonStoeckl/dynamic-streams-eventstore-go/releases)
 
-A Go-based **Event Store** implementation for **Event Sourcing** with PostgreSQL, operating on **Dynamic Event Streams** (also known as Dynamic Consistency Boundaries **DCB**).
+A Go-based **Event Store** implementation for **Event Sourcing** with PostgreSQL, operating on **Dynamic Event Streams** (also known as Dynamic Consistency Boundaries).
 
 Unlike traditional event stores with fixed streams tied to specific entities, this approach enables **atomic entity-independent operations** while maintaining strong consistency through PostgreSQL's ACID guarantees.
 
@@ -69,8 +69,8 @@ Entity-independent: [BookCopyAddedToCirculation, BookCopyRemovedFromCirculation,
                      ReaderContractCanceled, BookCopyLentToReader, BookCopyReturnedByReader, ...]  ← Single atomic boundary
 ```
 
-This eliminates the need for complex synchronization between entities, bounded contexts, services, ...
-while maintaining strong consistency for entity-independent business rules.  
+This eliminates complex synchronization between entities while maintaining strong consistency 
+(see [Performance](./docs/performance.md) for detailed benchmarks).  
 See **[Core Concepts](./docs/core-concepts.md)** for a more detailed description.
 
 ## 📚 Documentation
@@ -116,7 +116,7 @@ See [Performance Documentation](./docs/performance.md) for detailed benchmarks a
 
 See [Development Guide](./docs/development.md) for complete testing instructions including adapter switching and benchmarks.
 
-Note: The `/example` directory contains test fixtures and simple usage examples used by the test suite.
+Note: The `example/` directory contains test fixtures and simple usage examples used by the test suite.
 
 ## 🤝 Contributing
 

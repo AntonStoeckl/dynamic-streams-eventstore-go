@@ -24,11 +24,11 @@ Entity-independent Stream: [BookCopyAddedToCirculation, BookCopyRemovedFromCircu
 
 ### Dynamic Consistency Boundaries vs. Dynamic Event Streams
 
-**DCB** works by tagging each event as belonging to one - or multiple - dynamic streams.  
-While the concept of **Dynamic Event Streams** does not even require tagging events as *belongs to a stream*.  
-Which further reduces the complexity and eliminates the need of *thinking in entities or streams*.
+**Dynamic Consistency Boundaries (DCB)** work by tagging each event as belonging to one or multiple dynamic streams.  
+**Dynamic Event Streams** eliminate the need for stream tagging entirely by querying events directly based on JSON payload predicates.  
+This reduces complexity and eliminates the need to think in terms of fixed entities or streams.
 
-## The Problem Dynamic Streams (and DCB) Solve
+## The Problem Dynamic Event Streams Solve
 
 Consider these business scenarios:
 

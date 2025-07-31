@@ -75,29 +75,7 @@ func main() {
         log.Fatal(err)
     }
     
-    // Option 2: Using database/sql
-    sqlDB, err := sql.Open("postgres", "postgres://user:password@localhost/eventstore?sslmode=disable")
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer sqlDB.Close()
-    
-    // eventStore, err := postgresengine.NewEventStoreFromSQLDB(sqlDB)
-    // if err != nil {
-    //     log.Fatal(err)
-    // }
-    
-    // Option 3: Using sqlx
-    sqlxDB, err := sqlx.Connect("postgres", "postgres://user:password@localhost/eventstore?sslmode=disable")
-    if err != nil {
-        log.Fatal(err)
-    }
-    defer sqlxDB.Close()
-    
-    // eventStore, err := postgresengine.NewEventStoreFromSQLX(sqlxDB)
-    // if err != nil {
-    //     log.Fatal(err)
-    // }
+    // For alternative adapters (database/sql, sqlx), see API Reference documentation
 }
 ```
 

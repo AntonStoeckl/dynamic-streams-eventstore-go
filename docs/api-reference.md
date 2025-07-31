@@ -349,9 +349,12 @@ P("BookID", "book-123")  // Matches: payload @> '{"BookID": "book-123"}'
 ### Predefined Errors
 
 ```go
-// From eventstore package
-var ErrEmptyTableNameSupplied = errors.New("empty eventTableName supplied")
+// From eventstore/common.go
+var ErrEmptyEventsTableName = errors.New("events table name must not be empty")
 var ErrConcurrencyConflict = errors.New("concurrency error, no rows were affected")
+var ErrNilDatabaseConnection = errors.New("database connection must not be nil")
+
+// From eventstore/storable_event.go
 var ErrInvalidPayloadJSON = errors.New("payload json is not valid")
 var ErrInvalidMetadataJSON = errors.New("metadata json is not valid")
 ```

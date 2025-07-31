@@ -2,7 +2,7 @@
 
 Practical examples demonstrating entity-independent operations with dynamic-streams-eventstore-go.
 
-**Note:** The `/example` directory contains working test fixtures and usage examples used by the test suite.
+**Note:** The `example/` directory contains working test fixtures and usage examples used by the test suite.
 
 ## Example: Library Book Lending System
 
@@ -83,6 +83,7 @@ func LendBookToReader(ctx context.Context, es EventStore, bookID, readerID strin
     
     // 2. Build the current state from events
     bookAvailable, readerBorrowCount := buildStateFromEvents(events, bookID, readerID)
+    // ... implementation details of buildStateFromEvents omitted for brevity ...
     
     // 3. Apply business rules
     if !bookAvailable {
