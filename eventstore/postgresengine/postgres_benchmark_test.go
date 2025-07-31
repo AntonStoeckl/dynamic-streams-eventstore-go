@@ -210,7 +210,6 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 
 				case core.BookCopyRemovedFromCirculationEventType:
 					bookExists = false
-
 				}
 			}
 			bizTime += time.Since(start)
