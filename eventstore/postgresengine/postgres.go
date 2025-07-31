@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/doug-martin/goqu/v9"
@@ -22,10 +21,15 @@ const defaultEventTableName = "events"
 
 type sqlQueryString = string
 
+// Logger interface for SQL query logging
+type Logger interface {
+	Debug(msg string, args ...any)
+}
+
 type EventStore struct {
 	db             adapters.DBAdapter
 	eventTableName string
-	sqlQueryLogger *slog.Logger
+	sqlQueryLogger Logger
 }
 
 // Option defines a functional option for configuring EventStore
@@ -44,8 +48,8 @@ func WithTableName(tableName string) Option {
 	}
 }
 
-// WithSQLQueryLogger sets the sqlQueryLogger for the EventStore
-func WithSQLQueryLogger(logger *slog.Logger) Option {
+// WithSQLQueryLogger sets the logger for the EventStore
+func WithSQLQueryLogger(logger Logger) Option {
 	return func(es *EventStore) error {
 		es.sqlQueryLogger = logger
 

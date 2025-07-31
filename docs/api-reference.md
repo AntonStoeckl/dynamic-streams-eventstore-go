@@ -20,7 +20,7 @@ func NewEventStoreFromSQLX(db *sqlx.DB, options ...Option) (EventStore, error)
 type Option func(*EventStore) error
 
 func WithTableName(tableName string) Option
-func WithLogger(logger *slog.Logger) Option
+func WithSQLQueryLogger(logger Logger) Option
 ```
 
 #### Factory Function Examples
@@ -79,7 +79,7 @@ logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: sl
 
 // Using pgx.Pool with logger
 eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool, 
-    postgresengine.WithLogger(logger))
+    postgresengine.WithSQLQueryLogger(logger))
 if err != nil {
     return err
 }
@@ -87,7 +87,7 @@ if err != nil {
 // Combining multiple options
 eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
     postgresengine.WithTableName("my_events"),
-    postgresengine.WithLogger(logger))
+    postgresengine.WithSQLQueryLogger(logger))
 if err != nil {
     return err
 }

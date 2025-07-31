@@ -202,7 +202,7 @@ func SomeFunction(
 ### Factory Functions
 - Use functional options for optional configuration
 - Provide sensible defaults
-- Example: `WithTableName(tableName)`, `WithLogger(logger)`
+- Example: `WithTableName(tableName)`, `WithSQLQueryLogger(logger)`
 
 ### Option Function Design
 - Return functions that modify the target struct

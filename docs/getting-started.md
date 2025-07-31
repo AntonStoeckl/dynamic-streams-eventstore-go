@@ -118,7 +118,7 @@ logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: sl
 
 // Use with any adapter
 eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool, 
-    postgresengine.WithLogger(logger))
+    postgresengine.WithSQLQueryLogger(logger))
 if err != nil {
     log.Fatal(err)
 }
@@ -126,7 +126,7 @@ if err != nil {
 // Combine with other options
 eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
     postgresengine.WithTableName("my_events"),
-    postgresengine.WithLogger(logger))
+    postgresengine.WithSQLQueryLogger(logger))
 if err != nil {
     log.Fatal(err)
 }
