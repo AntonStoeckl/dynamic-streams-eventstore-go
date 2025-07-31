@@ -154,7 +154,7 @@ func Test_Generic_Eventstore_WithLogger_LogsQueries(t *testing.T) {
 	testHandler := NewTestLogHandler()
 	logger := slog.New(testHandler)
 
-	wrapper := CreateWrapperWithTestConfig(t, WithLogger(logger))
+	wrapper := CreateWrapperWithTestConfig(t, WithSQLQueryLogger(logger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -180,7 +180,7 @@ func Test_Generic_Eventstore_WithLogger_LogsAppends(t *testing.T) {
 	testHandler := NewTestLogHandler()
 	logger := slog.New(testHandler)
 
-	wrapper := CreateWrapperWithTestConfig(t, WithLogger(logger))
+	wrapper := CreateWrapperWithTestConfig(t, WithSQLQueryLogger(logger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 

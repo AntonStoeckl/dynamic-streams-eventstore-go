@@ -23,7 +23,7 @@ type sqlQueryString = string
 type EventStore struct {
 	db             adapters.DBAdapter
 	eventTableName string
-	logger         *slog.Logger
+	sqlQueryLogger *slog.Logger
 }
 
 // Option defines a functional option for configuring EventStore
@@ -40,10 +40,10 @@ func WithTableName(tableName string) Option {
 	}
 }
 
-// WithLogger sets the logger for the EventStore
-func WithLogger(logger *slog.Logger) Option {
+// WithSQLQueryLogger sets the sqlQueryLogger for the EventStore
+func WithSQLQueryLogger(logger *slog.Logger) Option {
 	return func(es *EventStore) error {
-		es.logger = logger
+		es.sqlQueryLogger = logger
 		return nil
 	}
 }
@@ -391,9 +391,9 @@ func (es EventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.S
 	return selectStmt
 }
 
-// logQuery logs SQL queries at debug level if logger is configured
+// logQuery logs SQL queries at debug level if sqlQueryLogger is configured
 func (es EventStore) logQuery(sqlQuery string, action string) {
-	if es.logger != nil {
-		es.logger.Debug("executing sql for: "+action, "query", sqlQuery)
+	if es.sqlQueryLogger != nil {
+		es.sqlQueryLogger.Debug("executing sql for: "+action, "query", sqlQuery)
 	}
 }

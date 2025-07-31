@@ -17,7 +17,7 @@
 //	store, _ := postgresengine.NewEventStoreFromPGXPool(
 //		db,
 //		postgresengine.WithTableName("my_events"),
-//		postgresengine.WithLogger(logger),
+//		postgresengine.WithSQLQueryLogger(sqlQueryLogger),
 //	)
 //
 //	events, maxSeq, _ := store.Query(ctx, filter)
