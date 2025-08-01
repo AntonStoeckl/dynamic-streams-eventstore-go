@@ -22,24 +22,28 @@ func NewTimingCollector(queryTime, unmarshalTime, businessTime, appendTime *time
 	}
 }
 
+// RecordQuery records database query execution time.
 func (t TimingCollector) RecordQuery(duration time.Duration) {
 	if t.QueryTime != nil {
 		*t.QueryTime += duration
 	}
 }
 
+// RecordUnmarshal records event unmarshaling time.
 func (t TimingCollector) RecordUnmarshal(duration time.Duration) {
 	if t.UnmarshalTime != nil {
 		*t.UnmarshalTime += duration
 	}
 }
 
+// RecordBusiness records business logic execution time.
 func (t TimingCollector) RecordBusiness(duration time.Duration) {
 	if t.BusinessTime != nil {
 		*t.BusinessTime += duration
 	}
 }
 
+// RecordAppend records event appending time.
 func (t TimingCollector) RecordAppend(duration time.Duration) {
 	if t.AppendTime != nil {
 		*t.AppendTime += duration

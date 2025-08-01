@@ -1,3 +1,4 @@
+// Package main imports CSV event data into PostgreSQL event store for testing.
 package main
 
 import (
@@ -18,6 +19,11 @@ func main() {
 	}
 }
 
+// ImportCSVData is a CLI utility function that processes CSV files step-by-step.
+// High statement count is appropriate for command-line data import tools.
+//
+//nolint:fun
+//nolint:funlen
 func ImportCSVData() error {
 	startTime := time.Now()
 
@@ -159,12 +165,14 @@ func ImportCSVData() error {
 }
 
 func formatNumber(n int) string {
-	if n >= 1000000 {
+	switch {
+	case n >= 1000000:
 		return fmt.Sprintf("%.1fM", float64(n)/1000000.0)
-	} else if n >= 100000 {
+	case n >= 100000:
 		return fmt.Sprintf("%.0fK", float64(n)/1000)
-	} else if n >= 10000 {
+	case n >= 10000:
 		return fmt.Sprintf("%.1fK", float64(n)/1000)
+	default:
+		return strconv.Itoa(n)
 	}
-	return strconv.Itoa(n)
 }

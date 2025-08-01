@@ -11,11 +11,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore" //nolint:revive
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"                 //nolint:revive
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper" //nolint:revive
 )
 
 func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
@@ -31,7 +31,7 @@ func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
 
 	// arrange
 	CleanUp(t, wrapper)
-	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock)
+	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock) //nolint:gosec
 	bookID := GivenUniqueID(t)
 	filter := FilterAllEventTypesForOneBook(bookID)
 	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
@@ -62,7 +62,7 @@ func Test_Append_When_SomeEvents_MatchTheQuery_BeforeAppend(t *testing.T) {
 
 	// arrange
 	CleanUp(t, wrapper)
-	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock)
+	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock) //nolint:gosec
 	bookID := GivenUniqueID(t)
 	fakeClock = fakeClock.Add(time.Second)
 	GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
@@ -95,7 +95,7 @@ func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 
 	// arrange
 	CleanUp(t, wrapper)
-	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock)
+	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock) //nolint:gosec
 	bookID := GivenUniqueID(t)
 	readerID := GivenUniqueID(t)
 	fakeClock = fakeClock.Add(time.Second)
@@ -131,7 +131,7 @@ func Test_AppendMultiple(t *testing.T) {
 
 	// arrange
 	CleanUp(t, wrapper)
-	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock)
+	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock) //nolint:gosec
 	bookID := GivenUniqueID(t)
 	readerID := GivenUniqueID(t)
 	fakeClock = fakeClock.Add(time.Second)
@@ -169,7 +169,7 @@ func Test_AppendMultiple_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 
 	// arrange
 	CleanUp(t, wrapper)
-	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock)
+	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock) //nolint:gosec
 	bookID := GivenUniqueID(t)
 	readerID := GivenUniqueID(t)
 	fakeClock = fakeClock.Add(time.Second)
@@ -193,6 +193,10 @@ func Test_AppendMultiple_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 	assert.ErrorContains(t, err, ErrConcurrencyConflict.Error())
 }
 
+// Test_Append_Concurrent is an integration test that requires complex setup and coordination of multiple goroutines.
+// High statement count is acceptable for comprehensive concurrency testing.
+//
+//nolint:funlen
 func Test_Append_Concurrent(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -222,7 +226,7 @@ func Test_Append_Concurrent(t *testing.T) {
 	for i := 0; i < numGoroutines; i++ {
 		wg.Add(1)
 
-		go func(routineNum int) {
+		go func(_ int) {
 			defer wg.Done()
 
 			for j := 0; j < operationsPerGoroutine; j++ {
@@ -230,7 +234,7 @@ func Test_Append_Concurrent(t *testing.T) {
 				maxSeq := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 
 				// Randomly choose between appending single and multiple event(s)
-				if rand.IntN(2)%2 == 0 {
+				if rand.IntN(2)%2 == 0 { //nolint:gosec
 					// Single event
 					err := es.Append(
 						ctxWithTimeout,
@@ -238,12 +242,13 @@ func Test_Append_Concurrent(t *testing.T) {
 						maxSeq,
 						ToStorable(t, FixtureBookCopyLentToReader(bookID, readerID, fakeClock)),
 					)
-					if err == nil {
+					switch {
+					case err == nil:
 						successCountSingle.Add(1)
 						eventCount.Add(1)
-					} else if errors.Is(err, ErrConcurrencyConflict) {
+					case errors.Is(err, ErrConcurrencyConflict):
 						conflictCountSingle.Add(1)
-					} else {
+					default:
 						assert.FailNow(t, "unexpected error")
 					}
 				} else {
@@ -257,12 +262,13 @@ func Test_Append_Concurrent(t *testing.T) {
 						event1,
 						event2,
 					)
-					if err == nil {
+					switch {
+					case err == nil:
 						successCountMultiple.Add(1)
 						eventCount.Add(2) // Count both events
-					} else if errors.Is(err, ErrConcurrencyConflict) {
+					case errors.Is(err, ErrConcurrencyConflict):
 						conflictCountMultiple.Add(1)
-					} else {
+					default:
 						t.Errorf("unexpected error: %v", err)
 					}
 				}
@@ -332,6 +338,10 @@ func Test_Append_EventWithMetadata(t *testing.T) {
 	assert.Equal(t, eventMetadata, actualEventMetadata)
 }
 
+// Test_QueryingWithFilter_WorksAsExpected is a comprehensive integration test covering multiple filter scenarios.
+// High line count is acceptable for exhaustive testing of complex query filtering logic.
+//
+//nolint:funlen
 func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)

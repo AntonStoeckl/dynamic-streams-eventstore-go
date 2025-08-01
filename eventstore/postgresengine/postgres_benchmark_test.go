@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/removebookcopy"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"                           //nolint:revive
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"                 //nolint:revive
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper" //nolint:revive
 )
 
 func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
@@ -52,12 +52,12 @@ func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 
 			assert.NoError(b, err)
 
-			rowsAffected, dbErr := CleanUpBookEvents(wrapper, bookID)
+			rowsAffected, dbErr := CleanUpBookEvents(ctx, wrapper, bookID)
 			assert.NoError(b, dbErr)
 			assert.Equal(b, int64(1), rowsAffected)
 
 			if i%100 == 0 {
-				dbErr = OptimizeDBWhileBenchmarking(wrapper)
+				dbErr = OptimizeDBWhileBenchmarking(ctx, wrapper)
 				assert.NoError(b, dbErr)
 			}
 		}
@@ -114,12 +114,12 @@ func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 
 			assert.NoError(b, err)
 
-			rowsAffected, dbErr := CleanUpBookEvents(wrapper, bookID)
+			rowsAffected, dbErr := CleanUpBookEvents(ctx, wrapper, bookID)
 			assert.NoError(b, dbErr)
 			assert.Equal(b, int64(5), rowsAffected)
 
 			if i%100 == 0 {
-				dbErr = OptimizeDBWhileBenchmarking(wrapper)
+				dbErr = OptimizeDBWhileBenchmarking(ctx, wrapper)
 				assert.NoError(b, dbErr)
 			}
 		}
@@ -195,12 +195,12 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 
 			assert.NoError(b, err)
 
-			rowsAffected, dbErr := CleanUpBookEvents(wrapper, bookID)
+			rowsAffected, dbErr := CleanUpBookEvents(ctx, wrapper, bookID)
 			assert.NoError(b, dbErr)
 			assert.Equal(b, int64(2), rowsAffected)
 
 			if i%100 == 0 {
-				dbErr = OptimizeDBWhileBenchmarking(wrapper)
+				dbErr = OptimizeDBWhileBenchmarking(ctx, wrapper)
 				assert.NoError(b, dbErr)
 			}
 		}

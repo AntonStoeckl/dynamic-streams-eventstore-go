@@ -11,11 +11,11 @@ import (
 	_ "github.com/lib/pq" // postgres driver
 	"github.com/stretchr/testify/assert"
 
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"                                     //nolint:revive
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"                      //nolint:revive
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"                    //nolint:revive
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"                 //nolint:revive
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper" //nolint:revive
 )
 
 func Test_Generic_NewEventStore_ShouldPanic_WithUnsupportedAdapterType(t *testing.T) {
@@ -107,7 +107,7 @@ func Test_Generic_FactoryFunctions_ShouldFail_WithEmptyTableName(t *testing.T) {
 	}{
 		{
 			name: "NewEventStoreFromPGXPool with empty table name",
-			factoryFunc: func(t *testing.T) (EventStore, error) {
+			factoryFunc: func(_ *testing.T) (EventStore, error) {
 				connPool, err := pgxpool.NewWithConfig(context.Background(), PostgresPGXPoolTestConfig())
 				assert.NoError(t, err, "error connecting to DB pool in test setup")
 				defer connPool.Close()
@@ -117,7 +117,7 @@ func Test_Generic_FactoryFunctions_ShouldFail_WithEmptyTableName(t *testing.T) {
 		},
 		{
 			name: "NewEventStoreFromSQLDB with empty table name",
-			factoryFunc: func(t *testing.T) (EventStore, error) {
+			factoryFunc: func(_ *testing.T) (EventStore, error) {
 				db := PostgresSQLDBTestConfig()
 				defer func() { _ = db.Close() }()
 
@@ -126,7 +126,7 @@ func Test_Generic_FactoryFunctions_ShouldFail_WithEmptyTableName(t *testing.T) {
 		},
 		{
 			name: "NewEventStoreFromSQLX with empty table name",
-			factoryFunc: func(t *testing.T) (EventStore, error) {
+			factoryFunc: func(_ *testing.T) (EventStore, error) {
 				db := PostgresSQLXTestConfig()
 				defer func() { _ = db.Close() }()
 

@@ -300,10 +300,8 @@ func GuardThatThereAreEnoughFixtureEventsInStore(wrapper Wrapper, expectedNumEve
 }
 
 // CleanUpBookEvents deletes all events for a specific BookID and returns the number of rows affected.
-func CleanUpBookEvents(wrapper Wrapper, bookID uuid.UUID) (rowsAffected int64, err error) {
+func CleanUpBookEvents(ctx context.Context, wrapper Wrapper, bookID uuid.UUID) (rowsAffected int64, err error) {
 	query := fmt.Sprintf(`DELETE FROM events WHERE payload @> '{"BookID": "%s"}'`, bookID.String()) //nolint:gosec
-
-	ctx := context.Background()
 
 	switch e := wrapper.(type) {
 	case *PGXPoolWrapper:
@@ -336,9 +334,8 @@ func CleanUpBookEvents(wrapper Wrapper, bookID uuid.UUID) (rowsAffected int64, e
 }
 
 // OptimizeDBWhileBenchmarking runs VACUUM ANALYZE on the events table to optimize performance during benchmarking.
-func OptimizeDBWhileBenchmarking(wrapper Wrapper) error {
+func OptimizeDBWhileBenchmarking(ctx context.Context, wrapper Wrapper) error {
 	query := `VACUUM ANALYZE EVENTS`
-	ctx := context.Background()
 
 	switch e := wrapper.(type) {
 	case *PGXPoolWrapper:
