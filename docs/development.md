@@ -9,6 +9,7 @@ This guide covers setting up the development environment, running tests, and con
 - **Go 1.24+**
 - **Docker & Docker Compose** (for test databases)
 - **PostgreSQL 17+** (optional, for local development)
+- **golangci-lint** (for code quality checks)
 
 ### Getting Started
 
@@ -18,12 +19,22 @@ git clone https://github.com/AntonStoeckl/dynamic-streams-eventstore-go.git
 cd dynamic-streams-eventstore-go
 ```
 
-2. **Install and update dependencies:**
+2. **Install development tools:**
+```bash
+# Install all development tools (recommended)
+make install-tools
+
+# Or install golangci-lint manually:
+# go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+# curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin
+```
+
+3. **Install and update dependencies:**
 ```bash
 go mod tidy
 ```
 
-3. **Start test databases:**
+4. **Start test databases:**
 ```bash
 # Start both test databases
 docker-compose --file testutil/postgresengine/docker-compose.yml up -d
@@ -33,9 +44,37 @@ docker-compose --file testutil/postgresengine/docker-compose.yml up -d postgres_
 docker-compose --file testutil/postgresengine/docker-compose.yml up -d postgres_benchmark # Port 5433
 ```
 
-4. **Verify setup:**
+5. **Verify setup:**
 ```bash
+# Run tests to verify everything works
+make test
+
+# Or run tests manually
 go test ./eventstore/postgresengine/
+```
+
+### Development Workflow
+
+The project includes a `Makefile` with common development tasks:
+
+```bash
+# Show all available targets
+make help
+
+# Install/update development tools
+make install-tools
+
+# Run tests
+make test                # Run all tests
+make test-verbose        # Run with verbose output
+make test-coverage       # Generate coverage report
+
+# Code quality
+make lint                # Run golangci-lint
+make fmt                 # Format code
+
+# Cleanup
+make clean               # Remove generated files
 ```
 
 ## Project Structure
@@ -241,7 +280,8 @@ go tool trace trace.out
 
 1. **Run all tests:**
 ```bash
-go test ./...
+make test
+# Or: go test ./...
 ```
 
 2. **Run benchmarks:**
@@ -251,13 +291,34 @@ go test -bench=. ./eventstore/postgresengine/
 
 3. **Check formatting:**
 ```bash
-go fmt ./...
+make fmt
+# Or: go fmt ./...
 ```
 
 4. **Run linter:**
 ```bash
-golangci-lint run
+make lint
+# Or: golangci-lint run
 ```
+
+**Advanced linting options:**
+```bash
+# Run with verbose output
+golangci-lint run -v
+
+# Run only specific linters
+golangci-lint run --enable=errcheck,govet,staticcheck
+
+# Auto-fix issues (if supported by the linter)
+golangci-lint run --fix
+```
+
+The project uses a comprehensive `.golangci.yml` configuration with 25+ linters enabled including:
+- **Core quality**: errcheck, govet, staticcheck, unused
+- **Security**: gosec (security analyzer)
+- **Performance**: prealloc, unconvert
+- **Best practices**: goconst, contextcheck, errorlint, sqlclosecheck
+- **Code style**: revive, gocritic, misspell
 
 5. **Update documentation** if needed
 
