@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"database/sql"
 	"log"
 	"time"
@@ -27,7 +28,7 @@ func PostgresSQLDBTestConfig() *sql.DB {
 	db.SetConnMaxIdleTime(defaultMaxConnIdleTime)
 
 	// Test the connection
-	if pingErr := db.Ping(); pingErr != nil {
+	if pingErr := db.PingContext(context.Background()); pingErr != nil {
 		log.Fatal("Failed to ping database, error: ", pingErr)
 	}
 
@@ -53,7 +54,7 @@ func PostgresSQLDBBenchmarkConfig() *sql.DB {
 	db.SetConnMaxIdleTime(defaultMaxConnIdleTime)
 
 	// Test the connection
-	if pingErr := db.Ping(); pingErr != nil {
+	if pingErr := db.PingContext(context.Background()); pingErr != nil {
 		log.Fatal("Failed to ping database, error: ", pingErr)
 	}
 
