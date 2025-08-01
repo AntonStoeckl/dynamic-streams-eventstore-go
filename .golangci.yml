@@ -162,7 +162,7 @@ linters:
     - forcetypeassert # Not always practical
     - gochecknoglobals # Too restrictive
     - gochecknoinits  # Init functions have valid uses
-    - godox          # Don't fail on TODO/FIXME comments
+    - godox          # Don't fail on TO DO/FIX ME comments
     - mnd            # Magic number detection is too pedantic for most cases
     - gomodguard     # Too restrictive for dependencies
     - goprintffuncname # Too pedantic

@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/jmoiron/sqlx"
 
@@ -26,7 +27,10 @@ func (s *SQLXAdapter) Query(ctx context.Context, query string) (DBRows, error) {
 	}
 
 	if rowsErr := rows.Err(); rowsErr != nil {
-		_ = rows.Close()
+		defer func(rows *sql.Rows) {
+			_ = rows.Close()
+		}(rows)
+
 		return nil, eventstore.ErrRowsIterationFailed
 	}
 
