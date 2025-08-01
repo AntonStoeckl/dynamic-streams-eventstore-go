@@ -363,7 +363,6 @@ func generateSomethingHappenedEvents(writers *Writers, numEvents int, fakeClock 
 // generateBookCopyEvents simulates complex book lifecycle events with state tracking.
 // High complexity/length is acceptable for CLI utility that models realistic event patterns.
 //
-//nolint:gocognit,fun
 //nolint:gocognit,funlen
 func generateBookCopyEvents(writers *Writers, numEvents int, fakeClock *time.Time) error {
 	booksInCirculation := make(map[uuid.UUID]bool)
