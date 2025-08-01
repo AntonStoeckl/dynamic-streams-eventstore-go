@@ -22,7 +22,6 @@ func main() {
 // ImportCSVData is a CLI utility function that processes CSV files step-by-step.
 // High statement count is appropriate for command-line data import tools.
 //
-//nolint:fun
 //nolint:funlen
 func ImportCSVData() error {
 	startTime := time.Now()

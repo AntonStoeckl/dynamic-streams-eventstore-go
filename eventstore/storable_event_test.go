@@ -10,7 +10,6 @@ import (
 // Test_BuildStorableEvent_ErrorCases is a comprehensive test covering multiple error scenarios and edge cases.
 // High line count is acceptable for thorough validation of error handling logic.
 //
-//nolint:fun
 //nolint:funlen
 func Test_BuildStorableEvent_ErrorCases(t *testing.T) {
 	validTime := time.Now()

@@ -84,7 +84,6 @@ func main() {
 // GenerateFixtureDataSQL is a CLI utility function with sequential data generation logic.
 // High statement count is appropriate for command-line tools that process data step-by-step.
 //
-//nolint:fun
 //nolint:funlen
 func GenerateFixtureDataSQL() error {
 	startTime := time.Now()
@@ -260,9 +259,9 @@ func generateMetadataUUIDs() {
 	}
 }
 
+func generateRandomMetadata() string {
 	messageID := metadataUUIDs[rand.IntN(len(metadataUUIDs))]     //nolint:gosec
 	causationID := metadataUUIDs[rand.IntN(len(metadataUUIDs))]   //nolint:gosec
-	causationID := metadataUUIDs[rand.IntN(len(metadataUUIDs))] //nolint:gosec
 	correlationID := metadataUUIDs[rand.IntN(len(metadataUUIDs))] //nolint:gosec
 
 	return fmt.Sprintf(`{"MessageID": "%s", "CausationID": "%s", "CorrelationID": "%s"}`,
@@ -362,11 +361,9 @@ func generateSomethingHappenedEvents(writers *Writers, numEvents int, fakeClock 
 }
 
 // generateBookCopyEvents simulates complex book lifecycle events with state tracking.
-ility that models realistic event patterns.
-//
-//nolint:gocognit,funlen
-func generateBookCopy
 // High complexity/length is acceptable for CLI utility that models realistic event patterns.
+//
+//nolint:gocognit,fun
 //nolint:gocognit,funlen
 func generateBookCopyEvents(writers *Writers, numEvents int, fakeClock *time.Time) error {
 	booksInCirculation := make(map[uuid.UUID]bool)
