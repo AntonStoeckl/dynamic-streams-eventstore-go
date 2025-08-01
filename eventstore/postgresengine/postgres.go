@@ -22,7 +22,7 @@ const defaultEventTableName = "events"
 
 type sqlQueryString = string
 
-// Logger interface for SQL query logging, operational metrics, warnings, and error reporting
+// Logger interface for SQL query logging, operational metrics, warnings, and error reporting.
 type Logger interface {
 	Debug(msg string, args ...any)
 	Info(msg string, args ...any)
@@ -36,10 +36,10 @@ type EventStore struct {
 	logger         Logger
 }
 
-// Option defines a functional option for configuring EventStore
+// Option defines a functional option for configuring EventStore.
 type Option func(*EventStore) error
 
-// WithTableName sets the table name for the EventStore
+// WithTableName sets the table name for the EventStore.
 func WithTableName(tableName string) Option {
 	return func(es *EventStore) error {
 		if tableName == "" {
@@ -58,7 +58,7 @@ func WithTableName(tableName string) Option {
 // Debug level: SQL queries with execution timing (development use)
 // Info level: Event counts, durations, concurrency conflicts (production-safe)
 // Warn level: Non-critical issues like cleanup failures
-// Error level: Critical failures that cause operation failures
+// Error level: Critical failures that cause operation failures.
 func WithLogger(logger Logger) Option {
 	return func(es *EventStore) error {
 		es.logger = logger
@@ -75,7 +75,7 @@ type queryResultRow struct {
 	maxSequenceNumber eventstore.MaxSequenceNumberUint
 }
 
-// NewEventStoreFromPGXPool creates a new EventStore using a pgx Pool with optional configuration
+// NewEventStoreFromPGXPool creates a new EventStore using a pgx Pool with optional configuration.
 func NewEventStoreFromPGXPool(db *pgxpool.Pool, options ...Option) (EventStore, error) {
 	if db == nil {
 		return EventStore{}, eventstore.ErrNilDatabaseConnection
@@ -95,7 +95,7 @@ func NewEventStoreFromPGXPool(db *pgxpool.Pool, options ...Option) (EventStore, 
 	return es, nil
 }
 
-// NewEventStoreFromSQLDB creates a new EventStore using a sql.DB with optional configuration
+// NewEventStoreFromSQLDB creates a new EventStore using a sql.DB with optional configuration.
 func NewEventStoreFromSQLDB(db *sql.DB, options ...Option) (EventStore, error) {
 	if db == nil {
 		return EventStore{}, eventstore.ErrNilDatabaseConnection
@@ -115,7 +115,7 @@ func NewEventStoreFromSQLDB(db *sql.DB, options ...Option) (EventStore, error) {
 	return es, nil
 }
 
-// NewEventStoreFromSQLX creates a new EventStore using a sqlx.DB with optional configuration
+// NewEventStoreFromSQLX creates a new EventStore using a sqlx.DB with optional configuration.
 func NewEventStoreFromSQLX(db *sqlx.DB, options ...Option) (EventStore, error) {
 	if db == nil {
 		return EventStore{}, eventstore.ErrNilDatabaseConnection
@@ -461,21 +461,21 @@ func (es EventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.S
 	return selectStmt
 }
 
-// logQueryWithDuration logs SQL queries with execution time at debug level if the logger is configured
+// logQueryWithDuration logs SQL queries with execution time at debug level if the logger is configured.
 func (es EventStore) logQueryWithDuration(sqlQuery string, action string, duration time.Duration) {
 	if es.logger != nil {
 		es.logger.Debug("executed sql for: "+action, "duration_ms", es.durationToMilliseconds(duration), "query", sqlQuery)
 	}
 }
 
-// logOperation logs operational information at info level if the logger is configured
+// logOperation logs operational information at info level if the logger is configured.
 func (es EventStore) logOperation(action string, args ...any) {
 	if es.logger != nil {
 		es.logger.Info("eventstore operation: "+action, args...)
 	}
 }
 
-// durationToMilliseconds converts a time.Duration to float64 milliseconds with 3 decimal places
+// durationToMilliseconds converts a time.Duration to float64 milliseconds with 3 decimal places.
 func (es EventStore) durationToMilliseconds(d time.Duration) float64 {
 	return math.Round(float64(d.Nanoseconds())/1e6*1000) / 1000
 }

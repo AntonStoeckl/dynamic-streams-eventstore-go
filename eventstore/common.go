@@ -14,6 +14,7 @@ var (
 	ErrAppendingEventFailed        = errors.New("appending the event failed")
 	ErrGettingRowsAffectedFailed   = errors.New("getting rows affected failed")
 	ErrBuildingQueryFailed         = errors.New("building the query failed")
+	ErrRowsIterationFailed         = errors.New("database rows iteration failed")
 )
 
 // MaxSequenceNumberUint is a type alias for uint, representing the maximum sequence number for a "dynamic event stream".

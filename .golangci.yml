@@ -1,0 +1,222 @@
+#file: noinspection SpellCheckingInspection,GrazieInspection
+# golangci-lint configuration file
+version: 2
+
+run:
+  # Go version to target
+  go: "1.24"
+  
+  # Timeout for analysis
+  timeout: 5m
+  
+  # Exit code when at least one issue was found
+  issues-exit-code: 1
+  
+  # Include test files in analysis
+  tests: true
+  
+  # Directories to skip
+  skip-dirs:
+    - vendor
+
+linters-settings:
+  # Error check configuration
+  errcheck:
+    # Report about not checking of errors in type assertions: `a := b.(MyStruct)`;
+    check-type-assertions: true
+    # Report about assignment of errors to blank identifier: `num, _ := strconv.Atoi(numStr)`;
+    check-blank: false
+
+  # Cyclomatic complexity
+  gocyclo:
+    # Minimal code complexity to report
+    min-complexity: 15
+
+  # Cognitive complexity
+  gocognit:
+    # Minimal code complexity to report
+    min-complexity: 20
+
+  # Function length
+  funlen:
+    # Maximum number of lines in a function
+    lines: 80
+    # Maximum number of statements in a function
+    statements: 50
+
+  # Line length
+  lll:
+    # Max line length, lines longer will be reported
+    line-length: 130
+
+  # Misspell
+  misspell:
+    # Correct spellings using locale preferences for US or UK
+    locale: US
+
+  # Naming conventions
+  revive:
+    rules:
+      # Disable some overly strict rules
+      - name: exported-return
+        disabled: true
+      - name: unused-parameter
+        disabled: true
+      - name: flag-parameter
+        disabled: true
+      # Keep useful naming rules
+      - name: var-naming
+      - name: package-comments
+      - name: exported
+      - name: var-declaration
+      - name: blank-imports
+
+  # Security checks
+  gosec:
+    # Severity of issues to report
+    severity: medium
+    # Confidence of issues to report
+    confidence: medium
+
+  # Unused code detection
+  unused:
+    # Treat code as a program (not a library) and report unused exported identifiers
+    check-exported: false
+
+  # Go constants
+  goconst:
+    # Minimal length of string constant
+    min-len: 3
+    # Minimum occurrences of constant string count to trigger issue
+    min-occurrences: 3
+
+  # Magic number detection
+  mnd:
+    # List of enabled checks, see https://github.com/tommy-muehle/go-mnd/#checks for description.
+    checks:
+      - argument
+      - case
+      - condition
+      - operation
+      - return
+      - assign
+    # List of numbers to exclude from analysis.
+    ignored-numbers:
+      - '0'
+      - '1'
+      - '2'
+      - '3'
+      - '10'
+      - '100'
+      - '1000'
+
+linters:
+  enable:
+    # Core quality linters (enabled by default)
+    - errcheck       # Check for unchecked errors
+    - govet          # Official Go tool
+    - ineffassign    # Detect ineffectual assignments
+    - staticcheck    # Advanced Go linter
+    - unused         # Find unused code
+    
+    # Code style and quality
+    - misspell       # Find misspelled words
+    - revive         # Replacement for golint
+    - gocritic       # Comprehensive Go source code linter
+    
+    # Complexity analysis
+    - gocyclo        # Cyclomatic complexity
+    - gocognit       # Cognitive complexity
+    - funlen         # Function length
+    
+    # Security
+    - gosec          # Security analyzer
+    
+    # Performance
+    - prealloc       # Find slice declarations that could potentially be pre-allocated
+    - unconvert      # Remove unnecessary type conversions
+    
+    # Best practices
+    - goconst        # Find repeated strings that could be replaced by a constant
+    - nilerr         # Find the code that returns nil even if it checks that the error is not nil
+    - bodyclose      # Checks whether HTTP response body is closed successfully
+    - contextcheck   # Check whether the function uses a non-inherited context
+    - errorlint      # Find code that can cause problems with the error wrapping scheme
+    - makezero       # Find slice declarations with non-zero initial length
+    - noctx          # Detects function and method with missing usage of context.Context
+    - rowserrcheck   # Checks whether Rows.Err of rows is checked successfully
+    - sqlclosecheck  # Checks that sql.Rows, sql.Stmt are closed
+    
+    # Documentation
+    - godot          # Check if comments end in a period
+
+  disable:
+    # Disable overly pedantic linters
+    - asciicheck     # Non-ASCII symbols can be valid
+    - depguard       # Too restrictive for general use
+    - dogsled        # Too pedantic about blank identifiers
+    - dupl           # Too sensitive for duplicated code
+    - exhaustive     # Too strict for enums
+    - exhaustruct    # Too pedantic about struct initialization
+    - forbidigo      # Too restrictive
+    - forcetypeassert # Not always practical
+    - gochecknoglobals # Too restrictive
+    - gochecknoinits  # Init functions have valid uses
+    - godox          # Don't fail on TODO/FIXME comments
+    - mnd            # Magic number detection is too pedantic for most cases
+    - gomodguard     # Too restrictive for dependencies
+    - goprintffuncname # Too pedantic
+    - ireturn        # Interface return types are situational
+    - lll            # Line length can be handled by formatters
+    - maintidx       # Maintainability index is subjective
+    - nakedret       # Naked returns can be acceptable in short functions
+    - nestif         # Nested if complexity, covered by gocognit
+    - nlreturn       # Too pedantic about newlines
+    - nolintlint     # Meta-linting nolint directives is overkill
+    - nonamedreturns # Named returns have their place
+    - paralleltest   # Parallel tests aren't always appropriate
+    - testpackage    # Tests in same package are often preferable
+    - varnamelen     # Variable name length is contextual
+    - wrapcheck      # Error wrapping choice is contextual
+    - whitespace     # Disabled to allow intentional codestyle newlines
+    - wsl            # Whitespace linting is too pedantic
+
+issues:
+  # Maximum issues count per one linter
+  max-issues-per-linter: 0
+  
+  # Maximum count of issues with the same text
+  max-same-issues: 0
+  
+  # Exclude specific issue patterns
+  exclude-rules:
+    # Allow dot imports in test files (common Go testing pattern)
+    - path: "_test\\.go"
+      linters:
+        - revive
+      text: "should not use dot imports"
+    
+    # Allow dot imports in test helper files
+    - path: "testutil/"
+      linters:
+        - revive
+      text: "should not use dot imports"
+    
+    # Allow longer functions in test files
+    - path: "_test\\.go"
+      linters:
+        - funlen
+    
+    # Allow package name repetition in main packages
+    - path: "cmd/"
+      linters:
+        - revive
+      text: "package-comments"
+    
+    # Allow magic numbers in test files
+    - path: "_test\\.go"
+      linters:
+        - mnd
+
+  # Fix found issues (if it's supported by the linter)
+  fix: false

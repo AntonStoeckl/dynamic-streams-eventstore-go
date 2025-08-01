@@ -11,7 +11,7 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
 )
 
-// EventStore defines the interface needed by the CommandHandler for event store operations
+// EventStore defines the interface needed by the CommandHandler for event store operations.
 type EventStore interface {
 	Query(ctx context.Context, filter eventstore.Filter) (
 		eventstore.StorableEvents,
@@ -47,7 +47,7 @@ func NewCommandHandler(eventStore EventStore) CommandHandler {
 //
 // Note: The timingCollector parameter is used for testing and benchmarking purposes only.
 // In production code, this timing collection would typically not exist or be replaced
-// with proper observability/metrics collection.
+// with a proper observability/metrics collection.
 func (h CommandHandler) Handle(ctx context.Context, command Command, timingCollector shell.TimingCollector) error {
 	filter := h.buildEventFilter(command.BookID)
 
@@ -93,7 +93,7 @@ func (h CommandHandler) Handle(ctx context.Context, command Command, timingColle
 	return nil
 }
 
-// buildEventFilter creates the filter for querying all events related to the specified book
+// buildEventFilter creates the filter for querying all events related to the specified book.
 func (h CommandHandler) buildEventFilter(bookID uuid.UUID) eventstore.Filter {
 	return eventstore.BuildEventFilter().
 		Matching().

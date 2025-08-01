@@ -4,13 +4,13 @@ import (
 	"time"
 )
 
-// DomainEvents is a slice of DomainEvent instances
+// DomainEvents is a slice of DomainEvent instances.
 type DomainEvents = []DomainEvent
 
-// DomainEvent represents a business event that has occurred in the domain
+// DomainEvent represents a business event that has occurred in the domain.
 type DomainEvent interface {
-	// EventType returns the string identifier for this event type
+	// EventType returns the string identifier for this event type.
 	EventType() string
-	// HasOccurredAt returns when this event occurred
+	// HasOccurredAt returns when this event occurred.
 	HasOccurredAt() time.Time
 }

@@ -6,10 +6,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// BookCopyAddedToCirculationEventType is the event type identifier
+// BookCopyAddedToCirculationEventType is the event type identifier.
 const BookCopyAddedToCirculationEventType = "BookCopyAddedToCirculation"
 
-// BookCopyAddedToCirculation represents when a book copy is added to library circulation
+// BookCopyAddedToCirculation represents when a book copy is added to library circulation.
 type BookCopyAddedToCirculation struct {
 	BookID          BookIDString
 	ISBN            ISBNString
@@ -21,7 +21,7 @@ type BookCopyAddedToCirculation struct {
 	OccurredAt      OccurredAtTS
 }
 
-// BuildBookCopyAddedToCirculation creates a new BookCopyAddedToCirculation event
+// BuildBookCopyAddedToCirculation creates a new BookCopyAddedToCirculation event.
 func BuildBookCopyAddedToCirculation(
 	bookID uuid.UUID,
 	isbn string,
@@ -47,12 +47,12 @@ func BuildBookCopyAddedToCirculation(
 	return event
 }
 
-// EventType returns the event type identifier
+// EventType returns the event type identifier.
 func (e BookCopyAddedToCirculation) EventType() string {
 	return BookCopyAddedToCirculationEventType
 }
 
-// HasOccurredAt returns when this event occurred
+// HasOccurredAt returns when this event occurred.
 func (e BookCopyAddedToCirculation) HasOccurredAt() time.Time {
 	return e.OccurredAt
 }

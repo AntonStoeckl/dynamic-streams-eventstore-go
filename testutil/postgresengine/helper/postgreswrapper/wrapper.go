@@ -18,20 +18,20 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"
 )
 
-// Engine type constants
+// Engine type constants.
 const (
 	typePGXPool = "pgx.pool"
 	typeSQLDB   = "sql.db"
 	typeSQLXDB  = "sqlx.db"
 )
 
-// Wrapper interface to abstract over different engine types
+// Wrapper interface to abstract over different engine types.
 type Wrapper interface {
 	GetEventStore() postgresengine.EventStore
 	Close()
 }
 
-// PGXPoolWrapper wraps pgxpool-based testing
+// PGXPoolWrapper wraps pgxpool-based testing.
 type PGXPoolWrapper struct {
 	pool *pgxpool.Pool
 	es   postgresengine.EventStore
@@ -45,7 +45,7 @@ func (e *PGXPoolWrapper) Close() {
 	e.pool.Close()
 }
 
-// SQLDBWrapper wraps sql.DB-based testing
+// SQLDBWrapper wraps sql.DB-based testing.
 type SQLDBWrapper struct {
 	db *sql.DB
 	es postgresengine.EventStore
@@ -59,7 +59,7 @@ func (e *SQLDBWrapper) Close() {
 	_ = e.db.Close() // ignore error
 }
 
-// SQLXWrapper wraps sqlx.DB-based testing
+// SQLXWrapper wraps sqlx.DB-based testing.
 type SQLXWrapper struct {
 	db *sqlx.DB
 	es postgresengine.EventStore

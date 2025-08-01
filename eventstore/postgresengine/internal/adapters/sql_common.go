@@ -2,7 +2,7 @@ package adapters
 
 import "database/sql"
 
-// stdRows wraps standard library sql.Rows to implement DBRows interface
+// stdRows wraps standard library sql.Rows to implement DBRows interface.
 type stdRows struct {
 	rows *sql.Rows
 }
@@ -22,7 +22,7 @@ func (s *stdRows) Close() error {
 	return s.rows.Close()
 }
 
-// stdResult wraps standard library sql.Result to implement DBResult interface
+// stdResult wraps standard library sql.Result to implement DBResult interface.
 type stdResult struct {
 	result sql.Result
 }

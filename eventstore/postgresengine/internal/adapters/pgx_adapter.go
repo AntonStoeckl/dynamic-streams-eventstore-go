@@ -8,12 +8,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// PGXAdapter implements DBAdapter for pgxpool.Pool
+// PGXAdapter implements DBAdapter for pgxpool.Pool.
 type PGXAdapter struct {
 	pool *pgxpool.Pool
 }
 
-// NewPGXAdapter creates a new PGX adapter
+// NewPGXAdapter creates a new PGX adapter.
 func NewPGXAdapter(pool *pgxpool.Pool) *PGXAdapter {
 	return &PGXAdapter{pool: pool}
 }

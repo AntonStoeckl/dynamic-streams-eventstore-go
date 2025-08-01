@@ -4,10 +4,10 @@ import (
 	"time"
 )
 
-// SomethingHasHappenedEventTypePrefix is the prefix for dynamic event types
+// SomethingHasHappenedEventTypePrefix is the prefix for dynamic event types.
 const SomethingHasHappenedEventTypePrefix = "SomethingHasHappened"
 
-// SomethingHasHappened represents a generic event with dynamic event type
+// SomethingHasHappened represents a generic event with dynamic event type.
 type SomethingHasHappened struct {
 	ID               string
 	SomeInformation  string
@@ -15,7 +15,7 @@ type SomethingHasHappened struct {
 	DynamicEventType string
 }
 
-// BuildSomethingHasHappened creates a new SomethingHasHappened event with dynamic type
+// BuildSomethingHasHappened creates a new SomethingHasHappened event with dynamic type.
 func BuildSomethingHasHappened(
 	id string,
 	someInformation string,
@@ -31,12 +31,12 @@ func BuildSomethingHasHappened(
 	}
 }
 
-// EventType returns the dynamic event type identifier
+// EventType returns the dynamic event type identifier.
 func (e SomethingHasHappened) EventType() string {
 	return e.DynamicEventType
 }
 
-// HasOccurredAt returns when this event occurred
+// HasOccurredAt returns when this event occurred.
 func (e SomethingHasHappened) HasOccurredAt() time.Time {
 	return e.OccurredAt
 }

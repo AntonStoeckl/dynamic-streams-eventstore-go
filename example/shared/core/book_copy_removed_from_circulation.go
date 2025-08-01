@@ -6,16 +6,16 @@ import (
 	"github.com/google/uuid"
 )
 
-// BookCopyRemovedFromCirculationEventType is the event type identifier
+// BookCopyRemovedFromCirculationEventType is the event type identifier.
 const BookCopyRemovedFromCirculationEventType = "BookCopyRemovedFromCirculation"
 
-// BookCopyRemovedFromCirculation represents when a book copy is removed from library circulation
+// BookCopyRemovedFromCirculation represents when a book copy is removed from library circulation.
 type BookCopyRemovedFromCirculation struct {
 	BookID     BookIDString
 	OccurredAt OccurredAtTS
 }
 
-// BuildBookCopyRemovedFromCirculation creates a new BookCopyRemovedFromCirculation event
+// BuildBookCopyRemovedFromCirculation creates a new BookCopyRemovedFromCirculation event.
 func BuildBookCopyRemovedFromCirculation(bookID uuid.UUID, occurredAt time.Time) DomainEvent {
 	event := BookCopyRemovedFromCirculation{
 		BookID:     bookID.String(),
@@ -25,12 +25,12 @@ func BuildBookCopyRemovedFromCirculation(bookID uuid.UUID, occurredAt time.Time)
 	return event
 }
 
-// EventType returns the event type identifier
+// EventType returns the event type identifier.
 func (e BookCopyRemovedFromCirculation) EventType() string {
 	return BookCopyRemovedFromCirculationEventType
 }
 
-// HasOccurredAt returns when this event occurred
+// HasOccurredAt returns when this event occurred.
 func (e BookCopyRemovedFromCirculation) HasOccurredAt() time.Time {
 	return e.OccurredAt
 }

@@ -1,5 +1,5 @@
 // Package core contains domain events for the example:
-// Book circulation in a public library
+// Book circulation in a public library.
 //
 // This package implements domain events following proper domain-driven design patterns,
 // avoiding CRUD-style antipatterns. Events represent meaningful business occurrences

@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-// TestLogHandler is a slog.Handler implementation that captures log records for testing
+// TestLogHandler is a slog.Handler implementation that captures log records for testing.
 type TestLogHandler struct {
 	records     []slog.Record
 	mu          sync.Mutex
@@ -15,7 +15,7 @@ type TestLogHandler struct {
 }
 
 // NewTestLogHandler creates a new TestLogHandler
-// Switchable to log to stdout, which can be useful for debugging tests by seeing the actual log output
+// Switchable to log to stdout, which can be useful for debugging tests by seeing the actual log output.
 func NewTestLogHandler(logToStdOut bool) *TestLogHandler {
 	return &TestLogHandler{
 		records:     make([]slog.Record, 0),
@@ -23,7 +23,7 @@ func NewTestLogHandler(logToStdOut bool) *TestLogHandler {
 	}
 }
 
-// Handle implements slog.Handler interface
+// Handle implements slog.Handler interface.
 func (h *TestLogHandler) Handle(ctx context.Context, record slog.Record) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -38,24 +38,24 @@ func (h *TestLogHandler) Handle(ctx context.Context, record slog.Record) error {
 	return nil
 }
 
-// Enabled implements slog.Handler interface
+// Enabled implements slog.Handler interface.
 func (h *TestLogHandler) Enabled(_ context.Context, _ slog.Level) bool {
 	return true // Always enabled for testing
 }
 
-// WithAttrs implements slog.Handler interface
+// WithAttrs implements slog.Handler interface.
 func (h *TestLogHandler) WithAttrs(_ []slog.Attr) slog.Handler {
 	// For testing, we don't need to implement this
 	return h
 }
 
-// WithGroup implements slog.Handler interface
+// WithGroup implements slog.Handler interface.
 func (h *TestLogHandler) WithGroup(_ string) slog.Handler {
 	// For testing, we don't need to implement this
 	return h
 }
 
-// GetRecordCount returns the number of captured log records
+// GetRecordCount returns the number of captured log records.
 func (h *TestLogHandler) GetRecordCount() int {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -63,7 +63,7 @@ func (h *TestLogHandler) GetRecordCount() int {
 	return len(h.records)
 }
 
-// GetRecords returns a copy of all captured log records
+// GetRecords returns a copy of all captured log records.
 func (h *TestLogHandler) GetRecords() []slog.Record {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -73,14 +73,14 @@ func (h *TestLogHandler) GetRecords() []slog.Record {
 	return records
 }
 
-// Reset clears all captured log records
+// Reset clears all captured log records.
 func (h *TestLogHandler) Reset() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.records = h.records[:0]
 }
 
-// HasDebugLog checks if there's a debug-level log record containing the specified message
+// HasDebugLog checks if there's a debug-level log record containing the specified message.
 func (h *TestLogHandler) HasDebugLog(message string) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -94,7 +94,7 @@ func (h *TestLogHandler) HasDebugLog(message string) bool {
 }
 
 // HasDebugLogWithDurationNS checks if there is a debug-level log record with the specified message
-// that contains a duration_ns attribute with a non-negative value
+// that contains a duration_ns attribute with a non-negative value.
 func (h *TestLogHandler) HasDebugLogWithDurationNS(message string) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -122,19 +122,19 @@ func (h *TestLogHandler) HasDebugLogWithDurationNS(message string) bool {
 
 // HasDebugLogWithDurationMS checks if there is a debug-level log record with the specified message
 // that contains a duration_ms attribute with a non-negative value
-// Deprecated: Use HasDebugLogWithMessage(msg).WithDurationMS().Assert() instead
+// Deprecated: Use HasDebugLogWithMessage(msg).WithDurationMS().Assert() instead.
 func (h *TestLogHandler) HasDebugLogWithDurationMS(message string) bool {
 	return h.HasDebugLogWithMessage(message).WithDurationMS().Assert()
 }
 
-// LogRecordMatcher provides a fluent interface for checking log record attributes
+// LogRecordMatcher provides a fluent interface for checking log record attributes.
 type LogRecordMatcher struct {
 	handler *TestLogHandler
 	record  *slog.Record
 	found   bool
 }
 
-// HasDebugLogWithMessage starts a fluent chain to check a debug-level log record
+// HasDebugLogWithMessage starts a fluent chain to check a debug-level log record.
 func (h *TestLogHandler) HasDebugLogWithMessage(message string) *LogRecordMatcher {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -152,7 +152,7 @@ func (h *TestLogHandler) HasDebugLogWithMessage(message string) *LogRecordMatche
 	return &LogRecordMatcher{handler: h, found: false}
 }
 
-// HasInfoLogWithMessage starts a fluent chain to check an info-level log record
+// HasInfoLogWithMessage starts a fluent chain to check an info-level log record.
 func (h *TestLogHandler) HasInfoLogWithMessage(message string) *LogRecordMatcher {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -170,7 +170,7 @@ func (h *TestLogHandler) HasInfoLogWithMessage(message string) *LogRecordMatcher
 	return &LogRecordMatcher{handler: h, found: false}
 }
 
-// WithDurationMS checks if the log record has a duration_ms attribute with a non-negative value
+// WithDurationMS checks if the log record has a duration_ms attribute with a non-negative value.
 func (m *LogRecordMatcher) WithDurationMS() *LogRecordMatcher {
 	if !m.found {
 		return m
@@ -208,7 +208,7 @@ func (m *LogRecordMatcher) WithDurationMS() *LogRecordMatcher {
 	return m
 }
 
-// WithEventCount checks if the log record has an event_count attribute with a non-negative value
+// WithEventCount checks if the log record has an event_count attribute with a non-negative value.
 func (m *LogRecordMatcher) WithEventCount() *LogRecordMatcher {
 	if !m.found {
 		return m
@@ -231,7 +231,7 @@ func (m *LogRecordMatcher) WithEventCount() *LogRecordMatcher {
 	return m
 }
 
-// WithExpectedEvents checks if the log record has an expected_events attribute with a non-negative value
+// WithExpectedEvents checks if the log record has an expected_events attribute with a non-negative value.
 func (m *LogRecordMatcher) WithExpectedEvents() *LogRecordMatcher {
 	if !m.found {
 		return m
@@ -254,7 +254,7 @@ func (m *LogRecordMatcher) WithExpectedEvents() *LogRecordMatcher {
 	return m
 }
 
-// WithRowsAffected checks if the log record has a rows_affected attribute with a non-negative value
+// WithRowsAffected checks if the log record has a rows_affected attribute with a non-negative value.
 func (m *LogRecordMatcher) WithRowsAffected() *LogRecordMatcher {
 	if !m.found {
 		return m
@@ -277,7 +277,7 @@ func (m *LogRecordMatcher) WithRowsAffected() *LogRecordMatcher {
 	return m
 }
 
-// WithExpectedSequence checks if the log record has an expected_sequence attribute with a non-negative value
+// WithExpectedSequence checks if the log record has an expected_sequence attribute with a non-negative value.
 func (m *LogRecordMatcher) WithExpectedSequence() *LogRecordMatcher {
 	if !m.found {
 		return m
@@ -313,14 +313,14 @@ func (m *LogRecordMatcher) WithExpectedSequence() *LogRecordMatcher {
 	return m
 }
 
-// Assert returns true if all conditions in the fluent chain were met
+// Assert returns true if all conditions in the fluent chain were met.
 func (m *LogRecordMatcher) Assert() bool {
 	return m.found
 }
 
 // HasInfoLogWithDurationMS checks if there is an info-level log record with the specified message
 // that contains a duration_ms attribute with a non-negative value
-// Deprecated: Use HasInfoLogWithMessage(msg).WithDurationMS().Assert() instead
+// Deprecated: Use HasInfoLogWithMessage(msg).WithDurationMS().Assert() instead.
 func (h *TestLogHandler) HasInfoLogWithDurationMS(message string) bool {
 	return h.HasInfoLogWithMessage(message).WithDurationMS().Assert()
 }

@@ -6,10 +6,12 @@ import (
 	"time"
 )
 
-var ErrInvalidPayloadJSON = errors.New("payload json is not valid")
-var ErrInvalidMetadataJSON = errors.New("metadata json is not valid")
+var (
+	ErrInvalidPayloadJSON  = errors.New("payload json is not valid")
+	ErrInvalidMetadataJSON = errors.New("metadata json is not valid")
+)
 
-// StorableEvents is an alias type for a slice of StorableEvent
+// StorableEvents is an alias type for a slice of StorableEvent.
 type StorableEvents = []StorableEvent
 
 // StorableEvent is a DTO (data transfer object) used by the EventStore to append events and query them back.

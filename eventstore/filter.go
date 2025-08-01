@@ -209,7 +209,7 @@ type CompletedFilterItemBuilderWithOccurredFromToUntil interface {
 	Finalize() Filter
 }
 
-// filterBuilder implements all the interfaces of FilterBuilder
+// filterBuilder implements all the interfaces of FilterBuilder.
 type filterBuilder struct {
 	filter            Filter
 	currentFilterItem FilterItem

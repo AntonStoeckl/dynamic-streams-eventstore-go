@@ -4,14 +4,16 @@ import (
 	"context"
 
 	"github.com/jmoiron/sqlx"
+
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 )
 
-// SQLXAdapter implements DBAdapter for sqlx.DB
+// SQLXAdapter implements DBAdapter for sqlx.DB.
 type SQLXAdapter struct {
 	db *sqlx.DB
 }
 
-// NewSQLXAdapter creates a new SQLX adapter
+// NewSQLXAdapter creates a new SQLX adapter.
 func NewSQLXAdapter(db *sqlx.DB) *SQLXAdapter {
 	return &SQLXAdapter{db: db}
 }
@@ -22,14 +24,21 @@ func (s *SQLXAdapter) Query(ctx context.Context, query string) (DBRows, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if rowsErr := rows.Err(); rowsErr != nil {
+		_ = rows.Close()
+		return nil, eventstore.ErrRowsIterationFailed
+	}
+
 	return &stdRows{rows: rows}, nil
 }
 
-// Exec executes a query using the sqlx.DB and returns wrapped result.
+// Exec executes a query using the sqlx.DB and returns a wrapped result.
 func (s *SQLXAdapter) Exec(ctx context.Context, query string) (DBResult, error) {
 	result, err := s.db.ExecContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
+
 	return &stdResult{result: result}, nil
 }
