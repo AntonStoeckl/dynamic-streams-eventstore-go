@@ -7,7 +7,10 @@ import (
 )
 
 var (
-	ErrInvalidPayloadJSON  = errors.New("payload json is not valid")
+	// ErrInvalidPayloadJSON is returned when payload JSON is malformed or invalid.
+	ErrInvalidPayloadJSON = errors.New("payload json is not valid")
+
+	// ErrInvalidMetadataJSON is returned when metadata JSON is malformed or invalid.
 	ErrInvalidMetadataJSON = errors.New("metadata json is not valid")
 )
 
