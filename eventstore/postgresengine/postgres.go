@@ -20,7 +20,11 @@ import (
 
 const defaultEventTableName = "events"
 
-type sqlQueryString = string
+type (
+	sqlQueryString    = string
+	rowsAffectedInt64 = int64
+	queryDuration     = time.Duration
+)
 
 // Logger interface for SQL query logging, operational metrics, warnings, and error reporting.
 type Logger interface {
@@ -64,7 +68,6 @@ func WithTableName(tableName string) Option {
 func WithLogger(logger Logger) Option {
 	return func(es *EventStore) error {
 		es.logger = logger
-
 		return nil
 	}
 }
@@ -156,6 +159,32 @@ func (es EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 		return empty, 0, buildQueryErr
 	}
 
+	rows, duration, queryErr := es.executeQuery(ctx, sqlQuery)
+	if queryErr != nil {
+		return empty, 0, queryErr
+	}
+	defer es.closeRows(rows)
+
+	eventStream, maxSequenceNumber, scanErr := es.processQueryResults(rows)
+	if scanErr != nil {
+		return empty, 0, scanErr
+	}
+
+	es.logOperation(
+		"query completed",
+		"event_count", len(eventStream),
+		"duration_ms", es.durationToMilliseconds(duration))
+
+	return eventStream, maxSequenceNumber, nil
+}
+
+// executeQuery executes the SQL query and returns rows with timing information.
+func (es EventStore) executeQuery(ctx context.Context, sqlQuery string) (
+	adapters.DBRows,
+	time.Duration,
+	error,
+) {
+
 	start := time.Now()
 	rows, queryErr := es.db.Query(ctx, sqlQuery)
 	duration := time.Since(start)
@@ -165,17 +194,30 @@ func (es EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 		if es.logger != nil {
 			es.logger.Error("database query execution failed", "error", queryErr.Error(), "query", sqlQuery)
 		}
-		return empty, 0, errors.Join(eventstore.ErrQueryingEventsFailed, queryErr)
+
+		return nil, duration, errors.Join(eventstore.ErrQueryingEventsFailed, queryErr)
 	}
 
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			if es.logger != nil {
-				es.logger.Warn("failed to close database rows", "error", closeErr.Error())
-			}
-		}
-	}()
+	return rows, duration, nil
+}
 
+// closeRows safely closes database rows and logs any errors.
+func (es EventStore) closeRows(rows adapters.DBRows) {
+	if closeErr := rows.Close(); closeErr != nil {
+		if es.logger != nil {
+			es.logger.Warn("failed to close database rows", "error", closeErr.Error())
+		}
+	}
+}
+
+// processQueryResults processes database rows and converts them to domain events.
+func (es EventStore) processQueryResults(rows adapters.DBRows) (
+	eventstore.StorableEvents,
+	eventstore.MaxSequenceNumberUint,
+	error,
+) {
+
+	var empty eventstore.StorableEvents
 	result := queryResultRow{}
 	eventStream := make(eventstore.StorableEvents, 0)
 	maxSequenceNumber := eventstore.MaxSequenceNumberUint(0)
@@ -186,29 +228,22 @@ func (es EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 			if es.logger != nil {
 				es.logger.Error("failed to scan database row", "error", rowScanErr.Error())
 			}
+
 			return empty, 0, errors.Join(eventstore.ErrScanningDBRowFailed, rowScanErr)
 		}
 
 		event, buildStorableErr := eventstore.BuildStorableEvent(result.eventType, result.occurredAt, result.payload, result.metadata)
-		eventStream = append(
-			eventStream,
-			event,
-		)
-
 		if buildStorableErr != nil {
 			if es.logger != nil {
 				es.logger.Error("failed to build storable event from database row", "error", buildStorableErr.Error(), "event_type", result.eventType)
 			}
+
 			return empty, 0, errors.Join(eventstore.ErrBuildingStorableEventFailed, buildStorableErr)
 		}
 
+		eventStream = append(eventStream, event)
 		maxSequenceNumber = result.maxSequenceNumber
 	}
-
-	es.logOperation(
-		"query completed",
-		"event_count", len(eventStream),
-		"duration_ms", es.durationToMilliseconds(duration))
 
 	return eventStream, maxSequenceNumber, nil
 }
@@ -232,12 +267,43 @@ func (es EventStore) Append(
 	allEvents := eventstore.StorableEvents{event}
 	allEvents = append(allEvents, additionalEvents...)
 
+	sqlQuery, buildQueryErr := es.buildAppendQuery(allEvents, filter, expectedMaxSequenceNumber)
+	if buildQueryErr != nil {
+		return buildQueryErr
+	}
+
+	rowsAffected, duration, execErr := es.executeAppendQuery(ctx, sqlQuery)
+	if execErr != nil {
+		return execErr
+	}
+
+	if err := es.validateAppendResult(rowsAffected, len(allEvents), expectedMaxSequenceNumber); err != nil {
+		return err
+	}
+
+	es.logOperation(
+		"events appended",
+		"event_count", len(allEvents),
+		"duration_ms", es.durationToMilliseconds(duration),
+	)
+
+	return nil
+}
+
+// buildAppendQuery builds the appropriate SQL query for single or multiple events.
+func (es EventStore) buildAppendQuery(
+	allEvents eventstore.StorableEvents,
+	filter eventstore.Filter,
+	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
+) (sqlQueryString, error) {
+
 	var sqlQuery sqlQueryString
 	var buildQueryErr error
 
 	switch len(allEvents) {
 	case 1:
-		sqlQuery, buildQueryErr = es.buildInsertQueryForSingleEvent(event, filter, expectedMaxSequenceNumber)
+		sqlQuery, buildQueryErr = es.buildInsertQueryForSingleEvent(allEvents[0], filter, expectedMaxSequenceNumber)
+
 	default:
 		sqlQuery, buildQueryErr = es.buildInsertQueryForMultipleEvents(allEvents, filter, expectedMaxSequenceNumber)
 	}
@@ -246,8 +312,19 @@ func (es EventStore) Append(
 		if es.logger != nil {
 			es.logger.Error("failed to build insert query", "error", buildQueryErr.Error(), "event_count", len(allEvents))
 		}
-		return buildQueryErr
+
+		return "", buildQueryErr
 	}
+
+	return sqlQuery, nil
+}
+
+// executeAppendQuery executes the SQL append query and returns rows affected and duration.
+func (es EventStore) executeAppendQuery(ctx context.Context, sqlQuery string) (
+	rowsAffectedInt64,
+	queryDuration,
+	error,
+) {
 
 	start := time.Now()
 	tag, execErr := es.db.Exec(ctx, sqlQuery)
@@ -258,7 +335,8 @@ func (es EventStore) Append(
 		if es.logger != nil {
 			es.logger.Error("database execution failed during event append", "error", execErr.Error(), "query", sqlQuery)
 		}
-		return errors.Join(eventstore.ErrAppendingEventFailed, execErr)
+
+		return 0, duration, errors.Join(eventstore.ErrAppendingEventFailed, execErr)
 	}
 
 	rowsAffected, rowsAffectedErr := tag.RowsAffected()
@@ -266,25 +344,30 @@ func (es EventStore) Append(
 		if es.logger != nil {
 			es.logger.Error("failed to get rows affected count", "error", rowsAffectedErr.Error())
 		}
-		return errors.Join(eventstore.ErrGettingRowsAffectedFailed, rowsAffectedErr)
+
+		return 0, duration, errors.Join(eventstore.ErrGettingRowsAffectedFailed, rowsAffectedErr)
 	}
 
-	if rowsAffected < int64(len(allEvents)) {
+	return rowsAffected, duration, nil
+}
+
+// validateAppendResult checks if the append operation was successful and detects concurrency conflicts.
+func (es EventStore) validateAppendResult(
+	rowsAffected int64,
+	expectedEventCount int,
+	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
+) error {
+
+	if rowsAffected < int64(expectedEventCount) {
 		es.logOperation(
 			"concurrency conflict detected",
-			"expected_events", len(allEvents),
+			"expected_events", expectedEventCount,
 			"rows_affected", rowsAffected,
 			"expected_sequence", expectedMaxSequenceNumber,
 		)
 
 		return eventstore.ErrConcurrencyConflict
 	}
-
-	es.logOperation(
-		"events appended",
-		"event_count", len(allEvents),
-		"duration_ms", es.durationToMilliseconds(duration),
-	)
 
 	return nil
 }
@@ -349,6 +432,7 @@ func (es EventStore) buildInsertQueryForMultipleEvents(
 	filter eventstore.Filter,
 	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
 ) (sqlQueryString, error) {
+
 	builder := goqu.Dialect("postgres")
 
 	// Define the subquery for the CTE
@@ -464,7 +548,12 @@ func (es EventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.S
 }
 
 // logQueryWithDuration logs SQL queries with execution time at debug level if the logger is configured.
-func (es EventStore) logQueryWithDuration(sqlQuery string, action string, duration time.Duration) {
+func (es EventStore) logQueryWithDuration(
+	sqlQuery string,
+	action string,
+	duration time.Duration,
+) {
+
 	if es.logger != nil {
 		es.logger.Debug("executed sql for: "+action, "duration_ms", es.durationToMilliseconds(duration), "query", sqlQuery)
 	}
