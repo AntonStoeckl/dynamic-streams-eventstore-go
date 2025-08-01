@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/doug-martin/goqu/v9"
-	_ "github.com/doug-martin/goqu/v9/dialect/postgres"
+	_ "github.com/doug-martin/goqu/v9/dialect/postgres" // driver import
 	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jmoiron/sqlx"
@@ -30,6 +30,8 @@ type Logger interface {
 	Error(msg string, args ...any)
 }
 
+// EventStore represents a storage mechanism for handling and querying events in an event sourcing implementation.
+// It leverages a database adapter and supports customizable logging and event table configuration.
 type EventStore struct {
 	db             adapters.DBAdapter
 	eventTableName string
@@ -295,9 +297,9 @@ func (es EventStore) buildSelectQuery(filter eventstore.Filter) (sqlQueryString,
 
 	selectStmt = es.addWhereClause(filter, selectStmt)
 
-	sqlQuery, _, toSqlErr := selectStmt.ToSQL()
-	if toSqlErr != nil {
-		return "", errors.Join(eventstore.ErrBuildingQueryFailed, toSqlErr)
+	sqlQuery, _, toSQLErr := selectStmt.ToSQL()
+	if toSQLErr != nil {
+		return "", errors.Join(eventstore.ErrBuildingQueryFailed, toSQLErr)
 	}
 
 	return sqlQuery, nil
@@ -331,12 +333,12 @@ func (es EventStore) buildInsertQueryForSingleEvent(
 		FromQuery(selectStmt).
 		With("context", cteStmt)
 
-	sqlQuery, _, toSqlErr := insertStmt.ToSQL()
-	if toSqlErr != nil {
+	sqlQuery, _, toSQLErr := insertStmt.ToSQL()
+	if toSQLErr != nil {
 		if es.logger != nil {
-			es.logger.Error("failed to convert single event insert statement to SQL", "error", toSqlErr.Error(), "event_type", event.EventType)
+			es.logger.Error("failed to convert single event insert statement to SQL", "error", toSQLErr.Error(), "event_type", event.EventType)
 		}
-		return "", errors.Join(eventstore.ErrBuildingQueryFailed, toSqlErr)
+		return "", errors.Join(eventstore.ErrBuildingQueryFailed, toSQLErr)
 	}
 
 	return sqlQuery, nil
@@ -386,12 +388,12 @@ func (es EventStore) buildInsertQueryForMultipleEvents(
 				Where(goqu.COALESCE(goqu.C("max_seq"), 0).Eq(goqu.V(expectedMaxSequenceNumber))),
 		)
 
-	sqlQuery, _, toSqlErr := insertStmt.ToSQL()
-	if toSqlErr != nil {
+	sqlQuery, _, toSQLErr := insertStmt.ToSQL()
+	if toSQLErr != nil {
 		if es.logger != nil {
-			es.logger.Error("failed to convert multiple events insert statement to SQL", "error", toSqlErr.Error(), "event_count", len(events))
+			es.logger.Error("failed to convert multiple events insert statement to SQL", "error", toSQLErr.Error(), "event_count", len(events))
 		}
-		return "", errors.Join(eventstore.ErrBuildingQueryFailed, toSqlErr)
+		return "", errors.Join(eventstore.ErrBuildingQueryFailed, toSQLErr)
 	}
 
 	return sqlQuery, nil

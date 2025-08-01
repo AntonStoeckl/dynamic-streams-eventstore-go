@@ -37,10 +37,12 @@ type PGXPoolWrapper struct {
 	es   postgresengine.EventStore
 }
 
+// GetEventStore returns the event store instance for the PGX pool wrapper.
 func (e *PGXPoolWrapper) GetEventStore() postgresengine.EventStore {
 	return e.es
 }
 
+// Close closes the underlying PGX pool connection.
 func (e *PGXPoolWrapper) Close() {
 	e.pool.Close()
 }
@@ -51,10 +53,12 @@ type SQLDBWrapper struct {
 	es postgresengine.EventStore
 }
 
+// GetEventStore returns the event store instance for the SQL DB wrapper.
 func (e *SQLDBWrapper) GetEventStore() postgresengine.EventStore {
 	return e.es
 }
 
+// Close closes the underlying SQL DB connection.
 func (e *SQLDBWrapper) Close() {
 	_ = e.db.Close() // ignore error
 }
@@ -65,14 +69,17 @@ type SQLXWrapper struct {
 	es postgresengine.EventStore
 }
 
+// GetEventStore returns the event store instance for the SQLX wrapper.
 func (e *SQLXWrapper) GetEventStore() postgresengine.EventStore {
 	return e.es
 }
 
+// Close closes the underlying SQLX DB connection.
 func (e *SQLXWrapper) Close() {
 	_ = e.db.Close() // ignore error
 }
 
+// TryCreateEventStoreWithTableName attempts to create an event store with custom options to test table name validation.
 func TryCreateEventStoreWithTableName(t testing.TB, options ...postgresengine.Option) error {
 	engineTypeFromEnv := strings.ToLower(os.Getenv("ADAPTER_TYPE"))
 
@@ -111,6 +118,7 @@ func TryCreateEventStoreWithTableName(t testing.TB, options ...postgresengine.Op
 	}
 }
 
+// CreateWrapperWithTestConfig creates a database wrapper configured for testing with the specified options.
 func CreateWrapperWithTestConfig(t testing.TB, options ...postgresengine.Option) Wrapper {
 	engineTypeFromEnv := strings.ToLower(os.Getenv("ADAPTER_TYPE"))
 
@@ -145,6 +153,7 @@ func CreateWrapperWithTestConfig(t testing.TB, options ...postgresengine.Option)
 	}
 }
 
+// CreateWrapperWithBenchmarkConfig creates a database wrapper configured for benchmarking.
 func CreateWrapperWithBenchmarkConfig(t testing.TB) Wrapper {
 	engineTypeFromEnv := strings.ToLower(os.Getenv("ADAPTER_TYPE"))
 
@@ -176,18 +185,21 @@ func CreateWrapperWithBenchmarkConfig(t testing.TB) Wrapper {
 	}
 }
 
+// CleanUp truncates the events table to prepare for the next test.
 func CleanUp(t testing.TB, wrapper Wrapper) {
+	ctx := context.Background()
+
 	switch e := wrapper.(type) {
 	case *PGXPoolWrapper:
-		_, err := e.pool.Exec(context.Background(), "TRUNCATE TABLE events RESTART IDENTITY")
+		_, err := e.pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY")
 		assert.NoError(t, err, "error cleaning up the events table")
 
 	case *SQLDBWrapper:
-		_, err := e.db.Exec("TRUNCATE TABLE events RESTART IDENTITY")
+		_, err := e.db.ExecContext(ctx, "TRUNCATE TABLE events RESTART IDENTITY")
 		assert.NoError(t, err, "error cleaning up the events table")
 
 	case *SQLXWrapper:
-		_, err := e.db.Exec("TRUNCATE TABLE events RESTART IDENTITY")
+		_, err := e.db.ExecContext(ctx, "TRUNCATE TABLE events RESTART IDENTITY")
 		assert.NoError(t, err, "error cleaning up the events table")
 
 	default:
@@ -195,9 +207,12 @@ func CleanUp(t testing.TB, wrapper Wrapper) {
 	}
 }
 
+// GetGreatestOccurredAtTimeFromDB retrieves the maximum occurred_at timestamp from the events table.
 func GetGreatestOccurredAtTimeFromDB(t testing.TB, wrapper Wrapper) time.Time {
 	var greatestOccurredAtTime time.Time
 	var err error
+
+	ctx := context.Background()
 
 	switch e := wrapper.(type) {
 	case *PGXPoolWrapper:
@@ -205,11 +220,11 @@ func GetGreatestOccurredAtTimeFromDB(t testing.TB, wrapper Wrapper) time.Time {
 		err = row.Scan(&greatestOccurredAtTime)
 
 	case *SQLDBWrapper:
-		row := e.db.QueryRow(`select max(occurred_at) from events`)
+		row := e.db.QueryRowContext(ctx, `select max(occurred_at) from events`)
 		err = row.Scan(&greatestOccurredAtTime)
 
 	case *SQLXWrapper:
-		row := e.db.QueryRow(`select max(occurred_at) from events`)
+		row := e.db.QueryRowContext(ctx, `select max(occurred_at) from events`)
 		err = row.Scan(&greatestOccurredAtTime)
 
 	default:
@@ -221,21 +236,24 @@ func GetGreatestOccurredAtTimeFromDB(t testing.TB, wrapper Wrapper) time.Time {
 	return greatestOccurredAtTime
 }
 
+// GetLatestBookIDFromDB retrieves the most recent BookID from the events table payload.
 func GetLatestBookIDFromDB(t testing.TB, wrapper Wrapper) uuid.UUID {
 	var bookID uuid.UUID
 	var err error
 
+	ctx := context.Background()
+
 	switch e := wrapper.(type) {
 	case *PGXPoolWrapper:
-		row := e.pool.QueryRow(context.Background(), `select max(payload->>'BookID') from events`)
+		row := e.pool.QueryRow(ctx, `select max(payload->>'BookID') from events`)
 		err = row.Scan(&bookID)
 
 	case *SQLDBWrapper:
-		row := e.db.QueryRow(`select max(payload->>'BookID') from events`)
+		row := e.db.QueryRowContext(ctx, `select max(payload->>'BookID') from events`)
 		err = row.Scan(&bookID)
 
 	case *SQLXWrapper:
-		row := e.db.QueryRow(`select max(payload->>'BookID') from events`)
+		row := e.db.QueryRowContext(ctx, `select max(payload->>'BookID') from events`)
 		err = row.Scan(&bookID)
 
 	default:
@@ -248,21 +266,24 @@ func GetLatestBookIDFromDB(t testing.TB, wrapper Wrapper) uuid.UUID {
 	return bookID
 }
 
+// GuardThatThereAreEnoughFixtureEventsInStore verifies that the events table contains at least the expected number of events.
 func GuardThatThereAreEnoughFixtureEventsInStore(wrapper Wrapper, expectedNumEvents int) {
 	var cnt int
 	var err error
 
+	ctx := context.Background()
+
 	switch e := wrapper.(type) {
 	case *PGXPoolWrapper:
-		row := e.pool.QueryRow(context.Background(), `SELECT count(*) FROM events`)
+		row := e.pool.QueryRow(ctx, `SELECT count(*) FROM events`)
 		err = row.Scan(&cnt)
 
 	case *SQLDBWrapper:
-		row := e.db.QueryRow(`SELECT count(*) FROM events`)
+		row := e.db.QueryRowContext(ctx, `SELECT count(*) FROM events`)
 		err = row.Scan(&cnt)
 
 	case *SQLXWrapper:
-		row := e.db.QueryRow(`SELECT count(*) FROM events`)
+		row := e.db.QueryRowContext(ctx, `SELECT count(*) FROM events`)
 		err = row.Scan(&cnt)
 
 	default:
@@ -278,12 +299,15 @@ func GuardThatThereAreEnoughFixtureEventsInStore(wrapper Wrapper, expectedNumEve
 	}
 }
 
+// CleanUpBookEvents deletes all events for a specific BookID and returns the number of rows affected.
 func CleanUpBookEvents(wrapper Wrapper, bookID uuid.UUID) (rowsAffected int64, err error) {
-	query := fmt.Sprintf(`DELETE FROM events WHERE payload @> '{"BookID": "%s"}'`, bookID.String())
+	query := fmt.Sprintf(`DELETE FROM events WHERE payload @> '{"BookID": "%s"}'`, bookID.String()) //nolint:gosec
+
+	ctx := context.Background()
 
 	switch e := wrapper.(type) {
 	case *PGXPoolWrapper:
-		cmdTag, execErr := e.pool.Exec(context.Background(), query)
+		cmdTag, execErr := e.pool.Exec(ctx, query)
 		if execErr != nil {
 			return 0, execErr
 		}
@@ -291,7 +315,7 @@ func CleanUpBookEvents(wrapper Wrapper, bookID uuid.UUID) (rowsAffected int64, e
 		return cmdTag.RowsAffected(), nil
 
 	case *SQLDBWrapper:
-		result, execErr := e.db.Exec(query)
+		result, execErr := e.db.ExecContext(ctx, query)
 		if execErr != nil {
 			return 0, execErr
 		}
@@ -299,7 +323,7 @@ func CleanUpBookEvents(wrapper Wrapper, bookID uuid.UUID) (rowsAffected int64, e
 		return result.RowsAffected()
 
 	case *SQLXWrapper:
-		result, execErr := e.db.Exec(query)
+		result, execErr := e.db.ExecContext(ctx, query)
 		if execErr != nil {
 			return 0, execErr
 		}
@@ -311,12 +335,14 @@ func CleanUpBookEvents(wrapper Wrapper, bookID uuid.UUID) (rowsAffected int64, e
 	}
 }
 
+// OptimizeDBWhileBenchmarking runs VACUUM ANALYZE on the events table to optimize performance during benchmarking.
 func OptimizeDBWhileBenchmarking(wrapper Wrapper) error {
 	query := `VACUUM ANALYZE EVENTS`
+	ctx := context.Background()
 
 	switch e := wrapper.(type) {
 	case *PGXPoolWrapper:
-		_, execErr := e.pool.Exec(context.Background(), query)
+		_, execErr := e.pool.Exec(ctx, query)
 		if execErr != nil {
 			return execErr
 		}
@@ -324,7 +350,7 @@ func OptimizeDBWhileBenchmarking(wrapper Wrapper) error {
 		return nil
 
 	case *SQLDBWrapper:
-		_, execErr := e.db.Exec(query)
+		_, execErr := e.db.ExecContext(ctx, query)
 		if execErr != nil {
 			return execErr
 		}
@@ -332,7 +358,7 @@ func OptimizeDBWhileBenchmarking(wrapper Wrapper) error {
 		return nil
 
 	case *SQLXWrapper:
-		_, execErr := e.db.Exec(query)
+		_, execErr := e.db.ExecContext(ctx, query)
 		if execErr != nil {
 			return execErr
 		}
