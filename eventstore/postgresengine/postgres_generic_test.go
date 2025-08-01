@@ -364,3 +364,58 @@ func Test_Generic_Eventstore_WithLogger_LogsConcurrencyConflicts(t *testing.T) {
 			Assert(), "should log concurrency conflict with expected events, rows affected, and expected sequence",
 	)
 }
+
+func Test_Generic_EventStore_WithTableName_ShouldWorkCorrectly(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	customTableName := "events"
+	wrapper := CreateWrapperWithTestConfig(t, WithTableName(customTableName))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	fakeClock := time.Unix(0, 0).UTC()
+
+	// arrange
+	CleanUp(t, wrapper)
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	err := es.Append(
+		ctxWithTimeout,
+		filter,
+		0,
+		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
+	)
+	assert.NoError(t, err)
+
+	// act
+	events, _, queryErr := es.Query(ctxWithTimeout, filter)
+
+	// assert
+	assert.NoError(t, queryErr)
+	assert.Len(t, events, 1)
+}
+
+func Test_Generic_EventStore_WithTableName_ShouldFail_WithNonExistentTable(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	nonExistentTableName := "non_existent_table_xyz"
+	wrapper := CreateWrapperWithTestConfig(t, WithTableName(nonExistentTableName))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	// arrange
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// act
+	_, _, err := es.Query(ctxWithTimeout, filter)
+
+	// assert
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "does not exist")
+}
