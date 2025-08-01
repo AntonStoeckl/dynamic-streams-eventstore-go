@@ -5,65 +5,89 @@ import (
 	"time"
 )
 
-type FilterEventTypeString = string
-type FilterKeyString = string
-type FilterValString = string
+type (
+	// FilterEventTypeString represents an event type identifier used in filter criteria.
+	FilterEventTypeString = string
+
+	// FilterKeyString represents a JSON key used in filter predicate matching.
+	FilterKeyString = string
+
+	// FilterValString represents a JSON value used in filter predicate matching.
+	FilterValString = string
+)
 
 /***** Filter *****/
 
+// Filter represents a complete event filter with FilterItems and optional time boundaries.
+// Multiple FilterItems are combined with OR logic, while predicates within items follow
+// configurable AND/OR logic based on AllPredicatesMustMatch.
 type Filter struct {
 	items         []FilterItem
 	occurredFrom  time.Time
 	occurredUntil time.Time
 }
 
+// Items returns the collection of FilterItems that define the filter criteria.
 func (f Filter) Items() []FilterItem {
 	return f.items
 }
 
+// OccurredFrom returns the lower time boundary for event filtering (inclusive).
 func (f Filter) OccurredFrom() time.Time {
 	return f.occurredFrom
 }
 
+// OccurredUntil returns the upper time boundary for event filtering (inclusive).
 func (f Filter) OccurredUntil() time.Time {
 	return f.occurredUntil
 }
 
 /***** FilterItem *****/
 
+// FilterItem represents a single filter condition combining event types and JSON predicates.
+// Event types are always combined with OR logic, while predicates follow AND / OR logic
+// based on the AllPredicatesMustMatch flag.
 type FilterItem struct {
 	eventTypes             []FilterEventTypeString
 	predicates             []FilterPredicate
 	allPredicatesMustMatch bool
 }
 
+// EventTypes returns the event type identifiers for this filter item.
 func (fi FilterItem) EventTypes() []FilterEventTypeString {
 	return fi.eventTypes
 }
 
+// Predicates returns the JSON predicates for this filter item.
 func (fi FilterItem) Predicates() []FilterPredicate {
 	return fi.predicates
 }
 
+// AllPredicatesMustMatch returns true if all predicates must match (AND logic),
+// false if any predicate can match (OR logic).
 func (fi FilterItem) AllPredicatesMustMatch() bool {
 	return fi.allPredicatesMustMatch
 }
 
 /***** FilterPredicate *****/
 
+// FilterPredicate represents a key-value pair for matching JSON payload fields.
 type FilterPredicate struct {
 	key FilterKeyString
 	val FilterValString
 }
 
+// P creates a new FilterPredicate with the specified key and value.
 func P(key FilterKeyString, val FilterValString) FilterPredicate {
 	return FilterPredicate{key: key, val: val}
 }
 
+// Key returns the JSON key for this predicate.
 func (fp FilterPredicate) Key() FilterKeyString {
 	return fp.key
 }
 
+// Val returns the JSON value for this predicate.
 func (fp FilterPredicate) Val() FilterValString {
 	return fp.val
 }
@@ -91,6 +115,8 @@ type FilterBuilder interface {
 	OccurredUntil(occurredAtUntil time.Time) CompletedFilterItemBuilderWithOccurredUntil
 }
 
+// EmptyFilterItemBuilder represents the initial state when starting a new FilterItem.
+// At this stage, you must add either event types or predicates to proceed.
 type EmptyFilterItemBuilder interface {
 	// AnyEventTypeOf adds one or multiple EventTypes to the current FilterItem.
 	//
@@ -117,6 +143,8 @@ type EmptyFilterItemBuilder interface {
 	AllPredicatesOf(predicate FilterPredicate, predicates ...FilterPredicate) FilterItemBuilderLackingEventTypes
 }
 
+// FilterItemBuilderLackingPredicates represents a FilterItem with event types but no predicates yet.
+// You can optionally add predicates, set time boundaries, add more items, or finalize the filter.
 type FilterItemBuilderLackingPredicates interface {
 	// AndAnyPredicateOf adds one or multiple FilterPredicate(s) to the current FilterItem expecting ANY predicate to match.
 	//
@@ -149,6 +177,8 @@ type FilterItemBuilderLackingPredicates interface {
 	Finalize() Filter
 }
 
+// FilterItemBuilderLackingEventTypes represents a FilterItem with predicates but no event types yet.
+// You can optionally add event types, set time boundaries, add more items, or finalize the filter.
 type FilterItemBuilderLackingEventTypes interface {
 	// AndAnyEventTypeOf adds one or multiple EventTypes to the current FilterItem.
 	//
@@ -173,6 +203,8 @@ type FilterItemBuilderLackingEventTypes interface {
 	Finalize() Filter
 }
 
+// CompletedFilterItemBuilder represents a FilterItem with both event types and predicates.
+// You can set time boundaries, add more items, or finalize the filter.
 type CompletedFilterItemBuilder interface {
 	// OccurredFrom sets the lower boundary for occurredAt (including this timestamp) for the whole Filter.
 	OccurredFrom(occurredAtFrom time.Time) CompletedFilterItemBuilderWithOccurredFrom
@@ -189,6 +221,8 @@ type CompletedFilterItemBuilder interface {
 	Finalize() Filter
 }
 
+// CompletedFilterItemBuilderWithOccurredFrom represents a completed FilterItem with a lower time boundary set.
+// You can optionally add an upper time boundary or finalize the filter.
 type CompletedFilterItemBuilderWithOccurredFrom interface {
 	// AndOccurredUntil sets the upper boundary for occurredAt (including this timestamp) for the whole Filter.
 	//
@@ -199,17 +233,22 @@ type CompletedFilterItemBuilderWithOccurredFrom interface {
 	Finalize() Filter
 }
 
+// CompletedFilterItemBuilderWithOccurredUntil represents a completed FilterItem with an upper time boundary set.
+// You can only finalize the filter at this stage.
 type CompletedFilterItemBuilderWithOccurredUntil interface {
 	// Finalize returns the Filter once it has at least one FilterItem with at least one EventType OR one Predicate.
 	Finalize() Filter
 }
 
+// CompletedFilterItemBuilderWithOccurredFromToUntil represents a completed FilterItem with both time boundaries set.
+// You can only finalize the filter at this stage.
 type CompletedFilterItemBuilderWithOccurredFromToUntil interface {
 	// Finalize returns the Filter once it has at least one FilterItem with at least one EventType OR one Predicate.
 	Finalize() Filter
 }
 
-// filterBuilder implements all the interfaces of FilterBuilder.
+// filterBuilder implements all the interfaces of FilterBuilder and provides the concrete
+// implementation for building event filters through a fluent interface.
 type filterBuilder struct {
 	filter            Filter
 	currentFilterItem FilterItem
@@ -261,6 +300,7 @@ func (fb filterBuilder) AndAnyEventTypeOf(
 	return fb.AnyEventTypeOf(eventType, eventTypes...)
 }
 
+// sanitizeEventTypes removes empty strings, sorts, and removes duplicates from event types.
 func (fb filterBuilder) sanitizeEventTypes(
 	eventType FilterEventTypeString,
 	eventTypes ...FilterEventTypeString,
@@ -347,6 +387,7 @@ func (fb filterBuilder) AndAllPredicatesOf(
 	return fb.AllPredicatesOf(predicate, predicates...)
 }
 
+// sanitizePredicates removes empty predicates, sorts by key, and removes duplicates.
 func (fb filterBuilder) sanitizePredicates(
 	predicate FilterPredicate,
 	predicates ...FilterPredicate,
