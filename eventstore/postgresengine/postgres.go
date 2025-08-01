@@ -45,6 +45,18 @@ const (
 	logAttrExpectedSequence        = "expected_sequence"
 	logActionQuery                 = "query"
 	logActionAppend                = "append"
+	colEventType                   = "event_type"
+	colOccurredAt                  = "occurred_at"
+	colPayload                     = "payload"
+	colMetadata                    = "metadata"
+	colSequenceNumber              = "sequence_number"
+	cteContext                     = "context"
+	cteVals                        = "vals"
+	dialectPostgres                = "postgres"
+	aliasMaxSeq                    = "max_seq"
+	castText                       = "?::text"
+	castTimestamp                  = "?::timestamp with time zone"
+	castJsonb                      = "?::jsonb"
 )
 
 type (
@@ -400,10 +412,10 @@ func (es EventStore) validateAppendResult(
 }
 
 func (es EventStore) buildSelectQuery(filter eventstore.Filter) (sqlQueryString, error) {
-	selectStmt := goqu.Dialect("postgres").
+	selectStmt := goqu.Dialect(dialectPostgres).
 		From(es.eventTableName).
-		Select("event_type", "occurred_at", "payload", "metadata", "sequence_number").
-		Order(goqu.I("sequence_number").Asc())
+		Select(colEventType, colOccurredAt, colPayload, colMetadata, colSequenceNumber).
+		Order(goqu.I(colSequenceNumber).Asc())
 
 	selectStmt = es.addWhereClause(filter, selectStmt)
 
@@ -421,27 +433,27 @@ func (es EventStore) buildInsertQueryForSingleEvent(
 	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
 ) (sqlQueryString, error) {
 
-	builder := goqu.Dialect("postgres")
+	builder := goqu.Dialect(dialectPostgres)
 
 	// Define the subquery for the CTE
 	cteStmt := builder.
 		From(es.eventTableName).
-		Select(goqu.MAX("sequence_number").As("max_seq"))
+		Select(goqu.MAX(colSequenceNumber).As(aliasMaxSeq))
 
 	cteStmt = es.addWhereClause(filter, cteStmt)
 
 	// Define the SELECT for the INSERT
 	selectStmt := builder.
-		From("context").
+		From(cteContext).
 		Select(goqu.V(event.EventType), goqu.V(event.OccurredAt), goqu.V(event.PayloadJSON), goqu.V(event.MetadataJSON)).
-		Where(goqu.COALESCE(goqu.C("max_seq"), 0).Eq(goqu.V(expectedMaxSequenceNumber)))
+		Where(goqu.COALESCE(goqu.C(aliasMaxSeq), 0).Eq(goqu.V(expectedMaxSequenceNumber)))
 
 	// Finalize the full INSERT query
 	insertStmt := builder.
 		Insert(es.eventTableName).
-		Cols("event_type", "occurred_at", "payload", "metadata").
+		Cols(colEventType, colOccurredAt, colPayload, colMetadata).
 		FromQuery(selectStmt).
-		With("context", cteStmt)
+		With(cteContext, cteStmt)
 
 	sqlQuery, _, toSQLErr := insertStmt.ToSQL()
 	if toSQLErr != nil {
@@ -460,12 +472,12 @@ func (es EventStore) buildInsertQueryForMultipleEvents(
 	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
 ) (sqlQueryString, error) {
 
-	builder := goqu.Dialect("postgres")
+	builder := goqu.Dialect(dialectPostgres)
 
 	// Define the subquery for the CTE
 	cteStmt := builder.
 		From(es.eventTableName).
-		Select(goqu.MAX("sequence_number").As("max_seq"))
+		Select(goqu.MAX(colSequenceNumber).As(aliasMaxSeq))
 
 	cteStmt = es.addWhereClause(filter, cteStmt)
 
@@ -474,10 +486,10 @@ func (es EventStore) buildInsertQueryForMultipleEvents(
 	for i, event := range events {
 		unionStatements[i] = builder.
 			Select(
-				goqu.L("?::text", event.EventType).As("event_type"),
-				goqu.L("?::timestamp with time zone", event.OccurredAt).As("occurred_at"),
-				goqu.L("?::jsonb", event.PayloadJSON).As("payload"),
-				goqu.L("?::jsonb", event.MetadataJSON).As("metadata"),
+				goqu.L(castText, event.EventType).As(colEventType),
+				goqu.L(castTimestamp, event.OccurredAt).As(colOccurredAt),
+				goqu.L(castJsonb, event.PayloadJSON).As(colPayload),
+				goqu.L(castJsonb, event.MetadataJSON).As(colMetadata),
 			)
 	}
 
@@ -488,15 +500,20 @@ func (es EventStore) buildInsertQueryForMultipleEvents(
 	}
 
 	// Finalize the full INSERT query
+	valsEventType := fmt.Sprintf("%s.%s", cteVals, colEventType)
+	valsOccurredAt := fmt.Sprintf("%s.%s", cteVals, colOccurredAt)
+	valsPayload := fmt.Sprintf("%s.%s", cteVals, colPayload)
+	valsMetadata := fmt.Sprintf("%s.%s", cteVals, colMetadata)
+
 	insertStmt := builder.
 		Insert(es.eventTableName).
-		Cols("event_type", "occurred_at", "payload", "metadata").
-		With("context", cteStmt).
-		With("vals", valuesStmt).
+		Cols(colEventType, colOccurredAt, colPayload, colMetadata).
+		With(cteContext, cteStmt).
+		With(cteVals, valuesStmt).
 		FromQuery(
-			builder.From("context", "vals").
-				Select("vals.event_type", "vals.occurred_at", "vals.payload", "vals.metadata").
-				Where(goqu.COALESCE(goqu.C("max_seq"), 0).Eq(goqu.V(expectedMaxSequenceNumber))),
+			builder.From(cteContext, cteVals).
+				Select(valsEventType, valsOccurredAt, valsPayload, valsMetadata).
+				Where(goqu.COALESCE(goqu.C(aliasMaxSeq), 0).Eq(goqu.V(expectedMaxSequenceNumber))),
 		)
 
 	sqlQuery, _, toSQLErr := insertStmt.ToSQL()
@@ -520,7 +537,7 @@ func (es EventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.S
 		for _, eventType := range item.EventTypes() {
 			eventTypeExpressions = append(
 				eventTypeExpressions,
-				goqu.Ex{"event_type": eventType},
+				goqu.Ex{colEventType: eventType},
 			)
 		}
 
@@ -530,7 +547,7 @@ func (es EventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.S
 		for _, predicate := range item.Predicates() {
 			predicateExpressions = append(
 				predicateExpressions,
-				goqu.L(fmt.Sprintf(`payload @> '{"%s": "%s"}'`, predicate.Key(), predicate.Val())),
+				goqu.L(fmt.Sprintf(`%s @> '{"%s": "%s"}'`, colPayload, predicate.Key(), predicate.Val())),
 			)
 		}
 
@@ -553,14 +570,14 @@ func (es EventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.S
 	if !filter.OccurredFrom().IsZero() {
 		occurredAtExpressions = append(
 			occurredAtExpressions,
-			goqu.C("occurred_at").Gte(filter.OccurredFrom()),
+			goqu.C(colOccurredAt).Gte(filter.OccurredFrom()),
 		)
 	}
 
 	if !filter.OccurredUntil().IsZero() {
 		occurredAtExpressions = append(
 			occurredAtExpressions,
-			goqu.C("occurred_at").Lte(filter.OccurredUntil()),
+			goqu.C(colOccurredAt).Lte(filter.OccurredUntil()),
 		)
 	}
 
