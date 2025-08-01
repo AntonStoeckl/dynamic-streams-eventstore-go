@@ -146,7 +146,7 @@ func Test_Generic_FactoryFunctions_ShouldFail_WithEmptyTableName(t *testing.T) {
 	}
 }
 
-func Test_Generic_Eventstore_WithSQLQueryLogger_LogsQueries(t *testing.T) {
+func Test_Generic_Eventstore_WithLogger_LogsQueries(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -154,7 +154,7 @@ func Test_Generic_Eventstore_WithSQLQueryLogger_LogsQueries(t *testing.T) {
 	testHandler := NewTestLogHandler(false)
 	logger := slog.New(testHandler)
 
-	wrapper := CreateWrapperWithTestConfig(t, WithSQLQueryLogger(logger))
+	wrapper := CreateWrapperWithTestConfig(t, WithLogger(logger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -168,16 +168,22 @@ func Test_Generic_Eventstore_WithSQLQueryLogger_LogsQueries(t *testing.T) {
 
 	// assert
 	assert.NoError(t, err)
-	assert.Equal(t, 1, testHandler.GetRecordCount(), "query should log exactly one SQL statement")
+	assert.Equal(t, 2, testHandler.GetRecordCount(), "query should log exactly one SQL statement and one operational statement")
 	assert.True(t, testHandler.HasDebugLog("executed sql for: query"), "should log with correct message")
 	assert.True(t,
 		testHandler.HasDebugLogWithMessage("executed sql for: query").
 			WithDurationMS().
 			Assert(), "should log with duration_ms attribute",
 	)
+	assert.True(t,
+		testHandler.HasInfoLogWithMessage("eventstore operation: query completed").
+			WithDurationMS().
+			WithEventCount().
+			Assert(), "should log query completion with duration and event count",
+	)
 }
 
-func Test_Generic_Eventstore_WithSQLQueryLogger_LogsAppends(t *testing.T) {
+func Test_Generic_Eventstore_WithLogger_LogsAppends(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -185,7 +191,7 @@ func Test_Generic_Eventstore_WithSQLQueryLogger_LogsAppends(t *testing.T) {
 	testHandler := NewTestLogHandler(false)
 	logger := slog.New(testHandler)
 
-	wrapper := CreateWrapperWithTestConfig(t, WithSQLQueryLogger(logger))
+	wrapper := CreateWrapperWithTestConfig(t, WithLogger(logger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -206,7 +212,7 @@ func Test_Generic_Eventstore_WithSQLQueryLogger_LogsAppends(t *testing.T) {
 
 	// assert
 	assert.NoError(t, err)
-	assert.Equal(t, 2, testHandler.GetRecordCount(), "query and append should log exactly one sql statement each")
+	assert.Equal(t, 4, testHandler.GetRecordCount(), "query and append should log exactly one sql statement and one operational statement each")
 	assert.True(t, testHandler.HasDebugLog("executed sql for: query"), "Should log with correct message")
 	assert.True(t, testHandler.HasDebugLog("executed sql for: append"), "Should log with correct message")
 	assert.True(t,
@@ -219,69 +225,6 @@ func Test_Generic_Eventstore_WithSQLQueryLogger_LogsAppends(t *testing.T) {
 			WithDurationMS().
 			Assert(), "Should log append with duration_ms attribute",
 	)
-}
-
-func Test_Generic_Eventstore_WithOpsLogger_LogsQueries(t *testing.T) {
-	// setup
-	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	testHandler := NewTestLogHandler(false)
-	logger := slog.New(testHandler)
-
-	wrapper := CreateWrapperWithTestConfig(t, WithOpsLogger(logger))
-	defer wrapper.Close()
-	es := wrapper.GetEventStore()
-
-	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
-
-	// act
-	_, _, err := es.Query(ctxWithTimeout, filter)
-
-	// assert
-	assert.NoError(t, err)
-	assert.Equal(t, 1, testHandler.GetRecordCount(), "query should log exactly one operational statement")
-	assert.True(t,
-		testHandler.HasInfoLogWithMessage("eventstore operation: query completed").
-			WithDurationMS().
-			WithEventCount().
-			Assert(), "should log query completion with duration and event count",
-	)
-}
-
-func Test_Generic_Eventstore_WithOpsLogger_LogsAppends(t *testing.T) {
-	// setup
-	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	testHandler := NewTestLogHandler(false)
-	logger := slog.New(testHandler)
-
-	wrapper := CreateWrapperWithTestConfig(t, WithOpsLogger(logger))
-	defer wrapper.Close()
-	es := wrapper.GetEventStore()
-
-	fakeClock := time.Unix(0, 0).UTC()
-
-	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
-
-	// act
-	err := es.Append(
-		ctxWithTimeout,
-		filter,
-		QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
-		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
-	)
-
-	// assert
-	assert.NoError(t, err)
-	assert.Equal(t, 2, testHandler.GetRecordCount(), "query and append should log exactly one operational statement each")
 	assert.True(t,
 		testHandler.HasInfoLogWithMessage("eventstore operation: query completed").
 			WithDurationMS().
@@ -296,7 +239,7 @@ func Test_Generic_Eventstore_WithOpsLogger_LogsAppends(t *testing.T) {
 	)
 }
 
-func Test_Generic_Eventstore_WithOpsLogger_LogsConcurrencyConflicts(t *testing.T) {
+func Test_Generic_Eventstore_WithLogger_LogsOperations(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -304,7 +247,82 @@ func Test_Generic_Eventstore_WithOpsLogger_LogsConcurrencyConflicts(t *testing.T
 	testHandler := NewTestLogHandler(false)
 	logger := slog.New(testHandler)
 
-	wrapper := CreateWrapperWithTestConfig(t, WithOpsLogger(logger))
+	wrapper := CreateWrapperWithTestConfig(t, WithLogger(logger))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	// arrange
+	CleanUp(t, wrapper)
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// act
+	_, _, err := es.Query(ctxWithTimeout, filter)
+
+	// assert
+	assert.NoError(t, err)
+	assert.Equal(t, 2, testHandler.GetRecordCount(), "query should log exactly one sql statement and one operational statement")
+	assert.True(t,
+		testHandler.HasInfoLogWithMessage("eventstore operation: query completed").
+			WithDurationMS().
+			WithEventCount().
+			Assert(), "should log query completion with duration and event count",
+	)
+}
+
+func Test_Generic_Eventstore_WithLogger_LogsAppendOperations(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	testHandler := NewTestLogHandler(false)
+	logger := slog.New(testHandler)
+
+	wrapper := CreateWrapperWithTestConfig(t, WithLogger(logger))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	fakeClock := time.Unix(0, 0).UTC()
+
+	// arrange
+	CleanUp(t, wrapper)
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// act
+	err := es.Append(
+		ctxWithTimeout,
+		filter,
+		QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
+		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
+	)
+
+	// assert
+	assert.NoError(t, err)
+	assert.Equal(t, 4, testHandler.GetRecordCount(), "query and append should log exactly one sql statement and one operational statement each")
+	assert.True(t,
+		testHandler.HasInfoLogWithMessage("eventstore operation: query completed").
+			WithDurationMS().
+			WithEventCount().
+			Assert(), "Should log query completion with duration and event count",
+	)
+	assert.True(t,
+		testHandler.HasInfoLogWithMessage("eventstore operation: events appended").
+			WithDurationMS().
+			WithEventCount().
+			Assert(), "Should log append completion with duration and event count",
+	)
+}
+
+func Test_Generic_Eventstore_WithLogger_LogsConcurrencyConflicts(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	testHandler := NewTestLogHandler(false)
+	logger := slog.New(testHandler)
+
+	wrapper := CreateWrapperWithTestConfig(t, WithLogger(logger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -337,7 +355,7 @@ func Test_Generic_Eventstore_WithOpsLogger_LogsConcurrencyConflicts(t *testing.T
 
 	// assert
 	assert.ErrorContains(t, err, ErrConcurrencyConflict.Error())
-	assert.Equal(t, 1, testHandler.GetRecordCount(), "should log exactly one operational statement for query")
+	assert.Equal(t, 2, testHandler.GetRecordCount(), "should log exactly one sql statement and one operational statement for query")
 	assert.True(t,
 		testHandler.HasInfoLogWithMessage("eventstore operation: concurrency conflict detected").
 			WithExpectedEvents().

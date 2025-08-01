@@ -31,8 +31,7 @@ type Logger interface {
 type EventStore struct {
 	db             adapters.DBAdapter
 	eventTableName string
-	sqlQueryLogger Logger
-	opsLogger      Logger
+	logger         Logger
 }
 
 // Option defines a functional option for configuring EventStore
@@ -51,19 +50,15 @@ func WithTableName(tableName string) Option {
 	}
 }
 
-// WithSQLQueryLogger sets the opsLogger for the EventStore
-func WithSQLQueryLogger(logger Logger) Option {
+// WithLogger sets the logger for the EventStore.
+// The logger will receive both SQL query debugging (Debug level) and
+// operational metrics (Info level) based on the logger's configured level.
+//
+// Debug level: SQL queries with execution timing (development use)
+// Info level: Event counts, durations, concurrency conflicts (production-safe)
+func WithLogger(logger Logger) Option {
 	return func(es *EventStore) error {
-		es.sqlQueryLogger = logger
-
-		return nil
-	}
-}
-
-// WithOpsLogger sets the general opsLogger for the EventStore
-func WithOpsLogger(logger Logger) Option {
-	return func(es *EventStore) error {
-		es.opsLogger = logger
+		es.logger = logger
 
 		return nil
 	}
@@ -434,17 +429,17 @@ func (es EventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.S
 	return selectStmt
 }
 
-// logQueryWithDuration logs SQL queries with execution time at debug level if sqlQueryLogger is configured
+// logQueryWithDuration logs SQL queries with execution time at debug level if the logger is configured
 func (es EventStore) logQueryWithDuration(sqlQuery string, action string, duration time.Duration) {
-	if es.sqlQueryLogger != nil {
-		es.sqlQueryLogger.Debug("executed sql for: "+action, "duration_ms", es.durationToMilliseconds(duration), "query", sqlQuery)
+	if es.logger != nil {
+		es.logger.Debug("executed sql for: "+action, "duration_ms", es.durationToMilliseconds(duration), "query", sqlQuery)
 	}
 }
 
-// logOperation logs operational information at info level if the opsLogger is configured
+// logOperation logs operational information at info level if the logger is configured
 func (es EventStore) logOperation(action string, args ...any) {
-	if es.opsLogger != nil {
-		es.opsLogger.Info("eventstore operation: "+action, args...)
+	if es.logger != nil {
+		es.logger.Info("eventstore operation: "+action, args...)
 	}
 }
 

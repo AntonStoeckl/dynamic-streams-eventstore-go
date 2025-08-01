@@ -20,8 +20,7 @@ func NewEventStoreFromSQLX(db *sqlx.DB, options ...Option) (EventStore, error)
 type Option func(*EventStore) error
 
 func WithTableName(tableName string) Option
-func WithSQLQueryLogger(logger Logger) Option
-func WithOpsLogger(logger Logger) Option
+func WithLogger(logger Logger) Option
 
 // Logger interface for both SQL query and operational logging
 type Logger interface {
@@ -77,37 +76,32 @@ if err != nil {
 }
 ```
 
-**Using loggers for debugging and monitoring:**
+**Using logger for debugging and monitoring:**
 
-The EventStore supports two types of logging:
-- **SQL Query Logger** (`WithSQLQueryLogger`): Debug-level logging of SQL queries with execution timing - for development and debugging
-- **Operations Logger** (`WithOpsLogger`): Info-level logging of operational metrics - production-safe monitoring
+The EventStore supports unified logging through a single logger that handles both SQL query debugging and operational monitoring:
+- **Debug level**: SQL queries with execution timing (for development and debugging)
+- **Info level**: Operational metrics like event counts and durations (production-safe)
 
 ```go
 import "log/slog"
 
-// Create loggers for different purposes
+// Create logger with appropriate level for your environment
+// Development: Debug level to see SQL queries
 debugLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+// Production: Info level for operational metrics only
 opsLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
-// Development setup: Both SQL query debugging and operational logging
+// Development setup: See both SQL queries (debug) and operations (info)
 eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool, 
-    postgresengine.WithSQLQueryLogger(debugLogger),
-    postgresengine.WithOpsLogger(opsLogger))
+    postgresengine.WithLogger(debugLogger))
 if err != nil {
     return err
 }
 
-// Production setup: Only operational logging (production-safe)
+// Production setup: See only operational metrics (info level)
 eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
-    postgresengine.WithOpsLogger(opsLogger))
-if err != nil {
-    return err
-}
-
-// Debug setup: Only SQL query logging for development
-eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
-    postgresengine.WithSQLQueryLogger(debugLogger))
+    postgresengine.WithLogger(opsLogger))
 if err != nil {
     return err
 }
@@ -115,8 +109,7 @@ if err != nil {
 // Full configuration with all options
 eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
     postgresengine.WithTableName("my_events"),
-    postgresengine.WithSQLQueryLogger(debugLogger),
-    postgresengine.WithOpsLogger(opsLogger))
+    postgresengine.WithLogger(debugLogger))
 if err != nil {
     return err
 }
@@ -124,13 +117,15 @@ if err != nil {
 
 **Example logging output:**
 
-SQL Query Logger (DEBUG level):
+With debug-level logger (shows both debug and info messages):
 ```
 time=2024-01-01T12:00:00.000Z level=DEBUG msg="executed sql for: query" duration_ms=0.123 query="SELECT ..."
+time=2024-01-01T12:00:00.000Z level=INFO msg="eventstore operation: query completed" event_count=5 duration_ms=0.123
 time=2024-01-01T12:00:01.000Z level=DEBUG msg="executed sql for: append" duration_ms=2.456 query="INSERT ..."
+time=2024-01-01T12:00:01.000Z level=INFO msg="eventstore operation: events appended" event_count=1 duration_ms=2.456
 ```
 
-Operations Logger (INFO level):
+With info-level logger (shows only operational metrics):
 ```
 time=2024-01-01T12:00:00.000Z level=INFO msg="eventstore operation: query completed" event_count=5 duration_ms=0.123
 time=2024-01-01T12:00:01.000Z level=INFO msg="eventstore operation: events appended" event_count=1 duration_ms=2.456

@@ -108,63 +108,61 @@ if err != nil {
 
 #### Optional Logging
 
-The EventStore supports two types of logging for different use cases:
+The EventStore supports unified logging through a single logger that handles both SQL debugging and operational monitoring:
 
-##### SQL Query Logging (Development)
-For debugging SQL queries during development, you can enable debug-level SQL query logging:
+##### Development Logging (Debug Level)
+For debugging during development, use a debug-level logger to see both SQL queries and operational metrics:
 
 ```go
 import "log/slog"
 
-// Create a debug logger for SQL queries
+// Create a debug logger to see SQL queries and operational metrics
 debugLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-// Enable SQL query logging
+// Enable comprehensive logging for development
 eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool, 
-    postgresengine.WithSQLQueryLogger(debugLogger))
+    postgresengine.WithLogger(debugLogger))
 if err != nil {
     log.Fatal(err)
 }
 ```
 
-##### Operational Logging (Production)
-For production monitoring, you can enable info-level operational logging that provides insights without exposing sensitive SQL:
+##### Production Logging (Info Level)
+For production monitoring, use an info-level logger to see only operational metrics without exposing sensitive SQL:
 
 ```go
 import "log/slog"
 
-// Create an info logger for operational metrics
+// Create an info logger for production-safe operational metrics
 opsLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
-// Enable operational logging
+// Enable operational logging for production
 eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool, 
-    postgresengine.WithOpsLogger(opsLogger))
+    postgresengine.WithLogger(opsLogger))
 if err != nil {
     log.Fatal(err)
 }
 ```
 
-##### Using Both Loggers
-For comprehensive monitoring during development:
+##### Full Configuration
+Combining custom table name with logging:
 
 ```go
-// Create separate loggers for different purposes
+// Create logger appropriate for your environment
 debugLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
-opsLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
-// Use both loggers with other options
+// Use logger with other options
 eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
     postgresengine.WithTableName("my_events"),
-    postgresengine.WithSQLQueryLogger(debugLogger),
-    postgresengine.WithOpsLogger(opsLogger))
+    postgresengine.WithLogger(debugLogger))
 if err != nil {
     log.Fatal(err)
 }
 ```
 
 **What gets logged:**
-- **SQL Query Logger**: Full SQL queries with execution timing (sensitive, debug-only)
-- **Operations Logger**: Event counts, sequence numbers, durations, concurrency conflicts (production-safe)
+- **Debug level**: Full SQL queries with execution timing (sensitive, development only)
+- **Info level**: Event counts, sequence numbers, durations, concurrency conflicts (production-safe)
 
 ### 3. Define Your Domain Events
 
