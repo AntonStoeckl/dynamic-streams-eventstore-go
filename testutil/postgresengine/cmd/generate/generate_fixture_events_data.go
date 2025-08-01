@@ -205,10 +205,7 @@ func closeWriters(writers *Writers) {
 		writers.csvWriter.Flush()
 	}
 	if writers.sqlFile != nil {
-		closeErr := writers.sqlFile.Close()
-		if closeErr != nil {
-			// Handle close error if needed
-		}
+		_ = writers.sqlFile.Close() // File close in cleanup - error doesn't affect generation
 	}
 }
 

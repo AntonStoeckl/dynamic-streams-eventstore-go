@@ -22,10 +22,12 @@ type Option func(*EventStore) error
 func WithTableName(tableName string) Option
 func WithLogger(logger Logger) Option
 
-// Logger interface for both SQL query and operational logging
+// Logger interface for SQL query logging, operational metrics, warnings, and error reporting
 type Logger interface {
     Debug(msg string, args ...any)
     Info(msg string, args ...any)
+    Warn(msg string, args ...any)
+    Error(msg string, args ...any)
 }
 ```
 
@@ -78,9 +80,11 @@ if err != nil {
 
 **Using logger for debugging and monitoring:**
 
-The EventStore supports unified logging through a single logger that handles both SQL query debugging and operational monitoring:
+The EventStore supports unified logging through a single logger that handles SQL debugging, operational monitoring, warnings, and error reporting:
 - **Debug level**: SQL queries with execution timing (for development and debugging)
 - **Info level**: Operational metrics like event counts and durations (production-safe)
+- **Warn level**: Non-critical issues like cleanup failures
+- **Error level**: Critical failures that cause operation failures
 
 ```go
 import "log/slog"
@@ -117,19 +121,23 @@ if err != nil {
 
 **Example logging output:**
 
-With debug-level logger (shows both debug and info messages):
+With debug-level logger (shows all message levels):
 ```
 time=2024-01-01T12:00:00.000Z level=DEBUG msg="executed sql for: query" duration_ms=0.123 query="SELECT ..."
 time=2024-01-01T12:00:00.000Z level=INFO msg="eventstore operation: query completed" event_count=5 duration_ms=0.123
 time=2024-01-01T12:00:01.000Z level=DEBUG msg="executed sql for: append" duration_ms=2.456 query="INSERT ..."
 time=2024-01-01T12:00:01.000Z level=INFO msg="eventstore operation: events appended" event_count=1 duration_ms=2.456
+time=2024-01-01T12:00:02.000Z level=WARN msg="failed to close database rows" error="connection closed"
+time=2024-01-01T12:00:03.000Z level=ERROR msg="database query execution failed" error="syntax error" query="SELECT ..."
 ```
 
-With info-level logger (shows only operational metrics):
+With info-level logger (shows info, warn, and error messages):
 ```
 time=2024-01-01T12:00:00.000Z level=INFO msg="eventstore operation: query completed" event_count=5 duration_ms=0.123
 time=2024-01-01T12:00:01.000Z level=INFO msg="eventstore operation: events appended" event_count=1 duration_ms=2.456
 time=2024-01-01T12:00:02.000Z level=INFO msg="eventstore operation: concurrency conflict detected" expected_events=1 rows_affected=0 expected_sequence=42
+time=2024-01-01T12:00:03.000Z level=WARN msg="failed to close database rows" error="connection closed"
+time=2024-01-01T12:00:04.000Z level=ERROR msg="database execution failed during event append" error="constraint violation" query="INSERT ..."
 ```
 
 #### Methods

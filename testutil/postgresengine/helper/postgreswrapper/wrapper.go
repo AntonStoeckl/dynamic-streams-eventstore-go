@@ -14,8 +14,8 @@ import (
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
 
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"
 )
 
 // Engine type constants
@@ -27,17 +27,17 @@ const (
 
 // Wrapper interface to abstract over different engine types
 type Wrapper interface {
-	GetEventStore() EventStore
+	GetEventStore() postgresengine.EventStore
 	Close()
 }
 
 // PGXPoolWrapper wraps pgxpool-based testing
 type PGXPoolWrapper struct {
 	pool *pgxpool.Pool
-	es   EventStore
+	es   postgresengine.EventStore
 }
 
-func (e *PGXPoolWrapper) GetEventStore() EventStore {
+func (e *PGXPoolWrapper) GetEventStore() postgresengine.EventStore {
 	return e.es
 }
 
@@ -48,10 +48,10 @@ func (e *PGXPoolWrapper) Close() {
 // SQLDBWrapper wraps sql.DB-based testing
 type SQLDBWrapper struct {
 	db *sql.DB
-	es EventStore
+	es postgresengine.EventStore
 }
 
-func (e *SQLDBWrapper) GetEventStore() EventStore {
+func (e *SQLDBWrapper) GetEventStore() postgresengine.EventStore {
 	return e.es
 }
 
@@ -62,10 +62,10 @@ func (e *SQLDBWrapper) Close() {
 // SQLXWrapper wraps sqlx.DB-based testing
 type SQLXWrapper struct {
 	db *sqlx.DB
-	es EventStore
+	es postgresengine.EventStore
 }
 
-func (e *SQLXWrapper) GetEventStore() EventStore {
+func (e *SQLXWrapper) GetEventStore() postgresengine.EventStore {
 	return e.es
 }
 
@@ -73,36 +73,36 @@ func (e *SQLXWrapper) Close() {
 	_ = e.db.Close() // ignore error
 }
 
-func TryCreateEventStoreWithTableName(t testing.TB, options ...Option) error {
+func TryCreateEventStoreWithTableName(t testing.TB, options ...postgresengine.Option) error {
 	engineTypeFromEnv := strings.ToLower(os.Getenv("ADAPTER_TYPE"))
 
 	switch engineTypeFromEnv {
 	case typePGXPool, "":
-		connPool, err := pgxpool.NewWithConfig(context.Background(), PostgresPGXPoolTestConfig())
+		connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
 		assert.NoError(t, err, "error connecting to DB pool in test setup")
 		defer connPool.Close()
 
-		_, err = NewEventStoreFromPGXPool(connPool, options...)
+		_, err = postgresengine.NewEventStoreFromPGXPool(connPool, options...)
 
 		return err
 
 	case typeSQLDB:
-		db := PostgresSQLDBTestConfig()
+		db := config.PostgresSQLDBTestConfig()
 		defer func(db *sql.DB) {
 			_ = db.Close() // makes no sense to handle this
 		}(db)
 
-		_, err := NewEventStoreFromSQLDB(db, options...)
+		_, err := postgresengine.NewEventStoreFromSQLDB(db, options...)
 
 		return err
 
 	case typeSQLXDB:
-		db := PostgresSQLXTestConfig()
+		db := config.PostgresSQLXTestConfig()
 		defer func(db *sqlx.DB) {
 			_ = db.Close() // makes no sense to handle this
 		}(db)
 
-		_, err := NewEventStoreFromSQLX(db, options...)
+		_, err := postgresengine.NewEventStoreFromSQLX(db, options...)
 
 		return err
 
@@ -111,31 +111,31 @@ func TryCreateEventStoreWithTableName(t testing.TB, options ...Option) error {
 	}
 }
 
-func CreateWrapperWithTestConfig(t testing.TB, options ...Option) Wrapper {
+func CreateWrapperWithTestConfig(t testing.TB, options ...postgresengine.Option) Wrapper {
 	engineTypeFromEnv := strings.ToLower(os.Getenv("ADAPTER_TYPE"))
 
 	switch engineTypeFromEnv {
 	case typePGXPool, "":
-		connPool, err := pgxpool.NewWithConfig(context.Background(), PostgresPGXPoolTestConfig())
+		connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
 		assert.NoError(t, err, "error connecting to DB pool in test setup")
 
-		es, err := NewEventStoreFromPGXPool(connPool, options...)
+		es, err := postgresengine.NewEventStoreFromPGXPool(connPool, options...)
 		assert.NoError(t, err, "error creating event store")
 
 		return &PGXPoolWrapper{pool: connPool, es: es}
 
 	case typeSQLDB:
-		db := PostgresSQLDBTestConfig()
+		db := config.PostgresSQLDBTestConfig()
 
-		es, err := NewEventStoreFromSQLDB(db, options...)
+		es, err := postgresengine.NewEventStoreFromSQLDB(db, options...)
 		assert.NoError(t, err, "error creating event store")
 
 		return &SQLDBWrapper{db: db, es: es}
 
 	case typeSQLXDB:
-		db := PostgresSQLXTestConfig()
+		db := config.PostgresSQLXTestConfig()
 
-		es, err := NewEventStoreFromSQLX(db, options...)
+		es, err := postgresengine.NewEventStoreFromSQLX(db, options...)
 		assert.NoError(t, err, "error creating event store")
 
 		return &SQLXWrapper{db: db, es: es}
@@ -150,23 +150,23 @@ func CreateWrapperWithBenchmarkConfig(t testing.TB) Wrapper {
 
 	switch engineTypeFromEnv {
 	case typePGXPool, "":
-		connPool, err := pgxpool.NewWithConfig(context.Background(), PostgresPGXPoolBenchmarkConfig())
+		connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolBenchmarkConfig())
 		assert.NoError(t, err, "error connecting to DB pool in test setup")
-		es, err := NewEventStoreFromPGXPool(connPool)
+		es, err := postgresengine.NewEventStoreFromPGXPool(connPool)
 		assert.NoError(t, err, "error creating event store")
 
 		return &PGXPoolWrapper{pool: connPool, es: es}
 
 	case typeSQLDB:
-		db := PostgresSQLDBBenchmarkConfig()
-		es, err := NewEventStoreFromSQLDB(db)
+		db := config.PostgresSQLDBBenchmarkConfig()
+		es, err := postgresengine.NewEventStoreFromSQLDB(db)
 		assert.NoError(t, err, "error creating event store")
 
 		return &SQLDBWrapper{db: db, es: es}
 
 	case typeSQLXDB:
-		db := PostgresSQLXBenchmarkConfig()
-		es, err := NewEventStoreFromSQLX(db)
+		db := config.PostgresSQLXBenchmarkConfig()
+		es, err := postgresengine.NewEventStoreFromSQLX(db)
 		assert.NoError(t, err, "error creating event store")
 
 		return &SQLXWrapper{db: db, es: es}

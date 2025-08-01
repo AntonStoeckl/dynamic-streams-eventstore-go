@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/removebookcopy"
+	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper"
 )

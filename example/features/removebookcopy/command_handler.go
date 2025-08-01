@@ -9,8 +9,6 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
-
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
 )
 
 // EventStore defines the interface needed by the CommandHandler for event store operations
@@ -46,7 +44,11 @@ func NewCommandHandler(eventStore EventStore) CommandHandler {
 // Handle executes the complete command processing workflow: Query -> Decide -> Append.
 // It queries the current event history, delegates business logic to the core Decide function,
 // and appends any resulting events while collecting detailed timing measurements.
-func (h CommandHandler) Handle(ctx context.Context, command Command, timingCollector TimingCollector) error {
+//
+// Note: The timingCollector parameter is used for testing and benchmarking purposes only.
+// In production code, this timing collection would typically not exist or be replaced
+// with proper observability/metrics collection.
+func (h CommandHandler) Handle(ctx context.Context, command Command, timingCollector shell.TimingCollector) error {
 	filter := h.buildEventFilter(command.BookID)
 
 	// Query phase

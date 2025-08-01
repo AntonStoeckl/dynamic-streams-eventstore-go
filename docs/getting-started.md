@@ -163,6 +163,8 @@ if err != nil {
 **What gets logged:**
 - **Debug level**: Full SQL queries with execution timing (sensitive, development only)
 - **Info level**: Event counts, sequence numbers, durations, concurrency conflicts (production-safe)
+- **Warn level**: Non-critical issues like cleanup failures
+- **Error level**: Critical failures that cause operation failures
 
 ### 3. Define Your Domain Events
 
