@@ -19,6 +19,8 @@ Unlike traditional event stores with fixed streams tied to specific entities, th
 - **🎯 Fluent Filter API**: Type-safe, expressive event filtering with compile-time validation
 - **📊 JSON-First**: Efficient JSONB storage with GIN index optimization
 - **🔗 Multiple Adapters**: Support for pgx/v5, database/sql, and sqlx database connections
+- **📈 OpenTelemetry Metrics**: Comprehensive observability with duration, counters, and error tracking
+- **📝 Structured Logging**: Configurable SQL query logging and operational monitoring
 
 ## 🚀 Quick Start
 

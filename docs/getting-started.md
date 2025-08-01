@@ -144,17 +144,60 @@ if err != nil {
 }
 ```
 
+##### OpenTelemetry-Compatible Metrics
+
+The EventStore provides comprehensive observability through OpenTelemetry-compatible metrics instrumentation, enabling integration with modern monitoring platforms:
+
+```go
+import "time"
+
+// Example metrics collector (implement your OpenTelemetry integration)
+type MyMetricsCollector struct {
+    // Your metrics implementation (Prometheus, DataDog, New Relic, etc.)
+}
+
+func (m *MyMetricsCollector) RecordDuration(metric string, duration time.Duration, labels map[string]string) {
+    // Record operation durations
+}
+
+func (m *MyMetricsCollector) IncrementCounter(metric string, labels map[string]string) {
+    // Count operations, errors, conflicts
+}
+
+func (m *MyMetricsCollector) RecordValue(metric string, value float64, labels map[string]string) {
+    // Track event counts, sequence numbers
+}
+
+// Enable metrics instrumentation
+metricsCollector := &MyMetricsCollector{}
+eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
+    postgresengine.WithMetrics(metricsCollector))
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+**Metrics automatically collected:**
+- Operation durations (`eventstore.query.duration`, `eventstore.append.duration`)
+- Operation counters (`eventstore.operations.total`, `eventstore.errors.total`)
+- Event counts and sequence numbers (`eventstore.events.count`)
+- Concurrency conflicts (`eventstore.concurrency_conflicts.total`)
+
 ##### Full Configuration
-Combining custom table name with logging:
+Combining custom table name with logging and metrics:
 
 ```go
 // Create logger appropriate for your environment
 debugLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-// Use logger with other options
+// Create your metrics collector
+metricsCollector := &MyMetricsCollector{}
+
+// Full observability configuration
 eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
     postgresengine.WithTableName("my_events"),
-    postgresengine.WithLogger(debugLogger))
+    postgresengine.WithLogger(debugLogger),
+    postgresengine.WithMetrics(metricsCollector))
 if err != nil {
     log.Fatal(err)
 }

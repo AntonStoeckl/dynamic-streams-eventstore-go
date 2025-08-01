@@ -137,7 +137,98 @@ err := withRetry(func() error {
 }, 3)
 ```
 
-## Testing with Different Adapters
+## Observability and Monitoring
+
+### Production Observability Setup
+
+Enable comprehensive monitoring with logging and OpenTelemetry-compatible metrics:
+
+```go
+import (
+    "log/slog"
+    "os"
+    "time"
+    "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
+)
+
+// Production metrics collector (OpenTelemetry-compatible)
+type ProductionMetricsCollector struct {
+    // Your observability platform integration (Prometheus, DataDog, etc.)
+}
+
+func (m *ProductionMetricsCollector) RecordDuration(metric string, duration time.Duration, labels map[string]string) {
+    // Record operation durations for performance monitoring
+    // metric examples: "eventstore.query.duration", "eventstore.append.duration"
+}
+
+func (m *ProductionMetricsCollector) IncrementCounter(metric string, labels map[string]string) {
+    // Track operations, errors, and conflicts
+    // metric examples: "eventstore.operations.total", "eventstore.errors.total"
+}
+
+func (m *ProductionMetricsCollector) RecordValue(metric string, value float64, labels map[string]string) {
+    // Monitor business metrics
+    // metric examples: "eventstore.events.count", "library.books.lent_total"
+}
+
+func setupProductionEventStore(dbPool *pgxpool.Pool) postgresengine.EventStore {
+    // Production-safe logger (info level - no sensitive SQL queries)
+    logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+        Level: slog.LevelInfo,
+    }))
+    
+    // Initialize metrics collector
+    metricsCollector := &ProductionMetricsCollector{}
+    
+    // Create EventStore with full observability
+    eventStore, err := postgresengine.NewEventStoreFromPGXPool(dbPool,
+        postgresengine.WithLogger(logger),
+        postgresengine.WithMetrics(metricsCollector))
+    if err != nil {
+        panic(err)
+    }
+    
+    return eventStore
+}
+
+// Enhanced lending function with observability
+func LendBookToReaderWithMetrics(ctx context.Context, es EventStore, bookID, readerID string) error {
+    start := time.Now()
+    
+    // Business logic (same as before)
+    err := LendBookToReader(ctx, es, bookID, readerID)
+    
+    // Optional: Record custom business metrics
+    if metrics, ok := es.(interface{ GetMetrics() MetricsCollector }); ok {
+        collector := metrics.GetMetrics()
+        
+        labels := map[string]string{
+            "operation": "lend_book",
+            "book_id":   bookID,
+            "reader_id": readerID,
+        }
+        
+        if err != nil {
+            labels["status"] = "error"
+            collector.IncrementCounter("library.lending.errors", labels)
+        } else {
+            labels["status"] = "success"
+            collector.IncrementCounter("library.books.lent_total", labels)
+            collector.RecordDuration("library.lending.duration", time.Since(start), labels)
+        }
+    }
+    
+    return err
+}
+```
+
+**Key observability benefits:**
+- **Performance monitoring**: Track query and append durations
+- **Error tracking**: Monitor database errors and concurrency conflicts  
+- **Business metrics**: Count successful operations and track patterns
+- **Operational insights**: Event counts, sequence numbers, conflict rates
+
+### Testing with Different Adapters
 
 ```go
 func TestLendBookToReader(t *testing.T) {
@@ -150,5 +241,29 @@ func TestLendBookToReader(t *testing.T) {
     // Test the lending use case
     err := LendBookToReader(ctx, es, "book-123", "reader-456") 
     assert.NoError(t, err)
+}
+
+func TestLendBookToReaderWithMetrics(t *testing.T) {
+    ctx := context.Background()
+    
+    // Setup test database and metrics collector
+    db := setupTestDB(t)
+    metricsCollector := helper.NewTestMetricsCollector(true)
+    
+    es, err := postgresengine.NewEventStoreFromPGXPool(db,
+        postgresengine.WithMetrics(metricsCollector))
+    require.NoError(t, err)
+    
+    // Execute business operation
+    err = LendBookToReader(ctx, es, "book-123", "reader-456")
+    assert.NoError(t, err)
+    
+    // Verify metrics were recorded
+    assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore.query.duration").
+        WithOperation("query").WithStatus("success").Assert())
+    assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore.append.duration").
+        WithOperation("append").WithStatus("success").Assert())
+    assert.True(t, metricsCollector.HasCounterRecordForMetric("eventstore.operations.total").
+        WithOperation("query").WithStatus("success").Assert())
 }
 ```

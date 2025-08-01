@@ -21,6 +21,7 @@ type Option func(*EventStore) error
 
 func WithTableName(tableName string) Option
 func WithLogger(logger Logger) Option
+func WithMetrics(metrics MetricsCollector) Option
 
 // Logger interface for SQL query logging, operational metrics, warnings, and error reporting
 type Logger interface {
@@ -28,6 +29,13 @@ type Logger interface {
     Info(msg string, args ...any)
     Warn(msg string, args ...any)
     Error(msg string, args ...any)
+}
+
+// MetricsCollector interface for OpenTelemetry-compatible observability instrumentation
+type MetricsCollector interface {
+    RecordDuration(metric string, duration time.Duration, labels map[string]string)
+    IncrementCounter(metric string, labels map[string]string)
+    RecordValue(metric string, value float64, labels map[string]string)
 }
 ```
 
@@ -113,7 +121,8 @@ if err != nil {
 // Full configuration with all options
 eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
     postgresengine.WithTableName("my_events"),
-    postgresengine.WithLogger(debugLogger))
+    postgresengine.WithLogger(debugLogger),
+    postgresengine.WithMetrics(metricsCollector))
 if err != nil {
     return err
 }
@@ -138,6 +147,96 @@ time=2024-01-01T12:00:01.000Z level=INFO msg="eventstore operation: events appen
 time=2024-01-01T12:00:02.000Z level=INFO msg="eventstore operation: concurrency conflict detected" expected_events=1 rows_affected=0 expected_sequence=42
 time=2024-01-01T12:00:03.000Z level=WARN msg="failed to close database rows" error="connection closed"
 time=2024-01-01T12:00:04.000Z level=ERROR msg="database execution failed during event append" error="constraint violation" query="INSERT ..."
+```
+
+**Using OpenTelemetry-compatible metrics for observability:**
+
+The EventStore supports comprehensive metrics instrumentation that follows OpenTelemetry standards, enabling integration with modern observability platforms like Prometheus, DataDog, New Relic, and others.
+
+```go
+import (
+    "context"
+    "time"
+    "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
+)
+
+// Example metrics collector implementation (OpenTelemetry-compatible)
+type MyMetricsCollector struct {
+    // Your OpenTelemetry metrics implementation
+}
+
+func (m *MyMetricsCollector) RecordDuration(metric string, duration time.Duration, labels map[string]string) {
+    // Record duration metrics (histograms/timers)
+    // Examples: "eventstore.query.duration", "eventstore.append.duration"
+}
+
+func (m *MyMetricsCollector) IncrementCounter(metric string, labels map[string]string) {
+    // Increment counter metrics
+    // Examples: "eventstore.operations.total", "eventstore.errors.total"
+}
+
+func (m *MyMetricsCollector) RecordValue(metric string, value float64, labels map[string]string) {
+    // Record gauge/value metrics
+    // Examples: "eventstore.events.count", "eventstore.sequence.number"
+}
+
+// Enable metrics instrumentation
+metricsCollector := &MyMetricsCollector{}
+eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
+    postgresengine.WithMetrics(metricsCollector))
+if err != nil {
+    return err
+}
+
+// Combined observability: logging + metrics
+eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
+    postgresengine.WithLogger(logger),
+    postgresengine.WithMetrics(metricsCollector))
+if err != nil {
+    return err
+}
+```
+
+**Metrics collected by the EventStore:**
+
+The EventStore automatically instruments the following metrics with OpenTelemetry-compatible labels:
+
+- **Duration Metrics:**
+  - `eventstore.query.duration` - Query operation execution time
+  - `eventstore.append.duration` - Append operation execution time
+  - `eventstore.append_multiple.duration` - Multi-event append execution time
+
+- **Counter Metrics:**
+  - `eventstore.operations.total` - Total operations performed (query/append)
+  - `eventstore.errors.total` - Total errors encountered
+  - `eventstore.concurrency_conflicts.total` - Optimistic concurrency conflicts
+
+- **Value/Gauge Metrics:**
+  - `eventstore.events.count` - Number of events processed
+  - `eventstore.sequence.number` - Sequence numbers for tracking
+
+**Standard Labels (OpenTelemetry-compatible):**
+- `operation`: "query", "append", "append_multiple"
+- `status`: "success", "error", "conflict"
+- `error_type`: "database_error", "validation_error", etc.
+- `conflict_type`: "concurrency_conflict"
+
+**Example metrics output:**
+```
+# Query operation
+eventstore.query.duration{operation="query",status="success"} 0.025
+eventstore.operations.total{operation="query",status="success"} 1
+eventstore.events.count{operation="query"} 5
+
+# Append operation with concurrency conflict
+eventstore.append.duration{operation="append",status="conflict"} 0.012
+eventstore.operations.total{operation="append",status="conflict"} 1
+eventstore.concurrency_conflicts.total{operation="append",conflict_type="concurrency_conflict"} 1
+
+# Error scenario
+eventstore.append.duration{operation="append",status="error"} 0.008
+eventstore.operations.total{operation="append",status="error"} 1
+eventstore.errors.total{operation="append",error_type="database_error"} 1
 ```
 
 #### Methods

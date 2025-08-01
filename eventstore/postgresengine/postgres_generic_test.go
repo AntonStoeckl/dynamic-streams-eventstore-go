@@ -419,3 +419,154 @@ func Test_Generic_Eventstore_WithLogger_LogsConcurrencyConflicts(t *testing.T) {
 			Assert(), "should log concurrency conflict with expected events, rows affected, and expected sequence",
 	)
 }
+
+func Test_Generic_Eventstore_WithMetrics_RecordsQueryMetrics(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	metricsCollector := NewTestMetricsCollector(true)
+	wrapper := CreateWrapperWithTestConfig(t, WithMetrics(metricsCollector))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	// arrange
+	CleanUp(t, wrapper)
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// act
+	_, _, err := es.Query(ctxWithTimeout, filter)
+
+	// assert
+	assert.NoError(t, err)
+	assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore_query_duration_seconds").
+		WithOperation("query").
+		WithStatus("success").
+		Assert(), "should record query duration metric with correct labels")
+	assert.True(t, metricsCollector.HasValueRecordForMetric("eventstore_events_queried_total").
+		WithOperation("query").
+		WithStatus("success").
+		Assert(), "should record events queried metric with correct labels")
+}
+
+func Test_Generic_Eventstore_WithMetrics_RecordsAppendMetrics(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	metricsCollector := NewTestMetricsCollector(true)
+	wrapper := CreateWrapperWithTestConfig(t, WithMetrics(metricsCollector))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	fakeClock := time.Unix(0, 0).UTC()
+
+	// arrange
+	CleanUp(t, wrapper)
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// act
+	err := es.Append(
+		ctxWithTimeout,
+		filter,
+		QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
+		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
+	)
+
+	// assert
+	assert.NoError(t, err)
+	assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore_query_duration_seconds").
+		WithOperation("query").
+		WithStatus("success").
+		Assert(), "should record query duration metric for pre-append query")
+	assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore_append_duration_seconds").
+		WithOperation("append").
+		WithStatus("success").
+		Assert(), "should record append duration metric with correct labels")
+	assert.True(t, metricsCollector.HasValueRecordForMetric("eventstore_events_queried_total").
+		WithOperation("query").
+		WithStatus("success").
+		Assert(), "should record events queried metric for pre-append query")
+	assert.True(t, metricsCollector.HasValueRecordForMetric("eventstore_events_appended_total").
+		WithOperation("append").
+		WithStatus("success").
+		Assert(), "should record events appended metric with correct labels")
+}
+
+func Test_Generic_Eventstore_WithMetrics_RecordsConcurrencyConflicts(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	metricsCollector := NewTestMetricsCollector(true)
+	wrapper := CreateWrapperWithTestConfig(t, WithMetrics(metricsCollector))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	fakeClock := time.Unix(0, 0).UTC()
+
+	// arrange
+	CleanUp(t, wrapper)
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// First, add an event to establish a sequence number
+	err := es.Append(
+		ctxWithTimeout,
+		filter,
+		0, // Start with sequence 0
+		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
+	)
+	assert.NoError(t, err)
+
+	// Reset metrics collector to only capture the conflict
+	metricsCollector.Reset()
+
+	// act - try to append with the wrong expected sequence number (should cause conflict)
+	err = es.Append(
+		ctxWithTimeout,
+		filter,
+		0, // Wrong sequence number - should be 1 now
+		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
+	)
+
+	// assert
+	assert.ErrorContains(t, err, ErrConcurrencyConflict.Error())
+	assert.True(t, metricsCollector.HasCounterRecordForMetric("eventstore_concurrency_conflicts_total").
+		WithOperation("append").
+		WithConflictType("concurrency").
+		Assert(), "should record concurrency conflict counter with correct labels")
+}
+
+func Test_Generic_Eventstore_WithMetrics_RecordsErrorMetrics(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	nonExistentTableName := "non_existent_table_xyz"
+	metricsCollector := NewTestMetricsCollector(true)
+	wrapper := CreateWrapperWithTestConfig(t, WithTableName(nonExistentTableName), WithMetrics(metricsCollector))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	// arrange
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// act - attempt to query the non-existent table
+	_, _, err := es.Query(ctxWithTimeout, filter)
+
+	// assert
+	assert.Error(t, err)
+	assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore_query_duration_seconds").
+		WithOperation("query").
+		WithStatus("error").
+		Assert(), "should record query duration metric with error status")
+	assert.True(t, metricsCollector.HasCounterRecordForMetric("eventstore_database_errors_total").
+		WithOperation("query").
+		WithStatus("error").
+		WithErrorType("database_query").
+		Assert(), "should record database error counter with correct labels")
+}

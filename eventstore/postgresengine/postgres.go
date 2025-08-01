@@ -57,6 +57,12 @@ const (
 	castText                       = "?::text"
 	castTimestamp                  = "?::timestamp with time zone"
 	castJsonb                      = "?::jsonb"
+	metricQueryDuration            = "eventstore_query_duration_seconds"
+	metricAppendDuration           = "eventstore_append_duration_seconds"
+	metricEventsQueried            = "eventstore_events_queried_total"
+	metricEventsAppended           = "eventstore_events_appended_total"
+	metricConcurrencyConflicts     = "eventstore_concurrency_conflicts_total"
+	metricDatabaseErrors           = "eventstore_database_errors_total"
 )
 
 type (
@@ -65,7 +71,7 @@ type (
 	queryDuration     = time.Duration
 )
 
-// Logger interface for SQL query logging, operational metrics, warnings, and error reporting.
+// Logger interface for SQL query logging, operational metricsCollector, warnings, and error reporting.
 type Logger interface {
 	Debug(msg string, args ...any)
 	Info(msg string, args ...any)
@@ -73,12 +79,20 @@ type Logger interface {
 	Error(msg string, args ...any)
 }
 
+// MetricsCollector interface for collecting EventStore performance and operational metricsCollector.
+type MetricsCollector interface {
+	RecordDuration(metric string, duration time.Duration, labels map[string]string)
+	IncrementCounter(metric string, labels map[string]string)
+	RecordValue(metric string, value float64, labels map[string]string)
+}
+
 // EventStore represents a storage mechanism for handling and querying events in an event sourcing implementation.
-// It leverages a database adapter and supports customizable logging and event table configuration.
+// It leverages a database adapter and supports customizable logging, metricsCollector collection, and event table configuration.
 type EventStore struct {
-	db             adapters.DBAdapter
-	eventTableName string
-	logger         Logger
+	db               adapters.DBAdapter
+	eventTableName   string
+	logger           Logger
+	metricsCollector MetricsCollector
 }
 
 // Option defines a functional option for configuring EventStore.
@@ -107,6 +121,16 @@ func WithTableName(tableName string) Option {
 func WithLogger(logger Logger) Option {
 	return func(es *EventStore) error {
 		es.logger = logger
+		return nil
+	}
+}
+
+// WithMetrics sets the metricsCollector collector for the EventStore.
+// The metricsCollector collector will receive performance and operational metricsCollector including
+// query/append durations, event counts, concurrency conflicts, and database errors.
+func WithMetrics(collector MetricsCollector) Option {
+	return func(es *EventStore) error {
+		es.metricsCollector = collector
 		return nil
 	}
 }
@@ -192,20 +216,22 @@ func (es EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 
 	sqlQuery, buildQueryErr := es.buildSelectQuery(filter)
 	if buildQueryErr != nil {
-		if es.logger != nil {
-			es.logger.Error(logMsgBuildSelectQueryFailed, logAttrError, buildQueryErr.Error())
-		}
+		es.logError(logMsgBuildSelectQueryFailed, buildQueryErr)
+		es.recordErrorMetrics("query", "build_query")
 		return empty, 0, buildQueryErr
 	}
 
 	rows, duration, queryErr := es.executeQuery(ctx, sqlQuery)
 	if queryErr != nil {
+		es.recordDurationMetrics(metricQueryDuration, duration, "query", "error")
+		es.recordErrorMetrics("query", "database_query")
 		return empty, 0, queryErr
 	}
 	defer es.closeRows(rows)
 
 	eventStream, maxSequenceNumber, scanErr := es.processQueryResults(rows)
 	if scanErr != nil {
+		es.recordErrorMetrics("query", "scan_results")
 		return empty, 0, scanErr
 	}
 
@@ -213,6 +239,9 @@ func (es EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 		logMsgQueryCompleted,
 		logAttrEventCount, len(eventStream),
 		logAttrDurationMS, es.durationToMilliseconds(duration))
+
+	es.recordDurationMetrics(metricQueryDuration, duration, "query", "success")
+	es.recordValueMetrics(metricEventsQueried, float64(len(eventStream)), "query", "success")
 
 	return eventStream, maxSequenceNumber, nil
 }
@@ -230,9 +259,7 @@ func (es EventStore) executeQuery(ctx context.Context, sqlQuery string) (
 	es.logQueryWithDuration(sqlQuery, logActionQuery, duration)
 
 	if queryErr != nil {
-		if es.logger != nil {
-			es.logger.Error(logMsgDBQueryFailed, logAttrError, queryErr.Error(), logAttrQuery, sqlQuery)
-		}
+		es.logError(logMsgDBQueryFailed, queryErr, logAttrQuery, sqlQuery)
 
 		return nil, duration, errors.Join(eventstore.ErrQueryingEventsFailed, queryErr)
 	}
@@ -264,18 +291,16 @@ func (es EventStore) processQueryResults(rows adapters.DBRows) (
 	for rows.Next() {
 		rowScanErr := rows.Scan(&result.eventType, &result.occurredAt, &result.payload, &result.metadata, &result.maxSequenceNumber)
 		if rowScanErr != nil {
-			if es.logger != nil {
-				es.logger.Error(logMsgScanRowFailed, logAttrError, rowScanErr.Error())
-			}
+			es.logError(logMsgScanRowFailed, rowScanErr)
+			es.recordErrorMetrics("query", "row_scan")
 
 			return empty, 0, errors.Join(eventstore.ErrScanningDBRowFailed, rowScanErr)
 		}
 
 		event, buildStorableErr := eventstore.BuildStorableEvent(result.eventType, result.occurredAt, result.payload, result.metadata)
 		if buildStorableErr != nil {
-			if es.logger != nil {
-				es.logger.Error(logMsgBuildStorableEventFailed, logAttrError, buildStorableErr.Error(), logAttrEventType, result.eventType)
-			}
+			es.logError(logMsgBuildStorableEventFailed, buildStorableErr, logAttrEventType, result.eventType)
+			es.recordErrorMetrics("query", "build_storable_event")
 
 			return empty, 0, errors.Join(eventstore.ErrBuildingStorableEventFailed, buildStorableErr)
 		}
@@ -326,6 +351,9 @@ func (es EventStore) Append(
 		logAttrDurationMS, es.durationToMilliseconds(duration),
 	)
 
+	es.recordDurationMetrics(metricAppendDuration, duration, "append", "success")
+	es.recordValueMetrics(metricEventsAppended, float64(len(allEvents)), "append", "success")
+
 	return nil
 }
 
@@ -348,9 +376,8 @@ func (es EventStore) buildAppendQuery(
 	}
 
 	if buildQueryErr != nil {
-		if es.logger != nil {
-			es.logger.Error(logMsgBuildInsertQueryFailed, logAttrError, buildQueryErr.Error(), logAttrEventCount, len(allEvents))
-		}
+		es.logError(logMsgBuildInsertQueryFailed, buildQueryErr, logAttrEventCount, len(allEvents))
+		es.recordErrorMetrics("append", "build_query")
 
 		return "", buildQueryErr
 	}
@@ -371,18 +398,17 @@ func (es EventStore) executeAppendQuery(ctx context.Context, sqlQuery string) (
 	es.logQueryWithDuration(sqlQuery, logActionAppend, duration)
 
 	if execErr != nil {
-		if es.logger != nil {
-			es.logger.Error(logMsgDBExecFailed, logAttrError, execErr.Error(), logAttrQuery, sqlQuery)
-		}
+		es.logError(logMsgDBExecFailed, execErr, logAttrQuery, sqlQuery)
+		es.recordDurationMetrics(metricAppendDuration, duration, "append", "error")
+		es.recordErrorMetrics("append", "database_exec")
 
 		return 0, duration, errors.Join(eventstore.ErrAppendingEventFailed, execErr)
 	}
 
 	rowsAffected, rowsAffectedErr := tag.RowsAffected()
 	if rowsAffectedErr != nil {
-		if es.logger != nil {
-			es.logger.Error(logMsgRowsAffectedFailed, logAttrError, rowsAffectedErr.Error())
-		}
+		es.logError(logMsgRowsAffectedFailed, rowsAffectedErr)
+		es.recordErrorMetrics("append", "rows_affected")
 
 		return 0, duration, errors.Join(eventstore.ErrGettingRowsAffectedFailed, rowsAffectedErr)
 	}
@@ -404,6 +430,8 @@ func (es EventStore) validateAppendResult(
 			logAttrRowsAffected, rowsAffected,
 			logAttrExpectedSequence, expectedMaxSequenceNumber,
 		)
+
+		es.recordConcurrencyConflictMetrics("append")
 
 		return eventstore.ErrConcurrencyConflict
 	}
@@ -457,9 +485,8 @@ func (es EventStore) buildInsertQueryForSingleEvent(
 
 	sqlQuery, _, toSQLErr := insertStmt.ToSQL()
 	if toSQLErr != nil {
-		if es.logger != nil {
-			es.logger.Error(logMsgSingleEventSQLFailed, logAttrError, toSQLErr.Error(), logAttrEventType, event.EventType)
-		}
+		es.logError(logMsgSingleEventSQLFailed, toSQLErr, logAttrEventType, event.EventType)
+		es.recordErrorMetrics("append", "build_single_event_sql")
 		return "", errors.Join(eventstore.ErrBuildingQueryFailed, toSQLErr)
 	}
 
@@ -518,9 +545,8 @@ func (es EventStore) buildInsertQueryForMultipleEvents(
 
 	sqlQuery, _, toSQLErr := insertStmt.ToSQL()
 	if toSQLErr != nil {
-		if es.logger != nil {
-			es.logger.Error(logMsgMultiEventSQLFailed, logAttrError, toSQLErr.Error(), logAttrEventCount, len(events))
-		}
+		es.logError(logMsgMultiEventSQLFailed, toSQLErr, logAttrEventCount, len(events))
+		es.recordErrorMetrics("append", "build_multi_event_sql")
 		return "", errors.Join(eventstore.ErrBuildingQueryFailed, toSQLErr)
 	}
 
@@ -610,7 +636,61 @@ func (es EventStore) logOperation(action string, args ...any) {
 	}
 }
 
+// logError logs error information at the error level if the logger is configured.
+func (es EventStore) logError(message string, err error, args ...any) {
+	if es.logger != nil {
+		allArgs := []any{logAttrError, err.Error()}
+		allArgs = append(allArgs, args...)
+		es.logger.Error(message, allArgs...)
+	}
+}
+
 // durationToMilliseconds converts a time.Duration to float64 milliseconds with 3 decimal places.
 func (es EventStore) durationToMilliseconds(d time.Duration) float64 {
 	return math.Round(float64(d.Nanoseconds())/1e6*1000) / 1000
+}
+
+// recordErrorMetrics records error metricsCollector if the metricsCollector collector is configured.
+func (es EventStore) recordErrorMetrics(operation, errorType string) {
+	if es.metricsCollector != nil {
+		labels := map[string]string{
+			"operation":  operation,
+			"status":     "error",
+			"error_type": errorType,
+		}
+		es.metricsCollector.IncrementCounter(metricDatabaseErrors, labels)
+	}
+}
+
+// recordDurationMetrics records duration metricsCollector if the metricsCollector collector is configured.
+func (es EventStore) recordDurationMetrics(metricName string, duration time.Duration, operation, status string) {
+	if es.metricsCollector != nil {
+		labels := map[string]string{
+			"operation": operation,
+			"status":    status,
+		}
+		es.metricsCollector.RecordDuration(metricName, duration, labels)
+	}
+}
+
+// recordValueMetrics records value metricsCollector if the metricsCollector collector is configured.
+func (es EventStore) recordValueMetrics(metricName string, value float64, operation, status string) {
+	if es.metricsCollector != nil {
+		labels := map[string]string{
+			"operation": operation,
+			"status":    status,
+		}
+		es.metricsCollector.RecordValue(metricName, value, labels)
+	}
+}
+
+// recordConcurrencyConflictMetrics records concurrency conflict metricsCollector if the metricsCollector collector is configured.
+func (es EventStore) recordConcurrencyConflictMetrics(operation string) {
+	if es.metricsCollector != nil {
+		labels := map[string]string{
+			"operation":     operation,
+			"conflict_type": "concurrency",
+		}
+		es.metricsCollector.IncrementCounter(metricConcurrencyConflicts, labels)
+	}
 }
