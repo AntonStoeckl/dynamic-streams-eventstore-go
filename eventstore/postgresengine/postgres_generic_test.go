@@ -13,7 +13,7 @@ import (
 
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"                                     //nolint:revive
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"                      //nolint:revive
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"                    //nolint:revive
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"                      //nolint:revive
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"                 //nolint:revive
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper" //nolint:revive
 )
@@ -100,6 +100,39 @@ func Test_Generic_NewEventStore_ShouldFail_WithNilDatabaseConnection(t *testing.
 	}
 }
 
+func Test_Generic_EventStore_WithTableName_ShouldWorkCorrectly(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	customTableName := "events"
+	wrapper := CreateWrapperWithTestConfig(t, WithTableName(customTableName))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	fakeClock := time.Unix(0, 0).UTC()
+
+	// arrange
+	CleanUp(t, wrapper)
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	err := es.Append(
+		ctxWithTimeout,
+		filter,
+		0,
+		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
+	)
+	assert.NoError(t, err)
+
+	// act
+	events, _, queryErr := es.Query(ctxWithTimeout, filter)
+
+	// assert
+	assert.NoError(t, queryErr)
+	assert.Len(t, events, 1)
+}
+
 func Test_Generic_FactoryFunctions_ShouldFail_WithEmptyTableName(t *testing.T) {
 	testCases := []struct {
 		name        string
@@ -108,7 +141,7 @@ func Test_Generic_FactoryFunctions_ShouldFail_WithEmptyTableName(t *testing.T) {
 		{
 			name: "NewEventStoreFromPGXPool with empty table name",
 			factoryFunc: func(_ *testing.T) (EventStore, error) {
-				connPool, err := pgxpool.NewWithConfig(context.Background(), PostgresPGXPoolTestConfig())
+				connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
 				assert.NoError(t, err, "error connecting to DB pool in test setup")
 				defer connPool.Close()
 
@@ -118,7 +151,7 @@ func Test_Generic_FactoryFunctions_ShouldFail_WithEmptyTableName(t *testing.T) {
 		{
 			name: "NewEventStoreFromSQLDB with empty table name",
 			factoryFunc: func(_ *testing.T) (EventStore, error) {
-				db := PostgresSQLDBTestConfig()
+				db := config.PostgresSQLDBTestConfig()
 				defer func() { _ = db.Close() }()
 
 				return NewEventStoreFromSQLDB(db, WithTableName(""))
@@ -127,7 +160,7 @@ func Test_Generic_FactoryFunctions_ShouldFail_WithEmptyTableName(t *testing.T) {
 		{
 			name: "NewEventStoreFromSQLX with empty table name",
 			factoryFunc: func(_ *testing.T) (EventStore, error) {
-				db := PostgresSQLXTestConfig()
+				db := config.PostgresSQLXTestConfig()
 				defer func() { _ = db.Close() }()
 
 				return NewEventStoreFromSQLX(db, WithTableName(""))
@@ -144,6 +177,28 @@ func Test_Generic_FactoryFunctions_ShouldFail_WithEmptyTableName(t *testing.T) {
 			assert.ErrorContains(t, err, ErrEmptyEventsTableName.Error())
 		})
 	}
+}
+
+func Test_Generic_EventStore_WithTableName_ShouldFail_WithNonExistentTable(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	nonExistentTableName := "non_existent_table_xyz"
+	wrapper := CreateWrapperWithTestConfig(t, WithTableName(nonExistentTableName))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	// arrange
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// act
+	_, _, err := es.Query(ctxWithTimeout, filter)
+
+	// assert
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "does not exist")
 }
 
 func Test_Generic_Eventstore_WithLogger_LogsQueries(t *testing.T) {
@@ -363,59 +418,4 @@ func Test_Generic_Eventstore_WithLogger_LogsConcurrencyConflicts(t *testing.T) {
 			WithExpectedSequence().
 			Assert(), "should log concurrency conflict with expected events, rows affected, and expected sequence",
 	)
-}
-
-func Test_Generic_EventStore_WithTableName_ShouldWorkCorrectly(t *testing.T) {
-	// setup
-	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	customTableName := "events"
-	wrapper := CreateWrapperWithTestConfig(t, WithTableName(customTableName))
-	defer wrapper.Close()
-	es := wrapper.GetEventStore()
-
-	fakeClock := time.Unix(0, 0).UTC()
-
-	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
-
-	err := es.Append(
-		ctxWithTimeout,
-		filter,
-		0,
-		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
-	)
-	assert.NoError(t, err)
-
-	// act
-	events, _, queryErr := es.Query(ctxWithTimeout, filter)
-
-	// assert
-	assert.NoError(t, queryErr)
-	assert.Len(t, events, 1)
-}
-
-func Test_Generic_EventStore_WithTableName_ShouldFail_WithNonExistentTable(t *testing.T) {
-	// setup
-	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	nonExistentTableName := "non_existent_table_xyz"
-	wrapper := CreateWrapperWithTestConfig(t, WithTableName(nonExistentTableName))
-	defer wrapper.Close()
-	es := wrapper.GetEventStore()
-
-	// arrange
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
-
-	// act
-	_, _, err := es.Query(ctxWithTimeout, filter)
-
-	// assert
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "does not exist")
 }
