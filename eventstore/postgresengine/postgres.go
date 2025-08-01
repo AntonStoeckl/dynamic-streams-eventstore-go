@@ -18,7 +18,34 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine/internal/adapters"
 )
 
-const defaultEventTableName = "events"
+const (
+	defaultEventTableName          = "events"
+	logMsgBuildSelectQueryFailed   = "failed to build select query"
+	logMsgDBQueryFailed            = "database query execution failed"
+	logMsgCloseRowsFailed          = "failed to close database rows"
+	logMsgScanRowFailed            = "failed to scan database row"
+	logMsgBuildStorableEventFailed = "failed to build storable event from database row"
+	logMsgBuildInsertQueryFailed   = "failed to build insert query"
+	logMsgDBExecFailed             = "database execution failed during event append"
+	logMsgRowsAffectedFailed       = "failed to get rows affected count"
+	logMsgSingleEventSQLFailed     = "failed to convert single event insert statement to SQL"
+	logMsgMultiEventSQLFailed      = "failed to convert multiple events insert statement to SQL"
+	logMsgQueryCompleted           = "query completed"
+	logMsgEventsAppended           = "events appended"
+	logMsgConcurrencyConflict      = "concurrency conflict detected"
+	logMsgSQLExecuted              = "executed sql for: "
+	logMsgOperation                = "eventstore operation: "
+	logAttrError                   = "error"
+	logAttrQuery                   = "query"
+	logAttrEventType               = "event_type"
+	logAttrEventCount              = "event_count"
+	logAttrDurationMS              = "duration_ms"
+	logAttrExpectedEvents          = "expected_events"
+	logAttrRowsAffected            = "rows_affected"
+	logAttrExpectedSequence        = "expected_sequence"
+	logActionQuery                 = "query"
+	logActionAppend                = "append"
+)
 
 type (
 	sqlQueryString    = string
@@ -154,7 +181,7 @@ func (es EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 	sqlQuery, buildQueryErr := es.buildSelectQuery(filter)
 	if buildQueryErr != nil {
 		if es.logger != nil {
-			es.logger.Error("failed to build select query", "error", buildQueryErr.Error())
+			es.logger.Error(logMsgBuildSelectQueryFailed, logAttrError, buildQueryErr.Error())
 		}
 		return empty, 0, buildQueryErr
 	}
@@ -171,9 +198,9 @@ func (es EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 	}
 
 	es.logOperation(
-		"query completed",
-		"event_count", len(eventStream),
-		"duration_ms", es.durationToMilliseconds(duration))
+		logMsgQueryCompleted,
+		logAttrEventCount, len(eventStream),
+		logAttrDurationMS, es.durationToMilliseconds(duration))
 
 	return eventStream, maxSequenceNumber, nil
 }
@@ -188,11 +215,11 @@ func (es EventStore) executeQuery(ctx context.Context, sqlQuery string) (
 	start := time.Now()
 	rows, queryErr := es.db.Query(ctx, sqlQuery)
 	duration := time.Since(start)
-	es.logQueryWithDuration(sqlQuery, "query", duration)
+	es.logQueryWithDuration(sqlQuery, logActionQuery, duration)
 
 	if queryErr != nil {
 		if es.logger != nil {
-			es.logger.Error("database query execution failed", "error", queryErr.Error(), "query", sqlQuery)
+			es.logger.Error(logMsgDBQueryFailed, logAttrError, queryErr.Error(), logAttrQuery, sqlQuery)
 		}
 
 		return nil, duration, errors.Join(eventstore.ErrQueryingEventsFailed, queryErr)
@@ -205,7 +232,7 @@ func (es EventStore) executeQuery(ctx context.Context, sqlQuery string) (
 func (es EventStore) closeRows(rows adapters.DBRows) {
 	if closeErr := rows.Close(); closeErr != nil {
 		if es.logger != nil {
-			es.logger.Warn("failed to close database rows", "error", closeErr.Error())
+			es.logger.Warn(logMsgCloseRowsFailed, logAttrError, closeErr.Error())
 		}
 	}
 }
@@ -226,7 +253,7 @@ func (es EventStore) processQueryResults(rows adapters.DBRows) (
 		rowScanErr := rows.Scan(&result.eventType, &result.occurredAt, &result.payload, &result.metadata, &result.maxSequenceNumber)
 		if rowScanErr != nil {
 			if es.logger != nil {
-				es.logger.Error("failed to scan database row", "error", rowScanErr.Error())
+				es.logger.Error(logMsgScanRowFailed, logAttrError, rowScanErr.Error())
 			}
 
 			return empty, 0, errors.Join(eventstore.ErrScanningDBRowFailed, rowScanErr)
@@ -235,7 +262,7 @@ func (es EventStore) processQueryResults(rows adapters.DBRows) (
 		event, buildStorableErr := eventstore.BuildStorableEvent(result.eventType, result.occurredAt, result.payload, result.metadata)
 		if buildStorableErr != nil {
 			if es.logger != nil {
-				es.logger.Error("failed to build storable event from database row", "error", buildStorableErr.Error(), "event_type", result.eventType)
+				es.logger.Error(logMsgBuildStorableEventFailed, logAttrError, buildStorableErr.Error(), logAttrEventType, result.eventType)
 			}
 
 			return empty, 0, errors.Join(eventstore.ErrBuildingStorableEventFailed, buildStorableErr)
@@ -282,9 +309,9 @@ func (es EventStore) Append(
 	}
 
 	es.logOperation(
-		"events appended",
-		"event_count", len(allEvents),
-		"duration_ms", es.durationToMilliseconds(duration),
+		logMsgEventsAppended,
+		logAttrEventCount, len(allEvents),
+		logAttrDurationMS, es.durationToMilliseconds(duration),
 	)
 
 	return nil
@@ -310,7 +337,7 @@ func (es EventStore) buildAppendQuery(
 
 	if buildQueryErr != nil {
 		if es.logger != nil {
-			es.logger.Error("failed to build insert query", "error", buildQueryErr.Error(), "event_count", len(allEvents))
+			es.logger.Error(logMsgBuildInsertQueryFailed, logAttrError, buildQueryErr.Error(), logAttrEventCount, len(allEvents))
 		}
 
 		return "", buildQueryErr
@@ -329,11 +356,11 @@ func (es EventStore) executeAppendQuery(ctx context.Context, sqlQuery string) (
 	start := time.Now()
 	tag, execErr := es.db.Exec(ctx, sqlQuery)
 	duration := time.Since(start)
-	es.logQueryWithDuration(sqlQuery, "append", duration)
+	es.logQueryWithDuration(sqlQuery, logActionAppend, duration)
 
 	if execErr != nil {
 		if es.logger != nil {
-			es.logger.Error("database execution failed during event append", "error", execErr.Error(), "query", sqlQuery)
+			es.logger.Error(logMsgDBExecFailed, logAttrError, execErr.Error(), logAttrQuery, sqlQuery)
 		}
 
 		return 0, duration, errors.Join(eventstore.ErrAppendingEventFailed, execErr)
@@ -342,7 +369,7 @@ func (es EventStore) executeAppendQuery(ctx context.Context, sqlQuery string) (
 	rowsAffected, rowsAffectedErr := tag.RowsAffected()
 	if rowsAffectedErr != nil {
 		if es.logger != nil {
-			es.logger.Error("failed to get rows affected count", "error", rowsAffectedErr.Error())
+			es.logger.Error(logMsgRowsAffectedFailed, logAttrError, rowsAffectedErr.Error())
 		}
 
 		return 0, duration, errors.Join(eventstore.ErrGettingRowsAffectedFailed, rowsAffectedErr)
@@ -360,10 +387,10 @@ func (es EventStore) validateAppendResult(
 
 	if rowsAffected < int64(expectedEventCount) {
 		es.logOperation(
-			"concurrency conflict detected",
-			"expected_events", expectedEventCount,
-			"rows_affected", rowsAffected,
-			"expected_sequence", expectedMaxSequenceNumber,
+			logMsgConcurrencyConflict,
+			logAttrExpectedEvents, expectedEventCount,
+			logAttrRowsAffected, rowsAffected,
+			logAttrExpectedSequence, expectedMaxSequenceNumber,
 		)
 
 		return eventstore.ErrConcurrencyConflict
@@ -419,7 +446,7 @@ func (es EventStore) buildInsertQueryForSingleEvent(
 	sqlQuery, _, toSQLErr := insertStmt.ToSQL()
 	if toSQLErr != nil {
 		if es.logger != nil {
-			es.logger.Error("failed to convert single event insert statement to SQL", "error", toSQLErr.Error(), "event_type", event.EventType)
+			es.logger.Error(logMsgSingleEventSQLFailed, logAttrError, toSQLErr.Error(), logAttrEventType, event.EventType)
 		}
 		return "", errors.Join(eventstore.ErrBuildingQueryFailed, toSQLErr)
 	}
@@ -475,7 +502,7 @@ func (es EventStore) buildInsertQueryForMultipleEvents(
 	sqlQuery, _, toSQLErr := insertStmt.ToSQL()
 	if toSQLErr != nil {
 		if es.logger != nil {
-			es.logger.Error("failed to convert multiple events insert statement to SQL", "error", toSQLErr.Error(), "event_count", len(events))
+			es.logger.Error(logMsgMultiEventSQLFailed, logAttrError, toSQLErr.Error(), logAttrEventCount, len(events))
 		}
 		return "", errors.Join(eventstore.ErrBuildingQueryFailed, toSQLErr)
 	}
@@ -555,14 +582,14 @@ func (es EventStore) logQueryWithDuration(
 ) {
 
 	if es.logger != nil {
-		es.logger.Debug("executed sql for: "+action, "duration_ms", es.durationToMilliseconds(duration), "query", sqlQuery)
+		es.logger.Debug(logMsgSQLExecuted+action, logAttrDurationMS, es.durationToMilliseconds(duration), logAttrQuery, sqlQuery)
 	}
 }
 
 // logOperation logs operational information at info level if the logger is configured.
 func (es EventStore) logOperation(action string, args ...any) {
 	if es.logger != nil {
-		es.logger.Info("eventstore operation: "+action, args...)
+		es.logger.Info(logMsgOperation+action, args...)
 	}
 }
 
