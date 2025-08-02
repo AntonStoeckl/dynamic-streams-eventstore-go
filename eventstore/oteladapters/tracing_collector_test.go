@@ -286,11 +286,11 @@ func Test_OTelSpanContext_Methods(t *testing.T) {
 	assertSpanHasAttribute(t, span, "test_key", "test_value")
 }
 
-// mockSpanContext implements eventstore.SpanContext but is not *OTelSpanContext
+// mockSpanContext implements eventstore.SpanContext but is not *OTelSpanContext.
 type mockSpanContext struct{}
 
-func (m *mockSpanContext) SetStatus(status string)        {}
-func (m *mockSpanContext) AddAttribute(key, value string) {}
+func (m *mockSpanContext) SetStatus(_ string)       {}
+func (m *mockSpanContext) AddAttribute(_, _ string) {}
 
 func assertSpanHasAttribute(t *testing.T, span tracetest.SpanStub, key, expectedValue string) {
 	t.Helper()

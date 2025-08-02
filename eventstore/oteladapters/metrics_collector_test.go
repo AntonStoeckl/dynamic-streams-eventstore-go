@@ -165,8 +165,8 @@ func Test_MetricsCollector_ContextualMethods(t *testing.T) {
 
 	metricNames := make(map[string]bool)
 	for _, scopeMetrics := range resourceMetrics.ScopeMetrics {
-		for _, metric := range scopeMetrics.Metrics {
-			metricNames[metric.Name] = true
+		for _, metricInfo := range scopeMetrics.Metrics {
+			metricNames[metricInfo.Name] = true
 		}
 	}
 
@@ -193,8 +193,8 @@ func Test_MetricsCollector_EmptyLabels(t *testing.T) {
 	// Should still record the metric, just with no attributes
 	found := false
 	for _, scopeMetrics := range resourceMetrics.ScopeMetrics {
-		for _, metric := range scopeMetrics.Metrics {
-			if metric.Name == "test_metric" {
+		for _, metricInfo := range scopeMetrics.Metrics {
+			if metricInfo.Name == "test_metric" {
 				found = true
 				break
 			}
@@ -222,8 +222,8 @@ func Test_MetricsCollector_NilLabels(t *testing.T) {
 	// Should still record the metric
 	found := false
 	for _, scopeMetrics := range resourceMetrics.ScopeMetrics {
-		for _, metric := range scopeMetrics.Metrics {
-			if metric.Name == "test_metric" {
+		for _, metricInfo := range scopeMetrics.Metrics {
+			if metricInfo.Name == "test_metric" {
 				found = true
 				break
 			}
@@ -258,7 +258,7 @@ func Test_MetricsCollector_InstrumentReuse(t *testing.T) {
 
 	collector := oteladapters.NewMetricsCollector(meter)
 
-	// Test histogram reuse - record same metric multiple times
+	// Test histogram reuse - record the same metric multiple times
 	collector.RecordDuration("reused_histogram", 100*time.Millisecond, nil)
 	collector.RecordDuration("reused_histogram", 200*time.Millisecond, nil)
 
@@ -267,7 +267,7 @@ func Test_MetricsCollector_InstrumentReuse(t *testing.T) {
 	collector.IncrementCounter("reused_counter", nil)
 	collector.IncrementCounter("reused_counter", nil)
 
-	// Test gauge reuse - record same gauge multiple times (last value wins)
+	// Test gauge reuse - record the same gauge multiple times (last value wins)
 	collector.RecordValue("reused_gauge", 10.0, nil)
 	collector.RecordValue("reused_gauge", 20.0, nil)
 
@@ -326,9 +326,9 @@ func Test_MetricsCollector_InstrumentCreationErrors(t *testing.T) {
 	}, "RecordValueContext should not panic when gauge creation fails")
 }
 
-// errorInjectingMeter wraps a real meter but returns errors for instruments with "error_" prefix
+// errorInjectingMeter wraps a real meter but returns errors for instruments with "error_" prefix.
 type errorInjectingMeter struct {
-	metric.Meter // Embed the interface to get all methods including unexported ones
+	metric.Meter // Embed the interface to get all methods, including unexported ones
 }
 
 func (m *errorInjectingMeter) Float64Histogram(name string, options ...metric.Float64HistogramOption) (metric.Float64Histogram, error) {
@@ -355,9 +355,9 @@ func (m *errorInjectingMeter) Float64Gauge(name string, options ...metric.Float6
 func findHistogramMetric(t *testing.T, resourceMetrics metricdata.ResourceMetrics, name string) *metricdata.Histogram[float64] {
 	t.Helper()
 	for _, scopeMetrics := range resourceMetrics.ScopeMetrics {
-		for _, metric := range scopeMetrics.Metrics {
-			if metric.Name == name {
-				if h, ok := metric.Data.(metricdata.Histogram[float64]); ok {
+		for _, metricInfo := range scopeMetrics.Metrics {
+			if metricInfo.Name == name {
+				if h, ok := metricInfo.Data.(metricdata.Histogram[float64]); ok {
 					return &h
 				}
 			}
@@ -370,9 +370,9 @@ func findHistogramMetric(t *testing.T, resourceMetrics metricdata.ResourceMetric
 func findCounterMetric(t *testing.T, resourceMetrics metricdata.ResourceMetrics, name string) *metricdata.Sum[int64] {
 	t.Helper()
 	for _, scopeMetrics := range resourceMetrics.ScopeMetrics {
-		for _, metric := range scopeMetrics.Metrics {
-			if metric.Name == name {
-				if c, ok := metric.Data.(metricdata.Sum[int64]); ok {
+		for _, metricInfo := range scopeMetrics.Metrics {
+			if metricInfo.Name == name {
+				if c, ok := metricInfo.Data.(metricdata.Sum[int64]); ok {
 					return &c
 				}
 			}
@@ -385,9 +385,9 @@ func findCounterMetric(t *testing.T, resourceMetrics metricdata.ResourceMetrics,
 func findGaugeMetric(t *testing.T, resourceMetrics metricdata.ResourceMetrics, name string) *metricdata.Gauge[float64] {
 	t.Helper()
 	for _, scopeMetrics := range resourceMetrics.ScopeMetrics {
-		for _, metric := range scopeMetrics.Metrics {
-			if metric.Name == name {
-				if g, ok := metric.Data.(metricdata.Gauge[float64]); ok {
+		for _, metricInfo := range scopeMetrics.Metrics {
+			if metricInfo.Name == name {
+				if g, ok := metricInfo.Data.(metricdata.Gauge[float64]); ok {
 					return &g
 				}
 			}

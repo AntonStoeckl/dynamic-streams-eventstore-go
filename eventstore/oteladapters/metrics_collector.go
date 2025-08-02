@@ -50,8 +50,8 @@ func (m *MetricsCollector) RecordDuration(metricName string, duration time.Durat
 	}
 
 	// Record duration in seconds (OpenTelemetry convention)
-	// Use context.TODO() for backward compatibility
-	histogram.Record(context.TODO(), duration.Seconds(), metric.WithAttributes(attrs...))
+	// Non-context method for backward compatibility
+	histogram.Record(context.Background(), duration.Seconds(), metric.WithAttributes(attrs...))
 }
 
 // RecordDurationContext records a duration measurement with context for trace correlation.
@@ -86,8 +86,8 @@ func (m *MetricsCollector) IncrementCounter(metricName string, labels map[string
 		attrs = append(attrs, attribute.String(key, value))
 	}
 
-	// Use context.TODO() for backward compatibility
-	counter.Add(context.TODO(), 1, metric.WithAttributes(attrs...))
+	// Non-context method for backward compatibility
+	counter.Add(context.Background(), 1, metric.WithAttributes(attrs...))
 }
 
 // IncrementCounterContext increments a counter with context for trace correlation.
@@ -122,8 +122,8 @@ func (m *MetricsCollector) RecordValue(metricName string, value float64, labels 
 		attrs = append(attrs, attribute.String(key, value))
 	}
 
-	// Use context.TODO() for backward compatibility
-	gauge.Record(context.TODO(), value, metric.WithAttributes(attrs...))
+	// Non-context method for backward compatibility
+	gauge.Record(context.Background(), value, metric.WithAttributes(attrs...))
 }
 
 // RecordValueContext records a float64 value with context for trace correlation.
