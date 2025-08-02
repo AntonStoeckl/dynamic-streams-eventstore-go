@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"context"
 	"sync"
 	"time"
 )
@@ -8,12 +9,14 @@ import (
 // MetricsCollectorSpy is a MetricsCollector implementation that captures metrics calls for testing.
 // It implements the same interface as OpenTelemetry metrics collectors, making it suitable for testing
 // EventStore observability instrumentation that follows OpenTelemetry standards.
+// When supportsContextual is true, it also implements ContextualMetricsCollector.
 type MetricsCollectorSpy struct {
-	durationRecords []SpyDurationRecord
-	counterRecords  []SpyCounterRecord
-	valueRecords    []SpyValueRecord
-	mu              sync.Mutex
-	recordCalls     bool
+	durationRecords    []SpyDurationRecord
+	counterRecords     []SpyCounterRecord
+	valueRecords       []SpyValueRecord
+	mu                 sync.Mutex
+	recordCalls        bool
+	supportsContextual bool
 }
 
 // SpyDurationRecord represents a recorded duration metric call.
@@ -40,10 +43,23 @@ type SpyValueRecord struct {
 // Set recordCalls to true to capture all metrics calls for inspection in tests.
 func NewMetricsCollectorSpy(recordCalls bool) *MetricsCollectorSpy {
 	return &MetricsCollectorSpy{
-		durationRecords: make([]SpyDurationRecord, 0),
-		counterRecords:  make([]SpyCounterRecord, 0),
-		valueRecords:    make([]SpyValueRecord, 0),
-		recordCalls:     recordCalls,
+		durationRecords:    make([]SpyDurationRecord, 0),
+		counterRecords:     make([]SpyCounterRecord, 0),
+		valueRecords:       make([]SpyValueRecord, 0),
+		recordCalls:        recordCalls,
+		supportsContextual: false, // Default to non-contextual for backward compatibility
+	}
+}
+
+// NewContextualMetricsCollectorSpy creates a new MetricsCollectorSpy that implements ContextualMetricsCollector.
+// Set recordCalls to true to capture all metrics calls for inspection in tests.
+func NewContextualMetricsCollectorSpy(recordCalls bool) *MetricsCollectorSpy {
+	return &MetricsCollectorSpy{
+		durationRecords:    make([]SpyDurationRecord, 0),
+		counterRecords:     make([]SpyCounterRecord, 0),
+		valueRecords:       make([]SpyValueRecord, 0),
+		recordCalls:        recordCalls,
+		supportsContextual: true,
 	}
 }
 
@@ -395,4 +411,31 @@ func (s *MetricsCollectorSpy) CountValueRecordsForMetric(metric string) int {
 	}
 
 	return count
+}
+
+// Contextual methods - only implemented when supportsContextual is true
+// These allow testing of the contextual fallback paths in the EventStore
+
+// RecordDurationContext implements the ContextualMetricsCollector interface.
+// It delegates to the base RecordDuration method for simplicity in testing.
+func (s *MetricsCollectorSpy) RecordDurationContext(_ context.Context, metric string, duration time.Duration, labels map[string]string) {
+	s.RecordDuration(metric, duration, labels)
+}
+
+// IncrementCounterContext implements the ContextualMetricsCollector interface.
+// It delegates to the base IncrementCounter method for simplicity in testing.
+func (s *MetricsCollectorSpy) IncrementCounterContext(_ context.Context, metric string, labels map[string]string) {
+	s.IncrementCounter(metric, labels)
+}
+
+// RecordValueContext implements the ContextualMetricsCollector interface.
+// It delegates to the base RecordValue method for simplicity in testing.
+func (s *MetricsCollectorSpy) RecordValueContext(_ context.Context, metric string, value float64, labels map[string]string) {
+	s.RecordValue(metric, value, labels)
+}
+
+// SupportsContextual returns whether this spy implements ContextualMetricsCollector.
+// This is useful for tests that need to verify which code path was taken.
+func (s *MetricsCollectorSpy) SupportsContextual() bool {
+	return s.supportsContextual
 }

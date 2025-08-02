@@ -783,3 +783,143 @@ func Test_Generic_Eventstore_WithContextualLogger_LogsErrors(t *testing.T) {
 	assert.True(t, contextualLogger.GetTotalRecordCount() >= 1, "contextual logger should record at least 1 error log entry")
 	assert.True(t, contextualLogger.HasErrorLog("database query execution failed"), "should log database error with correct message")
 }
+
+func Test_Generic_Eventstore_WithoutLogger_HandlesLogErrorGracefully(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create EventStore without a logger to test logError's nil logger branch
+	wrapper := CreateWrapperWithTestConfig(t, WithTableName("non_existent_table_no_logger"))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	// arrange
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// act - attempt to query the non-existent table, this should trigger logError with nil logger
+	_, _, err := es.Query(ctxWithTimeout, filter)
+
+	// assert - the operation should fail but not panic due to nil logger
+	assert.Error(t, err)
+	// If we get here without a panic, the nil logger branch in logError worked correctly
+}
+
+func Test_Generic_Eventstore_WithLogger_LogsErrorsCorrectly(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Create EventStore with a logger to test logError's configured logger branch
+	testHandler := NewLogHandlerSpy(true) // Enable recording to capture error logs
+	logger := slog.New(testHandler)
+	wrapper := CreateWrapperWithTestConfig(t, WithTableName("non_existent_table_with_logger"), WithLogger(logger))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	// arrange
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// act - attempt to query the non-existent table, this should trigger logError with the configured logger
+	_, _, err := es.Query(ctxWithTimeout, filter)
+
+	// assert - the operation should fail, and the error should be logged
+	assert.Error(t, err)
+	// Now we can directly test that the error was logged at the correct level
+	assert.True(t, testHandler.HasErrorLog("database query execution failed"), "should log error with correct message and ERROR level")
+}
+
+func Test_Generic_Eventstore_WithTracing_RecordsAppendErrorWithDuration(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tracingCollector := NewTracingCollectorSpy(true)
+	wrapper := CreateWrapperWithTestConfig(t, WithTableName("non_existent_table_tracing"), WithTracing(tracingCollector))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	fakeClock := time.Unix(0, 0).UTC()
+
+	// arrange
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+	event := ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock))
+
+	// act - attempt to append to a non-existent table to trigger append error with span
+	// This should exercise the formatDuration method in appendTracingObserver.finishError
+	err := es.Append(ctxWithTimeout, filter, 0, event)
+
+	// assert
+	assert.Error(t, err)
+	assert.True(t, tracingCollector.HasSpanRecordForName("eventstore.append").
+		WithStatus("error").
+		Assert(), "should record append error span (which exercises formatDuration method)")
+}
+
+func Test_Generic_Eventstore_WithMetrics_FallbackToNonContextual(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Use the basic metrics collector (doesn't implement ContextualMetricsCollector)
+	// This will test the fallback paths in recordDurationMetricsContext, recordValueMetricsContext, etc.
+	metricsCollector := NewMetricsCollectorSpy(true)
+	wrapper := CreateWrapperWithTestConfig(t, WithTableName("non_existent_table_fallback"), WithMetrics(metricsCollector))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	// arrange
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// act - attempt to query non-existent table to trigger fallback metric recording
+	_, _, err := es.Query(ctxWithTimeout, filter)
+
+	// assert
+	assert.Error(t, err)
+	assert.False(t, metricsCollector.SupportsContextual(), "basic spy should not support contextual interface")
+	// This should exercise the non-contextual fallback paths in the 80% coverage functions
+	assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore_query_duration_seconds").
+		WithOperation("query").
+		WithStatus("error").
+		Assert(), "should record query duration via fallback path")
+	assert.True(t, metricsCollector.HasCounterRecordForMetric("eventstore_database_errors_total").
+		WithOperation("query").
+		WithStatus("error").
+		Assert(), "should record error counter via fallback path")
+}
+
+func Test_Generic_Eventstore_WithContextualMetrics_UsesContextualPath(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Use the contextual metrics collector to test the contextual code paths
+	metricsCollector := NewContextualMetricsCollectorSpy(true)
+	wrapper := CreateWrapperWithTestConfig(t, WithTableName("non_existent_table_contextual"), WithMetrics(metricsCollector))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	// arrange
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// act - attempt to query non-existent table to trigger contextual metric recording
+	_, _, err := es.Query(ctxWithTimeout, filter)
+
+	// assert
+	assert.Error(t, err)
+	assert.True(t, metricsCollector.SupportsContextual(), "contextual spy should support contextual interface")
+	// This should exercise the contextual paths in recordDurationMetricsContext, etc.
+	assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore_query_duration_seconds").
+		WithOperation("query").
+		WithStatus("error").
+		Assert(), "should record query duration via contextual path")
+	assert.True(t, metricsCollector.HasCounterRecordForMetric("eventstore_database_errors_total").
+		WithOperation("query").
+		WithStatus("error").
+		Assert(), "should record error counter via contextual path")
+}

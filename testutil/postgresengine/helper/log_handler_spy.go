@@ -170,6 +170,68 @@ func (s *LogHandlerSpy) HasInfoLogWithMessage(message string) *SpyLogRecordMatch
 	return &SpyLogRecordMatcher{handler: s, found: false}
 }
 
+// HasWarnLog checks if there's a warn-level log record containing the specified message.
+func (s *LogHandlerSpy) HasWarnLog(message string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, record := range s.records {
+		if record.Level == slog.LevelWarn && record.Message == message {
+			return true
+		}
+	}
+
+	return false
+}
+
+// HasWarnLogWithMessage starts a fluent chain to check a warn-level log record.
+func (s *LogHandlerSpy) HasWarnLogWithMessage(message string) *SpyLogRecordMatcher {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, record := range s.records {
+		if record.Level == slog.LevelWarn && record.Message == message {
+			return &SpyLogRecordMatcher{
+				handler: s,
+				record:  &record,
+				found:   true,
+			}
+		}
+	}
+
+	return &SpyLogRecordMatcher{handler: s, found: false}
+}
+
+// HasErrorLog checks if there's an error-level log record containing the specified message.
+func (s *LogHandlerSpy) HasErrorLog(message string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, record := range s.records {
+		if record.Level == slog.LevelError && record.Message == message {
+			return true
+		}
+	}
+
+	return false
+}
+
+// HasErrorLogWithMessage starts a fluent chain to check an error-level log record.
+func (s *LogHandlerSpy) HasErrorLogWithMessage(message string) *SpyLogRecordMatcher {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for _, record := range s.records {
+		if record.Level == slog.LevelError && record.Message == message {
+			return &SpyLogRecordMatcher{
+				handler: s,
+				record:  &record,
+				found:   true,
+			}
+		}
+	}
+
+	return &SpyLogRecordMatcher{handler: s, found: false}
+}
+
 // WithDurationMS checks if the log record has a duration_ms attribute with a non-negative value.
 func (m *SpyLogRecordMatcher) WithDurationMS() *SpyLogRecordMatcher {
 	if !m.found {
