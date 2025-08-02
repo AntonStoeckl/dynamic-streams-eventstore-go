@@ -116,35 +116,6 @@ type (
 	queryDuration     = time.Duration
 )
 
-// Logger interface for SQL query logging, operational metricsCollector, warnings, and error reporting.
-type Logger interface {
-	Debug(msg string, args ...any)
-	Info(msg string, args ...any)
-	Warn(msg string, args ...any)
-	Error(msg string, args ...any)
-}
-
-// MetricsCollector interface for collecting EventStore performance and operational metricsCollector.
-type MetricsCollector interface {
-	RecordDuration(metric string, duration time.Duration, labels map[string]string)
-	IncrementCounter(metric string, labels map[string]string)
-	RecordValue(metric string, value float64, labels map[string]string)
-}
-
-// SpanContext represents an active tracing span that can be finished and updated with attributes.
-type SpanContext interface {
-	SetStatus(status string)
-	AddAttribute(key, value string)
-}
-
-// TracingCollector interface for collecting distributed tracing information from EventStore operations.
-// This interface follows the same dependency-free pattern as MetricsCollector, allowing users to integrate
-// with any tracing backend (OpenTelemetry, Jaeger, Zipkin, etc.) by implementing this interface.
-type TracingCollector interface {
-	StartSpan(ctx context.Context, name string, attrs map[string]string) (context.Context, SpanContext)
-	FinishSpan(spanCtx SpanContext, status string, attrs map[string]string)
-}
-
 // EventStore represents a storage mechanism for handling and querying events in an event sourcing implementation.
 // It leverages a database adapter and supports customizable logging, metricsCollector collection, tracing, and event table configuration.
 type EventStore struct {
@@ -153,56 +124,6 @@ type EventStore struct {
 	logger           Logger
 	metricsCollector MetricsCollector
 	tracingCollector TracingCollector
-}
-
-// Option defines a functional option for configuring EventStore.
-type Option func(*EventStore) error
-
-// WithTableName sets the table name for the EventStore.
-func WithTableName(tableName string) Option {
-	return func(es *EventStore) error {
-		if tableName == "" {
-			return eventstore.ErrEmptyEventsTableName
-		}
-
-		es.eventTableName = tableName
-
-		return nil
-	}
-}
-
-// WithLogger sets the logger for the EventStore.
-// The logger will receive messages at different levels based on the logger's configured level:
-//
-// Debug level: SQL queries with execution timing (development use)
-// Info level: Event counts, durations, concurrency conflicts (production-safe)
-// Warn level: Non-critical issues like cleanup failures
-// Error level: Critical failures that cause operation failures.
-func WithLogger(logger Logger) Option {
-	return func(es *EventStore) error {
-		es.logger = logger
-		return nil
-	}
-}
-
-// WithMetrics sets the metricsCollector collector for the EventStore.
-// The metricsCollector collector will receive performance and operational metricsCollector including
-// query/append durations, event counts, concurrency conflicts, and database errors.
-func WithMetrics(collector MetricsCollector) Option {
-	return func(es *EventStore) error {
-		es.metricsCollector = collector
-		return nil
-	}
-}
-
-// WithTracing sets the tracing collector for the EventStore.
-// The tracing collector will receive distributed tracing information including
-// span creation for query/append operations, context propagation, and error tracking.
-func WithTracing(collector TracingCollector) Option {
-	return func(es *EventStore) error {
-		es.tracingCollector = collector
-		return nil
-	}
 }
 
 type queryResultRow struct {
@@ -313,11 +234,7 @@ func (es EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 		return empty, 0, scanErr
 	}
 
-	es.logOperation(
-		logMsgQueryCompleted,
-		logAttrEventCount, len(eventStream),
-		logAttrDurationMS, es.durationToMilliseconds(duration))
-
+	es.logOperation(logMsgQueryCompleted, logAttrEventCount, len(eventStream), logAttrDurationMS, es.toMilliseconds(duration))
 	es.recordDurationMetrics(metricQueryDuration, duration, operationQuery, statusSuccess)
 	es.recordValueMetrics(metricEventsQueried, float64(len(eventStream)), operationQuery, statusSuccess)
 	es.finishQuerySpanSuccess(span, eventStream, maxSequenceNumber, duration)
@@ -436,12 +353,7 @@ func (es EventStore) Append(
 		return err
 	}
 
-	es.logOperation(
-		logMsgEventsAppended,
-		logAttrEventCount, len(allEvents),
-		logAttrDurationMS, es.durationToMilliseconds(duration),
-	)
-
+	es.logOperation(logMsgEventsAppended, logAttrEventCount, len(allEvents), logAttrDurationMS, es.toMilliseconds(duration))
 	es.recordDurationMetrics(metricAppendDuration, duration, operationAppend, statusSuccess)
 	es.recordValueMetrics(metricEventsAppended, float64(len(allEvents)), operationAppend, statusSuccess)
 	es.finishAppendSpanSuccess(span, rowsAffected, duration)
@@ -461,10 +373,18 @@ func (es EventStore) buildAppendQuery(
 
 	switch len(allEvents) {
 	case 1:
-		sqlQuery, buildQueryErr = es.buildInsertQueryForSingleEvent(allEvents[0], filter, expectedMaxSequenceNumber)
+		sqlQuery, buildQueryErr = es.buildInsertQueryForSingleEvent(
+			allEvents[0],
+			filter,
+			expectedMaxSequenceNumber,
+		)
 
 	default:
-		sqlQuery, buildQueryErr = es.buildInsertQueryForMultipleEvents(allEvents, filter, expectedMaxSequenceNumber)
+		sqlQuery, buildQueryErr = es.buildInsertQueryForMultipleEvents(
+			allEvents,
+			filter,
+			expectedMaxSequenceNumber,
+		)
 	}
 
 	if buildQueryErr != nil {
@@ -639,6 +559,7 @@ func (es EventStore) buildInsertQueryForMultipleEvents(
 	if toSQLErr != nil {
 		es.logError(logMsgMultiEventSQLFailed, toSQLErr, logAttrEventCount, len(events))
 		es.recordErrorMetrics(operationAppend, errorTypeBuildMultiEventSQL)
+
 		return "", errors.Join(eventstore.ErrBuildingQueryFailed, toSQLErr)
 	}
 
@@ -717,7 +638,7 @@ func (es EventStore) logQueryWithDuration(
 ) {
 
 	if es.logger != nil {
-		es.logger.Debug(logMsgSQLExecuted+action, logAttrDurationMS, es.durationToMilliseconds(duration), logAttrQuery, sqlQuery)
+		es.logger.Debug(logMsgSQLExecuted+action, logAttrDurationMS, es.toMilliseconds(duration), logAttrQuery, sqlQuery)
 	}
 }
 
@@ -729,7 +650,12 @@ func (es EventStore) logOperation(action string, args ...any) {
 }
 
 // logError logs error information at the error level if the logger is configured.
-func (es EventStore) logError(message string, err error, args ...any) {
+func (es EventStore) logError(
+	message string,
+	err error,
+	args ...any,
+) {
+
 	if es.logger != nil {
 		allArgs := []any{logAttrError, err.Error()}
 		allArgs = append(allArgs, args...)
@@ -737,8 +663,8 @@ func (es EventStore) logError(message string, err error, args ...any) {
 	}
 }
 
-// durationToMilliseconds converts a time.Duration to float64 milliseconds with 3 decimal places.
-func (es EventStore) durationToMilliseconds(d time.Duration) float64 {
+// toMilliseconds converts a time.Duration to float64 milliseconds with 3 decimal places.
+func (es EventStore) toMilliseconds(d time.Duration) float64 {
 	return math.Round(float64(d.Nanoseconds())/1e6*1000) / 1000
 }
 
@@ -755,7 +681,12 @@ func (es EventStore) recordErrorMetrics(operation, errorType string) {
 }
 
 // recordDurationMetrics records duration metricsCollector if the metricsCollector collector is configured.
-func (es EventStore) recordDurationMetrics(metricName string, duration time.Duration, operation, status string) {
+func (es EventStore) recordDurationMetrics(
+	metricName string,
+	duration time.Duration,
+	operation, status string,
+) {
+
 	if es.metricsCollector != nil {
 		labels := map[string]string{
 			spanAttrOperation: operation,
@@ -766,7 +697,13 @@ func (es EventStore) recordDurationMetrics(metricName string, duration time.Dura
 }
 
 // recordValueMetrics records value metricsCollector if the metricsCollector collector is configured.
-func (es EventStore) recordValueMetrics(metricName string, value float64, operation, status string) {
+func (es EventStore) recordValueMetrics(
+	metricName string,
+	value float64,
+	operation,
+	status string,
+) {
+
 	if es.metricsCollector != nil {
 		labels := map[string]string{
 			spanAttrOperation: operation,
@@ -788,7 +725,12 @@ func (es EventStore) recordConcurrencyConflictMetrics(operation string) {
 }
 
 // startTraceSpan starts a tracing span if the tracing collector is configured.
-func (es EventStore) startTraceSpan(ctx context.Context, operation string, attrs map[string]string) (context.Context, SpanContext) {
+func (es EventStore) startTraceSpan(
+	ctx context.Context,
+	operation string,
+	attrs map[string]string,
+) (context.Context, SpanContext) {
+
 	if es.tracingCollector != nil {
 		return es.tracingCollector.StartSpan(ctx, operation, attrs)
 	}
@@ -797,7 +739,12 @@ func (es EventStore) startTraceSpan(ctx context.Context, operation string, attrs
 }
 
 // finishTraceSpan finishes a tracing span if the tracing collector is configured.
-func (es EventStore) finishTraceSpan(spanCtx SpanContext, status string, attrs map[string]string) {
+func (es EventStore) finishTraceSpan(
+	spanCtx SpanContext,
+	status string,
+	attrs map[string]string,
+) {
+
 	if es.tracingCollector != nil && spanCtx != nil {
 		es.tracingCollector.FinishSpan(spanCtx, status, attrs)
 	}
@@ -813,7 +760,13 @@ func (es EventStore) startQuerySpan(ctx context.Context) (context.Context, SpanC
 }
 
 // finishQuerySpanSuccess finishes a successful query span with results.
-func (es EventStore) finishQuerySpanSuccess(span SpanContext, eventStream eventstore.StorableEvents, maxSequenceNumber eventstore.MaxSequenceNumberUint, duration time.Duration) {
+func (es EventStore) finishQuerySpanSuccess(
+	span SpanContext,
+	eventStream eventstore.StorableEvents,
+	maxSequenceNumber eventstore.MaxSequenceNumberUint,
+	duration time.Duration,
+) {
+
 	if span != nil {
 		span.SetStatus(statusSuccess)
 		span.AddAttribute(spanAttrEventCount, fmt.Sprintf("%d", len(eventStream)))
@@ -828,7 +781,12 @@ func (es EventStore) finishQuerySpanSuccess(span SpanContext, eventStream events
 }
 
 // finishQuerySpanError finishes a query span with error details.
-func (es EventStore) finishQuerySpanError(span SpanContext, errorType string, duration time.Duration) {
+func (es EventStore) finishQuerySpanError(
+	span SpanContext,
+	errorType string,
+	duration time.Duration,
+) {
+
 	if span != nil {
 		span.SetStatus(statusError)
 		span.AddAttribute(spanAttrErrorType, errorType)
@@ -841,7 +799,12 @@ func (es EventStore) finishQuerySpanError(span SpanContext, errorType string, du
 }
 
 // startAppendSpan starts a tracing span for append operations.
-func (es EventStore) startAppendSpan(ctx context.Context, allEvents eventstore.StorableEvents, expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint) (context.Context, SpanContext) {
+func (es EventStore) startAppendSpan(
+	ctx context.Context,
+	allEvents eventstore.StorableEvents,
+	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
+) (context.Context, SpanContext) {
+
 	spanAttrs := map[string]string{
 		spanAttrOperation:   operationAppend,
 		spanAttrEventCount:  fmt.Sprintf("%d", len(allEvents)),
@@ -853,7 +816,12 @@ func (es EventStore) startAppendSpan(ctx context.Context, allEvents eventstore.S
 }
 
 // finishAppendSpanSuccess finishes a successful append span with results.
-func (es EventStore) finishAppendSpanSuccess(span SpanContext, rowsAffected int64, duration time.Duration) {
+func (es EventStore) finishAppendSpanSuccess(
+	span SpanContext,
+	rowsAffected int64,
+	duration time.Duration,
+) {
+
 	if span != nil {
 		span.SetStatus(statusSuccess)
 		span.AddAttribute(spanAttrRowsAffected, fmt.Sprintf("%d", rowsAffected))
@@ -866,7 +834,12 @@ func (es EventStore) finishAppendSpanSuccess(span SpanContext, rowsAffected int6
 }
 
 // finishAppendSpanError finishes an append span with error details.
-func (es EventStore) finishAppendSpanError(span SpanContext, errorType string, additionalAttrs map[string]string) {
+func (es EventStore) finishAppendSpanError(
+	span SpanContext,
+	errorType string,
+	additionalAttrs map[string]string,
+) {
+
 	if span != nil {
 		span.SetStatus(statusError)
 		span.AddAttribute(spanAttrErrorType, errorType)
