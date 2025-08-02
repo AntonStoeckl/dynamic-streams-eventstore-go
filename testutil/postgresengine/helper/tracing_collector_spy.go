@@ -7,84 +7,84 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
 )
 
-// TestSpanContext implements the SpanContext interface for testing tracing functionality.
-type TestSpanContext struct {
+// SpySpanContext implements the SpySpanContext interface for testing tracing functionality.
+type SpySpanContext struct {
 	status     string
 	attributes map[string]string
 	mu         sync.Mutex
 }
 
-// SetStatus implements the SpanContext interface for testing.
-func (s *TestSpanContext) SetStatus(status string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.status = status
+// SetStatus implements the SpySpanContext interface for testing.
+func (c *SpySpanContext) SetStatus(status string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.status = status
 }
 
-// AddAttribute implements the SpanContext interface for testing.
-func (s *TestSpanContext) AddAttribute(key, value string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.attributes == nil {
-		s.attributes = make(map[string]string)
+// AddAttribute implements the SpySpanContext interface for testing.
+func (c *SpySpanContext) AddAttribute(key, value string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.attributes == nil {
+		c.attributes = make(map[string]string)
 	}
-	s.attributes[key] = value
+	c.attributes[key] = value
 }
 
 // GetStatus returns the current status of the span for testing.
-func (s *TestSpanContext) GetStatus() string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.status
+func (c *SpySpanContext) GetStatus() string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.status
 }
 
 // GetAttributes returns a copy of all attributes for testing.
-func (s *TestSpanContext) GetAttributes() map[string]string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (c *SpySpanContext) GetAttributes() map[string]string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
 	attrs := make(map[string]string)
-	for k, v := range s.attributes {
+	for k, v := range c.attributes {
 		attrs[k] = v
 	}
 	return attrs
 }
 
-// TestTracingCollector is a TracingCollector implementation that captures tracing calls for testing.
-// It implements the same interface pattern as TestMetricsCollector, making it suitable for testing
+// TracingCollectorSpy is a TracingCollector implementation that captures tracing calls for testing.
+// It implements the same interface pattern as MetricsCollectorSpy, making it suitable for testing
 // EventStore tracing instrumentation that follows dependency-free tracing standards.
-type TestTracingCollector struct {
-	spanRecords []SpanRecord
+type TracingCollectorSpy struct {
+	spanRecords []SpySpanRecord
 	mu          sync.Mutex
 	recordCalls bool
 }
 
-// SpanRecord represents a recorded span operation for testing.
-type SpanRecord struct {
+// SpySpanRecord represents a recorded span operation for testing.
+type SpySpanRecord struct {
 	Name            string
 	StartAttributes map[string]string
 	Status          string
 	EndAttributes   map[string]string
-	SpanContext     *TestSpanContext
+	SpanContext     *SpySpanContext
 }
 
-// NewTestTracingCollector creates a new TestTracingCollector for testing dependency-free tracing.
+// NewTracingCollectorSpy creates a new TracingCollectorSpy for testing dependency-free tracing.
 // Set recordCalls to true to capture all tracing calls for inspection in tests.
-func NewTestTracingCollector(recordCalls bool) *TestTracingCollector {
-	return &TestTracingCollector{
-		spanRecords: make([]SpanRecord, 0),
+func NewTracingCollectorSpy(recordCalls bool) *TracingCollectorSpy {
+	return &TracingCollectorSpy{
+		spanRecords: make([]SpySpanRecord, 0),
 		recordCalls: recordCalls,
 	}
 }
 
 // StartSpan implements the TracingCollector interface for testing.
-func (c *TestTracingCollector) StartSpan(ctx context.Context, name string, attrs map[string]string) (context.Context, postgresengine.SpanContext) {
-	if !c.recordCalls {
+func (s *TracingCollectorSpy) StartSpan(ctx context.Context, name string, attrs map[string]string) (context.Context, postgresengine.SpanContext) {
+	if !s.recordCalls {
 		return ctx, nil
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	// Make a copy of attributes to avoid external modifications
 	attrsCopy := make(map[string]string)
@@ -92,31 +92,31 @@ func (c *TestTracingCollector) StartSpan(ctx context.Context, name string, attrs
 		attrsCopy[k] = v
 	}
 
-	spanCtx := &TestSpanContext{
+	spanCtx := &SpySpanContext{
 		attributes: make(map[string]string),
 	}
 
-	record := SpanRecord{
+	record := SpySpanRecord{
 		Name:            name,
 		StartAttributes: attrsCopy,
 		SpanContext:     spanCtx,
 	}
 
-	c.spanRecords = append(c.spanRecords, record)
+	s.spanRecords = append(s.spanRecords, record)
 
 	return ctx, spanCtx
 }
 
 // FinishSpan implements the TracingCollector interface for testing.
-func (c *TestTracingCollector) FinishSpan(spanCtx postgresengine.SpanContext, status string, attrs map[string]string) {
-	if !c.recordCalls || spanCtx == nil {
+func (s *TracingCollectorSpy) FinishSpan(spanCtx postgresengine.SpanContext, status string, attrs map[string]string) {
+	if !s.recordCalls || spanCtx == nil {
 		return
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	testSpanCtx, ok := spanCtx.(*TestSpanContext)
+	testSpanCtx, ok := spanCtx.(*SpySpanContext)
 	if !ok {
 		return
 	}
@@ -128,48 +128,48 @@ func (c *TestTracingCollector) FinishSpan(spanCtx postgresengine.SpanContext, st
 	}
 
 	// Find the corresponding span record and update it
-	for i := range c.spanRecords {
-		if c.spanRecords[i].SpanContext == testSpanCtx {
-			c.spanRecords[i].Status = status
-			c.spanRecords[i].EndAttributes = attrsCopy
+	for i := range s.spanRecords {
+		if s.spanRecords[i].SpanContext == testSpanCtx {
+			s.spanRecords[i].Status = status
+			s.spanRecords[i].EndAttributes = attrsCopy
 			break
 		}
 	}
 }
 
 // GetSpanRecordCount returns the number of captured span records.
-func (c *TestTracingCollector) GetSpanRecordCount() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *TracingCollectorSpy) GetSpanRecordCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	return len(c.spanRecords)
+	return len(s.spanRecords)
 }
 
 // GetSpanRecords returns a copy of all captured span records.
-func (c *TestTracingCollector) GetSpanRecords() []SpanRecord {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *TracingCollectorSpy) GetSpanRecords() []SpySpanRecord {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	records := make([]SpanRecord, len(c.spanRecords))
-	copy(records, c.spanRecords)
+	records := make([]SpySpanRecord, len(s.spanRecords))
+	copy(records, s.spanRecords)
 
 	return records
 }
 
 // Reset clears all captured span records.
-func (c *TestTracingCollector) Reset() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *TracingCollectorSpy) Reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	c.spanRecords = c.spanRecords[:0]
+	s.spanRecords = s.spanRecords[:0]
 }
 
 // HasSpanRecord checks if there's a span record with the specified name.
-func (c *TestTracingCollector) HasSpanRecord(name string) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *TracingCollectorSpy) HasSpanRecord(name string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	for _, record := range c.spanRecords {
+	for _, record := range s.spanRecords {
 		if record.Name == name {
 			return true
 		}
@@ -180,27 +180,27 @@ func (c *TestTracingCollector) HasSpanRecord(name string) bool {
 
 // SpanRecordMatcher provides a fluent interface for checking span records.
 type SpanRecordMatcher struct {
-	collector *TestTracingCollector
+	collector *TracingCollectorSpy
 	found     bool
-	record    *SpanRecord
+	record    *SpySpanRecord
 }
 
 // HasSpanRecordForName starts a fluent chain to check a span record.
-func (c *TestTracingCollector) HasSpanRecordForName(name string) *SpanRecordMatcher {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *TracingCollectorSpy) HasSpanRecordForName(name string) *SpanRecordMatcher {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	for i := range c.spanRecords {
-		if c.spanRecords[i].Name == name {
+	for i := range s.spanRecords {
+		if s.spanRecords[i].Name == name {
 			return &SpanRecordMatcher{
-				collector: c,
+				collector: s,
 				found:     true,
-				record:    &c.spanRecords[i],
+				record:    &s.spanRecords[i],
 			}
 		}
 	}
 
-	return &SpanRecordMatcher{collector: c, found: false}
+	return &SpanRecordMatcher{collector: s, found: false}
 }
 
 // WithStatus checks if the span record has the specified status.
@@ -262,12 +262,12 @@ func (m *SpanRecordMatcher) Assert() bool {
 }
 
 // CountSpanRecordsForName counts how many span records exist for a specific name.
-func (c *TestTracingCollector) CountSpanRecordsForName(name string) int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *TracingCollectorSpy) CountSpanRecordsForName(name string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	count := 0
-	for _, record := range c.spanRecords {
+	for _, record := range s.spanRecords {
 		if record.Name == name {
 			count++
 		}

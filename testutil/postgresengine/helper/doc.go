@@ -1,6 +1,6 @@
 // Package helper provides testing utilities, log handlers, and metrics collectors for PostgreSQL event store testing.
 //
-// This package contains shared testing infrastructure including:
+// This package contains shared testing infrastructure including
 // - Custom log handlers for capturing and validating log output during tests
 // - OpenTelemetry-compatible metrics collectors for testing observability instrumentation
 // - Common test utilities used across the PostgreSQL event store test suite

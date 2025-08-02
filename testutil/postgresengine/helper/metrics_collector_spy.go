@@ -5,56 +5,56 @@ import (
 	"time"
 )
 
-// TestMetricsCollector is a MetricsCollector implementation that captures metrics calls for testing.
+// MetricsCollectorSpy is a MetricsCollector implementation that captures metrics calls for testing.
 // It implements the same interface as OpenTelemetry metrics collectors, making it suitable for testing
 // EventStore observability instrumentation that follows OpenTelemetry standards.
-type TestMetricsCollector struct {
-	durationRecords []DurationRecord
-	counterRecords  []CounterRecord
-	valueRecords    []ValueRecord
+type MetricsCollectorSpy struct {
+	durationRecords []SpyDurationRecord
+	counterRecords  []SpyCounterRecord
+	valueRecords    []SpyValueRecord
 	mu              sync.Mutex
 	recordCalls     bool
 }
 
-// DurationRecord represents a recorded duration metric call.
-type DurationRecord struct {
+// SpyDurationRecord represents a recorded duration metric call.
+type SpyDurationRecord struct {
 	Metric   string
 	Duration time.Duration
 	Labels   map[string]string
 }
 
-// CounterRecord represents a recorded counter-increment call.
-type CounterRecord struct {
+// SpyCounterRecord represents a recorded counter-increment call.
+type SpyCounterRecord struct {
 	Metric string
 	Labels map[string]string
 }
 
-// ValueRecord represents a recorded value metric call.
-type ValueRecord struct {
+// SpyValueRecord represents a recorded value metric call.
+type SpyValueRecord struct {
 	Metric string
 	Value  float64
 	Labels map[string]string
 }
 
-// NewTestMetricsCollector creates a new TestMetricsCollector for testing OpenTelemetry-compatible metrics.
+// NewMetricsCollectorSpy creates a new MetricsCollectorSpy for testing OpenTelemetry-compatible metrics.
 // Set recordCalls to true to capture all metrics calls for inspection in tests.
-func NewTestMetricsCollector(recordCalls bool) *TestMetricsCollector {
-	return &TestMetricsCollector{
-		durationRecords: make([]DurationRecord, 0),
-		counterRecords:  make([]CounterRecord, 0),
-		valueRecords:    make([]ValueRecord, 0),
+func NewMetricsCollectorSpy(recordCalls bool) *MetricsCollectorSpy {
+	return &MetricsCollectorSpy{
+		durationRecords: make([]SpyDurationRecord, 0),
+		counterRecords:  make([]SpyCounterRecord, 0),
+		valueRecords:    make([]SpyValueRecord, 0),
 		recordCalls:     recordCalls,
 	}
 }
 
 // RecordDuration implements the MetricsCollector interface for OpenTelemetry-compatible duration metrics.
-func (c *TestMetricsCollector) RecordDuration(metric string, duration time.Duration, labels map[string]string) {
-	if !c.recordCalls {
+func (s *MetricsCollectorSpy) RecordDuration(metric string, duration time.Duration, labels map[string]string) {
+	if !s.recordCalls {
 		return
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	// Make a copy of labels to avoid external modifications
 	labelsCopy := make(map[string]string)
@@ -62,7 +62,7 @@ func (c *TestMetricsCollector) RecordDuration(metric string, duration time.Durat
 		labelsCopy[k] = v
 	}
 
-	c.durationRecords = append(c.durationRecords, DurationRecord{
+	s.durationRecords = append(s.durationRecords, SpyDurationRecord{
 		Metric:   metric,
 		Duration: duration,
 		Labels:   labelsCopy,
@@ -70,13 +70,13 @@ func (c *TestMetricsCollector) RecordDuration(metric string, duration time.Durat
 }
 
 // IncrementCounter implements the MetricsCollector interface for OpenTelemetry-compatible counter metrics.
-func (c *TestMetricsCollector) IncrementCounter(metric string, labels map[string]string) {
-	if !c.recordCalls {
+func (s *MetricsCollectorSpy) IncrementCounter(metric string, labels map[string]string) {
+	if !s.recordCalls {
 		return
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	// Make a copy of labels to avoid external modifications
 	labelsCopy := make(map[string]string)
@@ -84,20 +84,20 @@ func (c *TestMetricsCollector) IncrementCounter(metric string, labels map[string
 		labelsCopy[k] = v
 	}
 
-	c.counterRecords = append(c.counterRecords, CounterRecord{
+	s.counterRecords = append(s.counterRecords, SpyCounterRecord{
 		Metric: metric,
 		Labels: labelsCopy,
 	})
 }
 
 // RecordValue implements the MetricsCollector interface for OpenTelemetry-compatible value/gauge metrics.
-func (c *TestMetricsCollector) RecordValue(metric string, value float64, labels map[string]string) {
-	if !c.recordCalls {
+func (s *MetricsCollectorSpy) RecordValue(metric string, value float64, labels map[string]string) {
+	if !s.recordCalls {
 		return
 	}
 
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	// Make a copy of labels to avoid external modifications
 	labelsCopy := make(map[string]string)
@@ -105,7 +105,7 @@ func (c *TestMetricsCollector) RecordValue(metric string, value float64, labels 
 		labelsCopy[k] = v
 	}
 
-	c.valueRecords = append(c.valueRecords, ValueRecord{
+	s.valueRecords = append(s.valueRecords, SpyValueRecord{
 		Metric: metric,
 		Value:  value,
 		Labels: labelsCopy,
@@ -113,78 +113,78 @@ func (c *TestMetricsCollector) RecordValue(metric string, value float64, labels 
 }
 
 // GetDurationRecordCount returns the number of captured duration records.
-func (c *TestMetricsCollector) GetDurationRecordCount() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *MetricsCollectorSpy) GetDurationRecordCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	return len(c.durationRecords)
+	return len(s.durationRecords)
 }
 
 // GetCounterRecordCount returns the number of captured counter-records.
-func (c *TestMetricsCollector) GetCounterRecordCount() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *MetricsCollectorSpy) GetCounterRecordCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	return len(c.counterRecords)
+	return len(s.counterRecords)
 }
 
 // GetValueRecordCount returns the number of captured value records.
-func (c *TestMetricsCollector) GetValueRecordCount() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *MetricsCollectorSpy) GetValueRecordCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	return len(c.valueRecords)
+	return len(s.valueRecords)
 }
 
 // GetDurationRecords returns a copy of all captured duration records.
-func (c *TestMetricsCollector) GetDurationRecords() []DurationRecord {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *MetricsCollectorSpy) GetDurationRecords() []SpyDurationRecord {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	records := make([]DurationRecord, len(c.durationRecords))
-	copy(records, c.durationRecords)
+	records := make([]SpyDurationRecord, len(s.durationRecords))
+	copy(records, s.durationRecords)
 
 	return records
 }
 
 // GetCounterRecords returns a copy of all captured counter-records.
-func (c *TestMetricsCollector) GetCounterRecords() []CounterRecord {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *MetricsCollectorSpy) GetCounterRecords() []SpyCounterRecord {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	records := make([]CounterRecord, len(c.counterRecords))
-	copy(records, c.counterRecords)
+	records := make([]SpyCounterRecord, len(s.counterRecords))
+	copy(records, s.counterRecords)
 
 	return records
 }
 
 // GetValueRecords returns a copy of all captured value records.
-func (c *TestMetricsCollector) GetValueRecords() []ValueRecord {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *MetricsCollectorSpy) GetValueRecords() []SpyValueRecord {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	records := make([]ValueRecord, len(c.valueRecords))
-	copy(records, c.valueRecords)
+	records := make([]SpyValueRecord, len(s.valueRecords))
+	copy(records, s.valueRecords)
 
 	return records
 }
 
 // Reset clears all captured metric records.
-func (c *TestMetricsCollector) Reset() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *MetricsCollectorSpy) Reset() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	c.durationRecords = c.durationRecords[:0]
-	c.counterRecords = c.counterRecords[:0]
-	c.valueRecords = c.valueRecords[:0]
+	s.durationRecords = s.durationRecords[:0]
+	s.counterRecords = s.counterRecords[:0]
+	s.valueRecords = s.valueRecords[:0]
 }
 
 // HasDurationRecord checks if there's a duration record with the specified metric name.
-func (c *TestMetricsCollector) HasDurationRecord(metric string) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *MetricsCollectorSpy) HasDurationRecord(metric string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	for _, record := range c.durationRecords {
+	for _, record := range s.durationRecords {
 		if record.Metric == metric {
 			return true
 		}
@@ -194,11 +194,11 @@ func (c *TestMetricsCollector) HasDurationRecord(metric string) bool {
 }
 
 // HasCounterRecord checks if there's a counter-record with the specified metric name.
-func (c *TestMetricsCollector) HasCounterRecord(metric string) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *MetricsCollectorSpy) HasCounterRecord(metric string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	for _, record := range c.counterRecords {
+	for _, record := range s.counterRecords {
 		if record.Metric == metric {
 			return true
 		}
@@ -208,11 +208,11 @@ func (c *TestMetricsCollector) HasCounterRecord(metric string) bool {
 }
 
 // HasValueRecord checks if there's a value record with the specified metric name.
-func (c *TestMetricsCollector) HasValueRecord(metric string) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *MetricsCollectorSpy) HasValueRecord(metric string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	for _, record := range c.valueRecords {
+	for _, record := range s.valueRecords {
 		if record.Metric == metric {
 			return true
 		}
@@ -223,63 +223,63 @@ func (c *TestMetricsCollector) HasValueRecord(metric string) bool {
 
 // MetricRecordMatcher provides a fluent interface for checking metric records.
 type MetricRecordMatcher struct {
-	collector *TestMetricsCollector
+	collector *MetricsCollectorSpy
 	found     bool
 	labels    map[string]string
 }
 
 // HasDurationRecordForMetric starts a fluent chain to check a duration record.
-func (c *TestMetricsCollector) HasDurationRecordForMetric(metric string) *MetricRecordMatcher {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *MetricsCollectorSpy) HasDurationRecordForMetric(metric string) *MetricRecordMatcher {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	for _, record := range c.durationRecords {
+	for _, record := range s.durationRecords {
 		if record.Metric == metric {
 			return &MetricRecordMatcher{
-				collector: c,
+				collector: s,
 				found:     true,
 				labels:    record.Labels,
 			}
 		}
 	}
 
-	return &MetricRecordMatcher{collector: c, found: false}
+	return &MetricRecordMatcher{collector: s, found: false}
 }
 
 // HasCounterRecordForMetric starts a fluent chain to check a counter-record.
-func (c *TestMetricsCollector) HasCounterRecordForMetric(metric string) *MetricRecordMatcher {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *MetricsCollectorSpy) HasCounterRecordForMetric(metric string) *MetricRecordMatcher {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	for _, record := range c.counterRecords {
+	for _, record := range s.counterRecords {
 		if record.Metric == metric {
 			return &MetricRecordMatcher{
-				collector: c,
+				collector: s,
 				found:     true,
 				labels:    record.Labels,
 			}
 		}
 	}
 
-	return &MetricRecordMatcher{collector: c, found: false}
+	return &MetricRecordMatcher{collector: s, found: false}
 }
 
 // HasValueRecordForMetric starts a fluent chain to check a value record.
-func (c *TestMetricsCollector) HasValueRecordForMetric(metric string) *MetricRecordMatcher {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *MetricsCollectorSpy) HasValueRecordForMetric(metric string) *MetricRecordMatcher {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	for _, record := range c.valueRecords {
+	for _, record := range s.valueRecords {
 		if record.Metric == metric {
 			return &MetricRecordMatcher{
-				collector: c,
+				collector: s,
 				found:     true,
 				labels:    record.Labels,
 			}
 		}
 	}
 
-	return &MetricRecordMatcher{collector: c, found: false}
+	return &MetricRecordMatcher{collector: s, found: false}
 }
 
 // WithOperation checks if the record has the specified operation label.
@@ -353,12 +353,12 @@ func (m *MetricRecordMatcher) Assert() bool {
 }
 
 // CountDurationRecordsForMetric counts how many duration records exist for a specific metric.
-func (c *TestMetricsCollector) CountDurationRecordsForMetric(metric string) int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *MetricsCollectorSpy) CountDurationRecordsForMetric(metric string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	count := 0
-	for _, record := range c.durationRecords {
+	for _, record := range s.durationRecords {
 		if record.Metric == metric {
 			count++
 		}
@@ -368,12 +368,12 @@ func (c *TestMetricsCollector) CountDurationRecordsForMetric(metric string) int 
 }
 
 // CountCounterRecordsForMetric counts how many counter-records exist for a specific metric.
-func (c *TestMetricsCollector) CountCounterRecordsForMetric(metric string) int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *MetricsCollectorSpy) CountCounterRecordsForMetric(metric string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	count := 0
-	for _, record := range c.counterRecords {
+	for _, record := range s.counterRecords {
 		if record.Metric == metric {
 			count++
 		}
@@ -383,12 +383,12 @@ func (c *TestMetricsCollector) CountCounterRecordsForMetric(metric string) int {
 }
 
 // CountValueRecordsForMetric counts how many value records exist for a specific metric.
-func (c *TestMetricsCollector) CountValueRecordsForMetric(metric string) int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (s *MetricsCollectorSpy) CountValueRecordsForMetric(metric string) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	count := 0
-	for _, record := range c.valueRecords {
+	for _, record := range s.valueRecords {
 		if record.Metric == metric {
 			count++
 		}

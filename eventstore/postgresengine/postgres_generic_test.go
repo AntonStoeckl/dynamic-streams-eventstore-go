@@ -11,7 +11,7 @@ import (
 	_ "github.com/lib/pq" // postgres driver
 	"github.com/stretchr/testify/assert"
 
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"                                     //nolint:revive
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"                                       //nolint:revive
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"                      //nolint:revive
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"                      //nolint:revive
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"                 //nolint:revive
@@ -205,7 +205,7 @@ func Test_Generic_Eventstore_WithLogger_LogsQueries(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	testHandler := NewTestLogHandler(false)
+	testHandler := NewLogHandlerSpy(false)
 	logger := slog.New(testHandler)
 
 	wrapper := CreateWrapperWithTestConfig(t, WithLogger(logger))
@@ -242,7 +242,7 @@ func Test_Generic_Eventstore_WithLogger_LogsAppends(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	testHandler := NewTestLogHandler(false)
+	testHandler := NewLogHandlerSpy(false)
 	logger := slog.New(testHandler)
 
 	wrapper := CreateWrapperWithTestConfig(t, WithLogger(logger))
@@ -298,7 +298,7 @@ func Test_Generic_Eventstore_WithLogger_LogsOperations(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	testHandler := NewTestLogHandler(false)
+	testHandler := NewLogHandlerSpy(false)
 	logger := slog.New(testHandler)
 
 	wrapper := CreateWrapperWithTestConfig(t, WithLogger(logger))
@@ -329,7 +329,7 @@ func Test_Generic_Eventstore_WithLogger_LogsAppendOperations(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	testHandler := NewTestLogHandler(false)
+	testHandler := NewLogHandlerSpy(false)
 	logger := slog.New(testHandler)
 
 	wrapper := CreateWrapperWithTestConfig(t, WithLogger(logger))
@@ -373,7 +373,7 @@ func Test_Generic_Eventstore_WithLogger_LogsConcurrencyConflicts(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	testHandler := NewTestLogHandler(false)
+	testHandler := NewLogHandlerSpy(false)
 	logger := slog.New(testHandler)
 
 	wrapper := CreateWrapperWithTestConfig(t, WithLogger(logger))
@@ -424,7 +424,7 @@ func Test_Generic_Eventstore_WithMetrics_RecordsQueryMetrics(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	metricsCollector := NewTestMetricsCollector(true)
+	metricsCollector := NewMetricsCollectorSpy(true)
 	wrapper := CreateWrapperWithTestConfig(t, WithMetrics(metricsCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
@@ -454,7 +454,7 @@ func Test_Generic_Eventstore_WithMetrics_RecordsAppendMetrics(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	metricsCollector := NewTestMetricsCollector(true)
+	metricsCollector := NewMetricsCollectorSpy(true)
 	wrapper := CreateWrapperWithTestConfig(t, WithMetrics(metricsCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
@@ -499,7 +499,7 @@ func Test_Generic_Eventstore_WithMetrics_RecordsConcurrencyConflicts(t *testing.
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	metricsCollector := NewTestMetricsCollector(true)
+	metricsCollector := NewMetricsCollectorSpy(true)
 	wrapper := CreateWrapperWithTestConfig(t, WithMetrics(metricsCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
@@ -544,7 +544,7 @@ func Test_Generic_Eventstore_WithMetrics_RecordsErrorMetrics(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	metricsCollector := NewTestMetricsCollector(true)
+	metricsCollector := NewMetricsCollectorSpy(true)
 	wrapper := CreateWrapperWithTestConfig(t, WithTableName("non_existent_table_2"), WithMetrics(metricsCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
@@ -574,7 +574,7 @@ func Test_Generic_Eventstore_WithTracing_RecordsQuerySpans(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	tracingCollector := NewTestTracingCollector(true)
+	tracingCollector := NewTracingCollectorSpy(true)
 	wrapper := CreateWrapperWithTestConfig(t, WithTracing(tracingCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
@@ -600,7 +600,7 @@ func Test_Generic_Eventstore_WithTracing_RecordsAppendSpans(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	tracingCollector := NewTestTracingCollector(true)
+	tracingCollector := NewTracingCollectorSpy(true)
 	wrapper := CreateWrapperWithTestConfig(t, WithTracing(tracingCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
@@ -635,7 +635,7 @@ func Test_Generic_Eventstore_WithTracing_RecordsConcurrencyConflictSpans(t *test
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	tracingCollector := NewTestTracingCollector(true)
+	tracingCollector := NewTracingCollectorSpy(true)
 	wrapper := CreateWrapperWithTestConfig(t, WithTracing(tracingCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
@@ -681,7 +681,7 @@ func Test_Generic_Eventstore_WithTracing_RecordsErrorSpans(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	tracingCollector := NewTestTracingCollector(true)
+	tracingCollector := NewTracingCollectorSpy(true)
 	wrapper := CreateWrapperWithTestConfig(t, WithTableName("non_existent_table_3"), WithTracing(tracingCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
@@ -707,7 +707,7 @@ func Test_Generic_Eventstore_WithContextualLogger_LogsQueries(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	contextualLogger := NewTestContextualLogger(true)
+	contextualLogger := NewContextualLoggerSpy(true)
 	wrapper := CreateWrapperWithTestConfig(t, WithContextualLogger(contextualLogger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
@@ -732,7 +732,7 @@ func Test_Generic_Eventstore_WithContextualLogger_LogsAppends(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	contextualLogger := NewTestContextualLogger(true)
+	contextualLogger := NewContextualLoggerSpy(true)
 	wrapper := CreateWrapperWithTestConfig(t, WithContextualLogger(contextualLogger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
@@ -766,7 +766,7 @@ func Test_Generic_Eventstore_WithContextualLogger_LogsErrors(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	contextualLogger := NewTestContextualLogger(true)
+	contextualLogger := NewContextualLoggerSpy(true)
 	wrapper := CreateWrapperWithTestConfig(t, WithTableName("non_existent_table_contextual"), WithContextualLogger(contextualLogger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
