@@ -1,51 +1,28 @@
 package postgresengine
 
 import (
-	"context"
-	"time"
-
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 )
 
-// Logger interface for SQL query logging, operational metricsCollector, warnings, and error reporting.
-type Logger interface {
-	Debug(msg string, args ...any)
-	Info(msg string, args ...any)
-	Warn(msg string, args ...any)
-	Error(msg string, args ...any)
-}
+// Logger is an alias for eventstore.Logger for convenience when using postgresengine.
+// It provides methods for SQL query logging, operational metrics, warnings, and error reporting.
+type Logger = eventstore.Logger
 
-// MetricsCollector interface for collecting EventStore performance and operational metricsCollector.
-type MetricsCollector interface {
-	RecordDuration(metric string, duration time.Duration, labels map[string]string)
-	IncrementCounter(metric string, labels map[string]string)
-	RecordValue(metric string, value float64, labels map[string]string)
-}
+// MetricsCollector is an alias for eventstore.MetricsCollector for convenience when using postgresengine.
+// It provides methods for collecting EventStore performance and operational metrics.
+type MetricsCollector = eventstore.MetricsCollector
 
-// SpanContext represents an active tracing span that can be finished and updated with attributes.
-type SpanContext interface {
-	SetStatus(status string)
-	AddAttribute(key, value string)
-}
+// SpanContext is an alias for eventstore.SpanContext for convenience when using postgresengine.
+// It represents an active tracing span that can be finished and updated with attributes.
+type SpanContext = eventstore.SpanContext
 
-// TracingCollector interface for collecting distributed tracing information from EventStore operations.
-// This interface follows the same dependency-free pattern as MetricsCollector, allowing users to integrate
-// with any tracing backend (OpenTelemetry, Jaeger, Zipkin, etc.) by implementing this interface.
-type TracingCollector interface {
-	StartSpan(ctx context.Context, name string, attrs map[string]string) (context.Context, SpanContext)
-	FinishSpan(spanCtx SpanContext, status string, attrs map[string]string)
-}
+// TracingCollector is an alias for eventstore.TracingCollector for convenience when using postgresengine.
+// It provides methods for collecting distributed tracing information from EventStore operations.
+type TracingCollector = eventstore.TracingCollector
 
-// ContextualLogger interface for context-aware logging with automatic trace correlation.
-// This interface follows the same dependency-free pattern as MetricsCollector and TracingCollector,
-// allowing users to integrate with any logging backend (OpenTelemetry, structured loggers, etc.)
-// that supports context-based correlation and automatic trace/span ID inclusion.
-type ContextualLogger interface {
-	DebugContext(ctx context.Context, msg string, args ...any)
-	InfoContext(ctx context.Context, msg string, args ...any)
-	WarnContext(ctx context.Context, msg string, args ...any)
-	ErrorContext(ctx context.Context, msg string, args ...any)
-}
+// ContextualLogger is an alias for eventstore.ContextualLogger for convenience when using postgresengine.
+// It provides methods for context-aware logging with automatic trace correlation.
+type ContextualLogger = eventstore.ContextualLogger
 
 // Option defines a functional option for configuring EventStore.
 type Option func(*EventStore) error
@@ -70,7 +47,7 @@ func WithTableName(tableName string) Option {
 // Info level: Event counts, durations, concurrency conflicts (production-safe)
 // Warn level: Non-critical issues like cleanup failures
 // Error level: Critical failures that cause operation failures.
-func WithLogger(logger Logger) Option {
+func WithLogger(logger eventstore.Logger) Option {
 	return func(es *EventStore) error {
 		es.logger = logger
 		return nil
@@ -80,7 +57,7 @@ func WithLogger(logger Logger) Option {
 // WithMetrics sets the metricsCollector collector for the EventStore.
 // The metricsCollector collector will receive performance and operational metricsCollector including
 // query/append durations, event counts, concurrency conflicts, and database errors.
-func WithMetrics(collector MetricsCollector) Option {
+func WithMetrics(collector eventstore.MetricsCollector) Option {
 	return func(es *EventStore) error {
 		es.metricsCollector = collector
 		return nil
@@ -90,7 +67,7 @@ func WithMetrics(collector MetricsCollector) Option {
 // WithTracing sets the tracing collector for the EventStore.
 // The tracing collector will receive distributed tracing information including
 // span creation for query/append operations, context propagation, and error tracking.
-func WithTracing(collector TracingCollector) Option {
+func WithTracing(collector eventstore.TracingCollector) Option {
 	return func(es *EventStore) error {
 		es.tracingCollector = collector
 		return nil
@@ -100,7 +77,7 @@ func WithTracing(collector TracingCollector) Option {
 // WithContextualLogger sets the contextual logger for the EventStore.
 // The contextual logger will receive log messages with context information including
 // automatic trace/span correlation when tracing is enabled, enabling unified observability.
-func WithContextualLogger(logger ContextualLogger) Option {
+func WithContextualLogger(logger eventstore.ContextualLogger) Option {
 	return func(es *EventStore) error {
 		es.contextualLogger = logger
 		return nil

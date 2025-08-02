@@ -23,6 +23,38 @@ Unlike traditional event stores with fixed streams tied to specific entities, th
 - **📝 OpenTelemetry Compatible Contextual Logging**: Context-aware logging with automatic trace correlation
 - **📈 OpenTelemetry Compatible Metrics**: Comprehensive observability with duration, counters, and error tracking
 - **🔍 OpenTelemetry Compatible Tracing**: Dependency-free tracing interface for OpenTelemetry, Jaeger, and custom backends
+- **🔌 OpenTelemetry Ready-to-Use Adapters**: Official plug-and-play adapters for immediate OpenTelemetry integration
+
+## 🔌 OpenTelemetry Integration
+
+For users with existing OpenTelemetry setups, we provide **ready-to-use adapters** that require zero configuration:
+
+```bash
+# Optional: Add OpenTelemetry adapters
+go get github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/oteladapters
+```
+
+```go
+import "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/oteladapters"
+
+// Zero-config OpenTelemetry integration
+tracer := otel.Tracer("eventstore")
+meter := otel.Meter("eventstore")
+
+eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
+    postgresengine.WithTracing(oteladapters.NewTracingCollector(tracer)),
+    postgresengine.WithMetrics(oteladapters.NewMetricsCollector(meter)),
+    postgresengine.WithContextualLogger(oteladapters.NewSlogBridgeLogger("eventstore")),
+)
+```
+
+**Features:**
+- **Automatic trace correlation** in logs (trace/span IDs included)
+- **Engine-agnostic design** - works with any database engine (current and future)
+- **Separate module** - no OpenTelemetry dependencies in core library
+- **Production-ready** using OpenTelemetry best practices
+
+[📖 View OpenTelemetry Adapters Documentation →](eventstore/oteladapters/README.md)
 
 ## 🚀 Quick Start
 

@@ -11,7 +11,7 @@ import (
 	_ "github.com/lib/pq" // postgres driver
 	"github.com/stretchr/testify/assert"
 
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"                                     //nolint:revive
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"                                     //nolint:revive
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"                      //nolint:revive
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"                      //nolint:revive
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"                 //nolint:revive
@@ -95,7 +95,7 @@ func Test_Generic_NewEventStore_ShouldFail_WithNilDatabaseConnection(t *testing.
 			_, err := tc.factoryFunc()
 
 			// assert
-			assert.ErrorContains(t, err, ErrNilDatabaseConnection.Error())
+			assert.ErrorContains(t, err, eventstore.ErrNilDatabaseConnection.Error())
 		})
 	}
 }
@@ -174,7 +174,7 @@ func Test_Generic_FactoryFunctions_ShouldFail_WithEmptyTableName(t *testing.T) {
 			_, err := tc.factoryFunc(t)
 
 			// assert
-			assert.ErrorContains(t, err, ErrEmptyEventsTableName.Error())
+			assert.ErrorContains(t, err, eventstore.ErrEmptyEventsTableName.Error())
 		})
 	}
 }
@@ -408,7 +408,7 @@ func Test_Generic_Eventstore_WithLogger_LogsConcurrencyConflicts(t *testing.T) {
 	)
 
 	// assert
-	assert.ErrorContains(t, err, ErrConcurrencyConflict.Error())
+	assert.ErrorContains(t, err, eventstore.ErrConcurrencyConflict.Error())
 	assert.Equal(t, 2, testHandler.GetRecordCount(), "should log exactly one sql statement and one operational statement for query")
 	assert.True(t,
 		testHandler.HasInfoLogWithMessage("eventstore operation: concurrency conflict detected").
@@ -532,7 +532,7 @@ func Test_Generic_Eventstore_WithMetrics_RecordsConcurrencyConflicts(t *testing.
 	)
 
 	// assert
-	assert.ErrorContains(t, err, ErrConcurrencyConflict.Error())
+	assert.ErrorContains(t, err, eventstore.ErrConcurrencyConflict.Error())
 	assert.True(t, metricsCollector.HasCounterRecordForMetric("eventstore_concurrency_conflicts_total").
 		WithOperation("append").
 		WithConflictType("concurrency").
@@ -668,7 +668,7 @@ func Test_Generic_Eventstore_WithTracing_RecordsConcurrencyConflictSpans(t *test
 	)
 
 	// assert
-	assert.ErrorContains(t, err, ErrConcurrencyConflict.Error())
+	assert.ErrorContains(t, err, eventstore.ErrConcurrencyConflict.Error())
 	assert.True(t, tracingCollector.HasSpanRecordForName("eventstore.append").
 		WithStatus("error").
 		WithStartAttribute("operation", "append").
