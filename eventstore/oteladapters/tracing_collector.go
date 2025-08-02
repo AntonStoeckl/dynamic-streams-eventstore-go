@@ -26,7 +26,7 @@ func NewTracingCollector(tracer trace.Tracer) *TracingCollector {
 // StartSpan creates a new OpenTelemetry span with the given name and attributes.
 // It returns a new context with the span and a SpanContext wrapper for the span.
 func (t *TracingCollector) StartSpan(ctx context.Context, name string, attrs map[string]string) (context.Context, eventstore.SpanContext) {
-	// Convert attribute map to OpenTelemetry span options
+	// Convert an attribute map to OpenTelemetry span options
 	spanOptions := make([]trace.SpanStartOption, 0, len(attrs))
 	for key, value := range attrs {
 		spanOptions = append(spanOptions, trace.WithAttributes(attribute.String(key, value)))
@@ -56,7 +56,7 @@ func (t *TracingCollector) FinishSpan(spanCtx eventstore.SpanContext, status str
 	}
 }
 
-// Ensure TracingCollector implements eventstore.TracingCollector
+// Ensure TracingCollector implements eventstore.TracingCollector.
 var _ eventstore.TracingCollector = (*TracingCollector)(nil)
 
 // OTelSpanContext implements eventstore.SpanContext by wrapping an OpenTelemetry span.
@@ -92,10 +92,10 @@ func (s *OTelSpanContext) setSpanStatus(status string) {
 	case "conflict":
 		s.span.SetStatus(codes.Error, "Concurrency conflict")
 	default:
-		// For unknown status strings, record as span attribute
+		// For unknown status strings, record as a span attribute
 		s.span.SetAttributes(attribute.String("status", status))
 	}
 }
 
-// Ensure OTelSpanContext implements eventstore.SpanContext
+// Ensure OTelSpanContext implements eventstore.SpanContext.
 var _ eventstore.SpanContext = (*OTelSpanContext)(nil)

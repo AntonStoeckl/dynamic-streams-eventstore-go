@@ -12,9 +12,9 @@ import (
 
 // MetricsCollector implements eventstore.MetricsCollector using the OpenTelemetry metrics API.
 // It automatically maps the eventstore metrics interface to OpenTelemetry instruments:
-// - RecordDuration -> Histogram (for measuring operation durations)
-// - IncrementCounter -> Counter (for counting operations and errors)
-// - RecordValue -> Gauge (for current values like concurrent operations)
+//   - RecordDuration -> Histogram (for measuring operation durations)
+//   - IncrementCounter -> Counter (for counting operations and errors)
+//   - RecordValue -> Gauge (for current values like concurrent operations)
 type MetricsCollector struct {
 	meter      metric.Meter
 	histograms map[string]metric.Float64Histogram
@@ -69,7 +69,7 @@ func (m *MetricsCollector) IncrementCounter(metric string, labels map[string]str
 		attrs = append(attrs, attribute.String(key, value))
 	}
 
-	// Note: Simplified for compatibility - real implementation would use attributes
+	// Note: Simplified for compatibility - a real implementation would use attributes
 	counter.Add(context.Background(), 1)
 }
 
@@ -88,7 +88,7 @@ func (m *MetricsCollector) RecordValue(metric string, value float64, labels map[
 		attrs = append(attrs, attribute.String(key, value))
 	}
 
-	// Note: Simplified for compatibility - real implementation would use attributes
+	// Note: Simplified for compatibility - a real implementation would use attributes
 	gauge.Record(context.Background(), value)
 }
 
@@ -150,5 +150,5 @@ func (m *MetricsCollector) getOrCreateGauge(name string) metric.Float64Gauge {
 	return gauge
 }
 
-// Ensure MetricsCollector implements eventstore.MetricsCollector
+// Ensure MetricsCollector implements eventstore.MetricsCollector.
 var _ eventstore.MetricsCollector = (*MetricsCollector)(nil)

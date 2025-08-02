@@ -59,7 +59,7 @@ func (l *SlogBridgeLogger) ErrorContext(ctx context.Context, msg string, args ..
 	l.logger.ErrorContext(ctx, msg, args...)
 }
 
-// Ensure SlogBridgeLogger implements eventstore.ContextualLogger
+// Ensure SlogBridgeLogger implements eventstore.ContextualLogger.
 var _ eventstore.ContextualLogger = (*SlogBridgeLogger)(nil)
 
 // OTelLogger implements eventstore.ContextualLogger using the OpenTelemetry logging API directly.
@@ -123,5 +123,5 @@ func stringValue(v any) string {
 	return slog.AnyValue(v).String()
 }
 
-// Ensure OTelLogger implements eventstore.ContextualLogger
+// Ensure OTelLogger implements eventstore.ContextualLogger.
 var _ eventstore.ContextualLogger = (*OTelLogger)(nil)
