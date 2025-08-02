@@ -185,7 +185,8 @@ func setupProductionEventStore(dbPool *pgxpool.Pool) postgresengine.EventStore {
     eventStore, err := postgresengine.NewEventStoreFromPGXPool(dbPool,
         postgresengine.WithLogger(logger),
         postgresengine.WithMetrics(metricsCollector),
-        postgresengine.WithTracing(tracingCollector))
+        postgresengine.WithTracing(tracingCollector),
+        postgresengine.WithContextualLogger(contextualLogger))
     if err != nil {
         panic(err)
     }
@@ -255,7 +256,8 @@ func TestLendBookToReaderWithMetrics(t *testing.T) {
     
     es, err := postgresengine.NewEventStoreFromPGXPool(db,
         postgresengine.WithMetrics(metricsCollector),
-        postgresengine.WithTracing(tracingCollector))
+        postgresengine.WithTracing(tracingCollector),
+        postgresengine.WithContextualLogger(contextualLogger))
     require.NoError(t, err)
     
     // Execute business operation

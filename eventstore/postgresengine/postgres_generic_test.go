@@ -701,3 +701,85 @@ func Test_Generic_Eventstore_WithTracing_RecordsErrorSpans(t *testing.T) {
 		WithEndAttribute("error_type", "database_query").
 		Assert(), "should record query span with database error")
 }
+
+func Test_Generic_Eventstore_WithContextualLogger_LogsQueries(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	contextualLogger := NewTestContextualLogger(true)
+	wrapper := CreateWrapperWithTestConfig(t, WithContextualLogger(contextualLogger))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	// arrange
+	CleanUp(t, wrapper)
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// act
+	_, _, err := es.Query(ctxWithTimeout, filter)
+
+	// assert
+	assert.NoError(t, err)
+	assert.True(t, contextualLogger.GetTotalRecordCount() >= 2, "contextual logger should record at least 2 log entries (debug SQL and info operation)")
+	assert.True(t, contextualLogger.HasDebugLog("executed sql for: query"), "should log SQL execution with correct message")
+	assert.True(t, contextualLogger.HasInfoLog("eventstore operation: query completed"), "should log operation completion")
+}
+
+func Test_Generic_Eventstore_WithContextualLogger_LogsAppends(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	contextualLogger := NewTestContextualLogger(true)
+	wrapper := CreateWrapperWithTestConfig(t, WithContextualLogger(contextualLogger))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	fakeClock := time.Unix(0, 0).UTC()
+
+	// arrange
+	CleanUp(t, wrapper)
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// act
+	err := es.Append(
+		ctxWithTimeout,
+		filter,
+		QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
+		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
+	)
+
+	// assert
+	assert.NoError(t, err)
+	assert.True(t, contextualLogger.GetTotalRecordCount() >= 4, "contextual logger should record at least 4 log entries (2 for query, 2 for append)")
+	assert.True(t, contextualLogger.HasDebugLog("executed sql for: query"), "should log query SQL execution")
+	assert.True(t, contextualLogger.HasDebugLog("executed sql for: append"), "should log append SQL execution")
+	assert.True(t, contextualLogger.HasInfoLog("eventstore operation: query completed"), "should log query completion")
+	assert.True(t, contextualLogger.HasInfoLog("eventstore operation: events appended"), "should log append completion")
+}
+
+func Test_Generic_Eventstore_WithContextualLogger_LogsErrors(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	contextualLogger := NewTestContextualLogger(true)
+	wrapper := CreateWrapperWithTestConfig(t, WithTableName("non_existent_table_contextual"), WithContextualLogger(contextualLogger))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	// arrange
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// act - attempt to query the non-existent table
+	_, _, err := es.Query(ctxWithTimeout, filter)
+
+	// assert
+	assert.Error(t, err)
+	assert.True(t, contextualLogger.GetTotalRecordCount() >= 1, "contextual logger should record at least 1 error log entry")
+	assert.True(t, contextualLogger.HasErrorLog("database query execution failed"), "should log database error with correct message")
+}

@@ -398,3 +398,39 @@ func (amo *appendMetricsObserver) recordError(errorType string, duration time.Du
 func (amo *appendMetricsObserver) recordConcurrencyConflict() {
 	amo.es.recordConcurrencyConflictMetrics(operationAppend)
 }
+
+// === Contextual Logging Pattern ===
+// These methods provide context-aware logging with automatic trace correlation when available.
+
+// logQueryWithDurationContext logs SQL queries with execution time and context correlation.
+func (es *EventStore) logQueryWithDurationContext(
+	ctx context.Context,
+	sqlQuery string,
+	action string,
+	duration time.Duration,
+) {
+	if es.contextualLogger != nil {
+		es.contextualLogger.DebugContext(ctx, logMsgSQLExecuted+action, logAttrDurationMS, es.toMilliseconds(duration), logAttrQuery, sqlQuery)
+	}
+}
+
+// logOperationContext logs operational information with context correlation.
+func (es *EventStore) logOperationContext(ctx context.Context, action string, args ...any) {
+	if es.contextualLogger != nil {
+		es.contextualLogger.InfoContext(ctx, logMsgOperation+action, args...)
+	}
+}
+
+// logErrorContext logs error information with context correlation.
+func (es *EventStore) logErrorContext(
+	ctx context.Context,
+	message string,
+	err error,
+	args ...any,
+) {
+	if es.contextualLogger != nil {
+		allArgs := []any{logAttrError, err.Error()}
+		allArgs = append(allArgs, args...)
+		es.contextualLogger.ErrorContext(ctx, message, allArgs...)
+	}
+}

@@ -23,6 +23,7 @@ func WithTableName(tableName string) Option
 func WithLogger(logger Logger) Option
 func WithMetrics(metrics MetricsCollector) Option
 func WithTracing(tracing TracingCollector) Option
+func WithContextualLogger(logger ContextualLogger) Option
 
 // Logger interface for SQL query logging, operational metrics, warnings, and error reporting
 type Logger interface {
@@ -51,6 +52,17 @@ type SpanContext interface {
 type TracingCollector interface {
     StartSpan(ctx context.Context, name string, attrs map[string]string) (context.Context, SpanContext)
     FinishSpan(spanCtx SpanContext, status string, attrs map[string]string)
+}
+
+// ContextualLogger interface for context-aware logging with automatic trace correlation.
+// This interface follows the same dependency-free pattern as MetricsCollector and TracingCollector,
+// allowing users to integrate with any logging backend (OpenTelemetry, structured loggers, etc.)
+// that supports context-based correlation and automatic trace/span ID inclusion.
+type ContextualLogger interface {
+    DebugContext(ctx context.Context, msg string, args ...any)
+    InfoContext(ctx context.Context, msg string, args ...any)
+    WarnContext(ctx context.Context, msg string, args ...any)
+    ErrorContext(ctx context.Context, msg string, args ...any)
 }
 ```
 
@@ -138,7 +150,8 @@ eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
     postgresengine.WithTableName("my_events"),
     postgresengine.WithLogger(debugLogger),
     postgresengine.WithMetrics(metricsCollector),
-    postgresengine.WithTracing(tracingCollector))
+    postgresengine.WithTracing(tracingCollector),
+    postgresengine.WithContextualLogger(contextualLogger))
 if err != nil {
     return err
 }

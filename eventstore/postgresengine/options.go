@@ -36,6 +36,17 @@ type TracingCollector interface {
 	FinishSpan(spanCtx SpanContext, status string, attrs map[string]string)
 }
 
+// ContextualLogger interface for context-aware logging with automatic trace correlation.
+// This interface follows the same dependency-free pattern as MetricsCollector and TracingCollector,
+// allowing users to integrate with any logging backend (OpenTelemetry, structured loggers, etc.)
+// that supports context-based correlation and automatic trace/span ID inclusion.
+type ContextualLogger interface {
+	DebugContext(ctx context.Context, msg string, args ...any)
+	InfoContext(ctx context.Context, msg string, args ...any)
+	WarnContext(ctx context.Context, msg string, args ...any)
+	ErrorContext(ctx context.Context, msg string, args ...any)
+}
+
 // Option defines a functional option for configuring EventStore.
 type Option func(*EventStore) error
 
@@ -82,6 +93,16 @@ func WithMetrics(collector MetricsCollector) Option {
 func WithTracing(collector TracingCollector) Option {
 	return func(es *EventStore) error {
 		es.tracingCollector = collector
+		return nil
+	}
+}
+
+// WithContextualLogger sets the contextual logger for the EventStore.
+// The contextual logger will receive log messages with context information including
+// automatic trace/span correlation when tracing is enabled, enabling unified observability.
+func WithContextualLogger(logger ContextualLogger) Option {
+	return func(es *EventStore) error {
+		es.contextualLogger = logger
 		return nil
 	}
 }

@@ -219,8 +219,52 @@ if err != nil {
 - Error scenarios with detailed error classification
 - Context propagation through all database operations
 
+##### OpenTelemetry-Compatible Contextual Logging
+
+The EventStore supports context-aware logging that automatically correlates with distributed tracing for unified observability:
+
+```go
+import "context"
+
+// Example contextual logger (implement your OpenTelemetry logging integration)
+type MyContextualLogger struct {
+    // Your OpenTelemetry logging implementation
+}
+
+func (l *MyContextualLogger) DebugContext(ctx context.Context, msg string, args ...any) {
+    // Log with automatic trace correlation from context
+    // OpenTelemetry loggers automatically extract trace_id and span_id
+}
+
+func (l *MyContextualLogger) InfoContext(ctx context.Context, msg string, args ...any) {
+    // Log operational information with trace correlation
+}
+
+func (l *MyContextualLogger) WarnContext(ctx context.Context, msg string, args ...any) {
+    // Log warnings with trace correlation
+}
+
+func (l *MyContextualLogger) ErrorContext(ctx context.Context, msg string, args ...any) {
+    // Log errors with trace correlation
+}
+
+// Enable contextual logging
+contextualLogger := &MyContextualLogger{}
+eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
+    postgresengine.WithContextualLogger(contextualLogger))
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+**Benefits of contextual logging:**
+- Automatic trace correlation - logs include trace_id and span_id when tracing is enabled
+- Unified observability - logs, metrics, and traces all correlated together
+- Better debugging - jump from log entries to distributed traces
+- Production observability - complete request flow visibility
+
 ##### Full Configuration
-Combining custom table name with logging, metrics, and tracing:
+Combining custom table name with logging, metrics, tracing, and contextual logging:
 
 ```go
 // Create logger appropriate for your environment
@@ -232,12 +276,16 @@ metricsCollector := &MyMetricsCollector{}
 // Create your tracing collector
 tracingCollector := &MyTracingCollector{}
 
+// Create your contextual logger
+contextualLogger := &MyContextualLogger{}
+
 // Full observability configuration
 eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
     postgresengine.WithTableName("my_events"),
     postgresengine.WithLogger(debugLogger),
     postgresengine.WithMetrics(metricsCollector),
-    postgresengine.WithTracing(tracingCollector))
+    postgresengine.WithTracing(tracingCollector),
+    postgresengine.WithContextualLogger(contextualLogger))
 if err != nil {
     log.Fatal(err)
 }

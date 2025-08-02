@@ -19,9 +19,10 @@ Unlike traditional event stores with fixed streams tied to specific entities, th
 - **🎯 Fluent Filter API**: Type-safe, expressive event filtering with compile-time validation
 - **📊 JSON-First**: Efficient JSONB storage with GIN index optimization
 - **🔗 Multiple Adapters**: Support for pgx/v5, database/sql, and sqlx database connections
+- **📝 Structured Logging**: Configurable SQL query logging and operational monitoring (slog, zerolog, logrus compatible)
+- **📝 OpenTelemetry Compatible Contextual Logging**: Context-aware logging with automatic trace correlation
 - **📈 OpenTelemetry Compatible Metrics**: Comprehensive observability with duration, counters, and error tracking
 - **🔍 OpenTelemetry Compatible Tracing**: Dependency-free tracing interface for OpenTelemetry, Jaeger, and custom backends
-- **📝 Structured Logging**: Configurable SQL query logging and operational monitoring (slog, zerolog, logrus compatible)
 
 ## 🚀 Quick Start
 
