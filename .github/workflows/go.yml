@@ -52,23 +52,26 @@ jobs:
           echo "Running eventstore package tests..."
           go test -race -coverprofile=coverage-eventstore.out -coverpkg=./eventstore/... -covermode=atomic ./eventstore/
           
-          echo "Running generic tests (adapter-independent tests)..."
-          go test -race -coverprofile=coverage-generic.out -coverpkg=./eventstore/... -covermode=atomic ./eventstore/postgresengine -run "^Test_Generic_"
+          echo "Running factory function tests..."
+          go test -race -coverprofile=coverage-factory.out -coverpkg=./eventstore/... -covermode=atomic ./eventstore/postgresengine -run "^Test_FactoryFunctions_"
+          
+          echo "Running observability tests..."
+          go test -race -coverprofile=coverage-observability.out -coverpkg=./eventstore/... -covermode=atomic ./eventstore/postgresengine -run "^Test_Observability_"
           
           echo "Running functional tests with pgxpool adapter..."
-          ADAPTER_TYPE=pgx.pool go test -race -coverprofile=coverage-pgxpool.out -coverpkg=./eventstore/... -covermode=atomic ./eventstore/postgresengine -run "^Test_" -skip "^Test_Generic_"
+          ADAPTER_TYPE=pgx.pool go test -race -coverprofile=coverage-pgxpool.out -coverpkg=./eventstore/... -covermode=atomic ./eventstore/postgresengine -run "^Test_" -skip "^Test_FactoryFunctions_|^Test_Observability_"
           
           echo "Running functional tests with sqldb adapter..."
-          ADAPTER_TYPE=sql.db go test -race -coverprofile=coverage-sqldb.out -coverpkg=./eventstore/... -covermode=atomic ./eventstore/postgresengine -run "^Test_" -skip "^Test_Generic_"
+          ADAPTER_TYPE=sql.db go test -race -coverprofile=coverage-sqldb.out -coverpkg=./eventstore/... -covermode=atomic ./eventstore/postgresengine -run "^Test_" -skip "^Test_FactoryFunctions_|^Test_Observability_"
           
           echo "Running functional tests with sqlxdb adapter..."
-          ADAPTER_TYPE=sqlx.db go test -race -coverprofile=coverage-sqlxdb.out -coverpkg=./eventstore/... -covermode=atomic ./eventstore/postgresengine -run "^Test_" -skip "^Test_Generic_"
+          ADAPTER_TYPE=sqlx.db go test -race -coverprofile=coverage-sqlxdb.out -coverpkg=./eventstore/... -covermode=atomic ./eventstore/postgresengine -run "^Test_" -skip "^Test_FactoryFunctions_|^Test_Observability_"
           
           echo "Running oteladapters package tests..."
           go test -race -coverprofile=coverage-oteladapters.out -coverpkg=./eventstore/oteladapters/... -covermode=atomic ./eventstore/oteladapters
           
           echo "Merging coverage profiles..."
-          gocovmerge coverage-eventstore.out coverage-generic.out coverage-pgxpool.out coverage-sqldb.out coverage-sqlxdb.out coverage-oteladapters.out > coverage.out
+          gocovmerge coverage-eventstore.out coverage-factory.out coverage-observability.out coverage-pgxpool.out coverage-sqldb.out coverage-sqlxdb.out coverage-oteladapters.out > coverage.out
 
       - name: Upload results to Codecov
         uses: codecov/codecov-action@v5

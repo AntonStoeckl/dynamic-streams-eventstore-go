@@ -3,204 +3,18 @@ package postgresengine_test
 import (
 	"context"
 	"log/slog"
-	"os"
 	"testing"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	_ "github.com/lib/pq" // postgres driver
 	"github.com/stretchr/testify/assert"
 
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"                                       //nolint:revive
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"                      //nolint:revive
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"                      //nolint:revive
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"                 //nolint:revive
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper" //nolint:revive
 )
 
-func Test_Generic_NewEventStore_ShouldPanic_WithUnsupportedAdapterType(t *testing.T) {
-	// Save the original env var
-	originalAdapterType := os.Getenv("ADAPTER_TYPE")
-	defer func() {
-		if originalAdapterType == "" {
-			err := os.Unsetenv("ADAPTER_TYPE")
-			assert.NoError(t, err)
-		} else {
-			err := os.Setenv("ADAPTER_TYPE", originalAdapterType)
-			assert.NoError(t, err)
-		}
-	}()
-
-	// Set an unsupported adapter type
-	err := os.Setenv("ADAPTER_TYPE", "unsupported")
-	assert.NoError(t, err)
-
-	assert.Panics(t, func() {
-		createErr := TryCreateEventStoreWithTableName(t, WithTableName("event_data"))
-		assert.NoError(t, createErr)
-	})
-}
-
-func Test_Generic_NewEventStoreWithTableName_ShouldPanic_WithUnsupportedAdapterType(t *testing.T) {
-	// Save the original env var
-	originalAdapterType := os.Getenv("ADAPTER_TYPE")
-	defer func() {
-		if originalAdapterType == "" {
-			err := os.Unsetenv("ADAPTER_TYPE")
-			assert.NoError(t, err)
-		} else {
-			err := os.Setenv("ADAPTER_TYPE", originalAdapterType)
-			assert.NoError(t, err)
-		}
-	}()
-
-	// Set an unsupported adapter type
-	err := os.Setenv("ADAPTER_TYPE", "unsupported")
-	assert.NoError(t, err)
-
-	assert.Panics(t, func() {
-		createErr := TryCreateEventStoreWithTableName(t, WithTableName("event_data"))
-		assert.NoError(t, createErr)
-	})
-}
-
-func Test_Generic_NewEventStore_ShouldFail_WithNilDatabaseConnection(t *testing.T) {
-	testCases := []struct {
-		name        string
-		factoryFunc func() (*EventStore, error)
-	}{
-		{
-			name: "NewEventStoreFromPGXPool with nil",
-			factoryFunc: func() (*EventStore, error) {
-				return NewEventStoreFromPGXPool(nil)
-			},
-		},
-		{
-			name: "NewEventStoreFromSQLDB with nil",
-			factoryFunc: func() (*EventStore, error) {
-				return NewEventStoreFromSQLDB(nil)
-			},
-		},
-		{
-			name: "NewEventStoreFromSQLX with nil",
-			factoryFunc: func() (*EventStore, error) {
-				return NewEventStoreFromSQLX(nil)
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// act
-			_, err := tc.factoryFunc()
-
-			// assert
-			assert.ErrorContains(t, err, eventstore.ErrNilDatabaseConnection.Error())
-		})
-	}
-}
-
-func Test_Generic_EventStore_WithTableName_ShouldWorkCorrectly(t *testing.T) {
-	// setup
-	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	customTableName := "events"
-	wrapper := CreateWrapperWithTestConfig(t, WithTableName(customTableName))
-	defer wrapper.Close()
-	es := wrapper.GetEventStore()
-
-	fakeClock := time.Unix(0, 0).UTC()
-
-	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
-
-	err := es.Append(
-		ctxWithTimeout,
-		filter,
-		0,
-		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
-	)
-	assert.NoError(t, err)
-
-	// act
-	events, _, queryErr := es.Query(ctxWithTimeout, filter)
-
-	// assert
-	assert.NoError(t, queryErr)
-	assert.Len(t, events, 1)
-}
-
-func Test_Generic_FactoryFunctions_ShouldFail_WithEmptyTableName(t *testing.T) {
-	testCases := []struct {
-		name        string
-		factoryFunc func(t *testing.T) (*EventStore, error)
-	}{
-		{
-			name: "NewEventStoreFromPGXPool with empty table name",
-			factoryFunc: func(_ *testing.T) (*EventStore, error) {
-				connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
-				assert.NoError(t, err, "error connecting to DB pool in test setup")
-				defer connPool.Close()
-
-				return NewEventStoreFromPGXPool(connPool, WithTableName(""))
-			},
-		},
-		{
-			name: "NewEventStoreFromSQLDB with empty table name",
-			factoryFunc: func(_ *testing.T) (*EventStore, error) {
-				db := config.PostgresSQLDBTestConfig()
-				defer func() { _ = db.Close() }()
-
-				return NewEventStoreFromSQLDB(db, WithTableName(""))
-			},
-		},
-		{
-			name: "NewEventStoreFromSQLX with empty table name",
-			factoryFunc: func(_ *testing.T) (*EventStore, error) {
-				db := config.PostgresSQLXTestConfig()
-				defer func() { _ = db.Close() }()
-
-				return NewEventStoreFromSQLX(db, WithTableName(""))
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			// act
-			_, err := tc.factoryFunc(t)
-
-			// assert
-			assert.ErrorContains(t, err, eventstore.ErrEmptyEventsTableName.Error())
-		})
-	}
-}
-
-func Test_Generic_EventStore_WithTableName_ShouldFail_WithNonExistentTable(t *testing.T) {
-	// setup
-	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	wrapper := CreateWrapperWithTestConfig(t, WithTableName("non_existent_table_1"))
-	defer wrapper.Close()
-	es := wrapper.GetEventStore()
-
-	// arrange
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
-
-	// act
-	_, _, err := es.Query(ctxWithTimeout, filter)
-
-	// assert
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "does not exist")
-}
-
-func Test_Generic_Eventstore_WithLogger_LogsQueries(t *testing.T) {
+func Test_Observability_Eventstore_WithLogger_LogsQueries(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -208,7 +22,7 @@ func Test_Generic_Eventstore_WithLogger_LogsQueries(t *testing.T) {
 	testHandler := NewLogHandlerSpy(false)
 	logger := slog.New(testHandler)
 
-	wrapper := CreateWrapperWithTestConfig(t, WithLogger(logger))
+	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithLogger(logger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -237,7 +51,7 @@ func Test_Generic_Eventstore_WithLogger_LogsQueries(t *testing.T) {
 	)
 }
 
-func Test_Generic_Eventstore_WithLogger_LogsAppends(t *testing.T) {
+func Test_Observability_Eventstore_WithLogger_LogsAppends(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -245,7 +59,7 @@ func Test_Generic_Eventstore_WithLogger_LogsAppends(t *testing.T) {
 	testHandler := NewLogHandlerSpy(false)
 	logger := slog.New(testHandler)
 
-	wrapper := CreateWrapperWithTestConfig(t, WithLogger(logger))
+	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithLogger(logger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -293,7 +107,7 @@ func Test_Generic_Eventstore_WithLogger_LogsAppends(t *testing.T) {
 	)
 }
 
-func Test_Generic_Eventstore_WithLogger_LogsOperations(t *testing.T) {
+func Test_Observability_Eventstore_WithLogger_LogsOperations(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -301,7 +115,7 @@ func Test_Generic_Eventstore_WithLogger_LogsOperations(t *testing.T) {
 	testHandler := NewLogHandlerSpy(false)
 	logger := slog.New(testHandler)
 
-	wrapper := CreateWrapperWithTestConfig(t, WithLogger(logger))
+	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithLogger(logger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -324,7 +138,7 @@ func Test_Generic_Eventstore_WithLogger_LogsOperations(t *testing.T) {
 	)
 }
 
-func Test_Generic_Eventstore_WithLogger_LogsAppendOperations(t *testing.T) {
+func Test_Observability_Eventstore_WithLogger_LogsAppendOperations(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -332,7 +146,7 @@ func Test_Generic_Eventstore_WithLogger_LogsAppendOperations(t *testing.T) {
 	testHandler := NewLogHandlerSpy(false)
 	logger := slog.New(testHandler)
 
-	wrapper := CreateWrapperWithTestConfig(t, WithLogger(logger))
+	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithLogger(logger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -368,7 +182,7 @@ func Test_Generic_Eventstore_WithLogger_LogsAppendOperations(t *testing.T) {
 	)
 }
 
-func Test_Generic_Eventstore_WithLogger_LogsConcurrencyConflicts(t *testing.T) {
+func Test_Observability_Eventstore_WithLogger_LogsConcurrencyConflicts(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -376,7 +190,7 @@ func Test_Generic_Eventstore_WithLogger_LogsConcurrencyConflicts(t *testing.T) {
 	testHandler := NewLogHandlerSpy(false)
 	logger := slog.New(testHandler)
 
-	wrapper := CreateWrapperWithTestConfig(t, WithLogger(logger))
+	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithLogger(logger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -419,13 +233,13 @@ func Test_Generic_Eventstore_WithLogger_LogsConcurrencyConflicts(t *testing.T) {
 	)
 }
 
-func Test_Generic_Eventstore_WithMetrics_RecordsQueryMetrics(t *testing.T) {
+func Test_Observability_Eventstore_WithMetrics_RecordsQueryMetrics(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	metricsCollector := NewMetricsCollectorSpy(true)
-	wrapper := CreateWrapperWithTestConfig(t, WithMetrics(metricsCollector))
+	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithMetrics(metricsCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -449,13 +263,13 @@ func Test_Generic_Eventstore_WithMetrics_RecordsQueryMetrics(t *testing.T) {
 		Assert(), "should record events queried metric with correct labels")
 }
 
-func Test_Generic_Eventstore_WithMetrics_RecordsAppendMetrics(t *testing.T) {
+func Test_Observability_Eventstore_WithMetrics_RecordsAppendMetrics(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	metricsCollector := NewMetricsCollectorSpy(true)
-	wrapper := CreateWrapperWithTestConfig(t, WithMetrics(metricsCollector))
+	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithMetrics(metricsCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -494,13 +308,13 @@ func Test_Generic_Eventstore_WithMetrics_RecordsAppendMetrics(t *testing.T) {
 		Assert(), "should record events appended metric with correct labels")
 }
 
-func Test_Generic_Eventstore_WithMetrics_RecordsConcurrencyConflicts(t *testing.T) {
+func Test_Observability_Eventstore_WithMetrics_RecordsConcurrencyConflicts(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	metricsCollector := NewMetricsCollectorSpy(true)
-	wrapper := CreateWrapperWithTestConfig(t, WithMetrics(metricsCollector))
+	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithMetrics(metricsCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -539,13 +353,13 @@ func Test_Generic_Eventstore_WithMetrics_RecordsConcurrencyConflicts(t *testing.
 		Assert(), "should record concurrency conflict counter with correct labels")
 }
 
-func Test_Generic_Eventstore_WithMetrics_RecordsErrorMetrics(t *testing.T) {
+func Test_Observability_Eventstore_WithMetrics_RecordsErrorMetrics(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	metricsCollector := NewMetricsCollectorSpy(true)
-	wrapper := CreateWrapperWithTestConfig(t, WithTableName("non_existent_table_2"), WithMetrics(metricsCollector))
+	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_2"), postgresengine.WithMetrics(metricsCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -569,13 +383,13 @@ func Test_Generic_Eventstore_WithMetrics_RecordsErrorMetrics(t *testing.T) {
 		Assert(), "should record database error counter with correct labels")
 }
 
-func Test_Generic_Eventstore_WithTracing_RecordsQuerySpans(t *testing.T) {
+func Test_Observability_Eventstore_WithTracing_RecordsQuerySpans(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	tracingCollector := NewTracingCollectorSpy(true)
-	wrapper := CreateWrapperWithTestConfig(t, WithTracing(tracingCollector))
+	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithTracing(tracingCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -595,13 +409,13 @@ func Test_Generic_Eventstore_WithTracing_RecordsQuerySpans(t *testing.T) {
 		Assert(), "should record query span with correct attributes and status")
 }
 
-func Test_Generic_Eventstore_WithTracing_RecordsAppendSpans(t *testing.T) {
+func Test_Observability_Eventstore_WithTracing_RecordsAppendSpans(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	tracingCollector := NewTracingCollectorSpy(true)
-	wrapper := CreateWrapperWithTestConfig(t, WithTracing(tracingCollector))
+	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithTracing(tracingCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -630,13 +444,13 @@ func Test_Generic_Eventstore_WithTracing_RecordsAppendSpans(t *testing.T) {
 		Assert(), "should record append span with correct attributes and status")
 }
 
-func Test_Generic_Eventstore_WithTracing_RecordsConcurrencyConflictSpans(t *testing.T) {
+func Test_Observability_Eventstore_WithTracing_RecordsConcurrencyConflictSpans(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	tracingCollector := NewTracingCollectorSpy(true)
-	wrapper := CreateWrapperWithTestConfig(t, WithTracing(tracingCollector))
+	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithTracing(tracingCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -676,13 +490,13 @@ func Test_Generic_Eventstore_WithTracing_RecordsConcurrencyConflictSpans(t *test
 		Assert(), "should record append span with concurrency conflict error")
 }
 
-func Test_Generic_Eventstore_WithTracing_RecordsErrorSpans(t *testing.T) {
+func Test_Observability_Eventstore_WithTracing_RecordsErrorSpans(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	tracingCollector := NewTracingCollectorSpy(true)
-	wrapper := CreateWrapperWithTestConfig(t, WithTableName("non_existent_table_3"), WithTracing(tracingCollector))
+	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_3"), postgresengine.WithTracing(tracingCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -702,13 +516,13 @@ func Test_Generic_Eventstore_WithTracing_RecordsErrorSpans(t *testing.T) {
 		Assert(), "should record query span with database error")
 }
 
-func Test_Generic_Eventstore_WithContextualLogger_LogsQueries(t *testing.T) {
+func Test_Observability_Eventstore_WithContextualLogger_LogsQueries(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	contextualLogger := NewContextualLoggerSpy(true)
-	wrapper := CreateWrapperWithTestConfig(t, WithContextualLogger(contextualLogger))
+	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithContextualLogger(contextualLogger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -727,13 +541,13 @@ func Test_Generic_Eventstore_WithContextualLogger_LogsQueries(t *testing.T) {
 	assert.True(t, contextualLogger.HasInfoLog("eventstore operation: query completed"), "should log operation completion")
 }
 
-func Test_Generic_Eventstore_WithContextualLogger_LogsAppends(t *testing.T) {
+func Test_Observability_Eventstore_WithContextualLogger_LogsAppends(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	contextualLogger := NewContextualLoggerSpy(true)
-	wrapper := CreateWrapperWithTestConfig(t, WithContextualLogger(contextualLogger))
+	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithContextualLogger(contextualLogger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -761,13 +575,13 @@ func Test_Generic_Eventstore_WithContextualLogger_LogsAppends(t *testing.T) {
 	assert.True(t, contextualLogger.HasInfoLog("eventstore operation: events appended"), "should log append completion")
 }
 
-func Test_Generic_Eventstore_WithContextualLogger_LogsErrors(t *testing.T) {
+func Test_Observability_Eventstore_WithContextualLogger_LogsErrors(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	contextualLogger := NewContextualLoggerSpy(true)
-	wrapper := CreateWrapperWithTestConfig(t, WithTableName("non_existent_table_contextual"), WithContextualLogger(contextualLogger))
+	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_contextual"), postgresengine.WithContextualLogger(contextualLogger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -784,13 +598,13 @@ func Test_Generic_Eventstore_WithContextualLogger_LogsErrors(t *testing.T) {
 	assert.True(t, contextualLogger.HasErrorLog("database query execution failed"), "should log database error with correct message")
 }
 
-func Test_Generic_Eventstore_WithoutLogger_HandlesLogErrorGracefully(t *testing.T) {
+func Test_Observability_Eventstore_WithoutLogger_HandlesLogErrorGracefully(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	// Create EventStore without a logger to test logError's nil logger branch
-	wrapper := CreateWrapperWithTestConfig(t, WithTableName("non_existent_table_no_logger"))
+	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_no_logger"))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -806,7 +620,7 @@ func Test_Generic_Eventstore_WithoutLogger_HandlesLogErrorGracefully(t *testing.
 	// If we get here without a panic, the nil logger branch in logError worked correctly
 }
 
-func Test_Generic_Eventstore_WithLogger_LogsErrorsCorrectly(t *testing.T) {
+func Test_Observability_Eventstore_WithLogger_LogsErrorsCorrectly(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -814,7 +628,7 @@ func Test_Generic_Eventstore_WithLogger_LogsErrorsCorrectly(t *testing.T) {
 	// Create EventStore with a logger to test logError's configured logger branch
 	testHandler := NewLogHandlerSpy(true) // Enable recording to capture error logs
 	logger := slog.New(testHandler)
-	wrapper := CreateWrapperWithTestConfig(t, WithTableName("non_existent_table_with_logger"), WithLogger(logger))
+	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_with_logger"), postgresengine.WithLogger(logger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -831,13 +645,13 @@ func Test_Generic_Eventstore_WithLogger_LogsErrorsCorrectly(t *testing.T) {
 	assert.True(t, testHandler.HasErrorLog("database query execution failed"), "should log error with correct message and ERROR level")
 }
 
-func Test_Generic_Eventstore_WithTracing_RecordsAppendErrorWithDuration(t *testing.T) {
+func Test_Observability_Eventstore_WithTracing_RecordsAppendErrorWithDuration(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	tracingCollector := NewTracingCollectorSpy(true)
-	wrapper := CreateWrapperWithTestConfig(t, WithTableName("non_existent_table_tracing"), WithTracing(tracingCollector))
+	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_tracing"), postgresengine.WithTracing(tracingCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -859,7 +673,7 @@ func Test_Generic_Eventstore_WithTracing_RecordsAppendErrorWithDuration(t *testi
 		Assert(), "should record append error span (which exercises formatDuration method)")
 }
 
-func Test_Generic_Eventstore_WithMetrics_FallbackToNonContextual(t *testing.T) {
+func Test_Observability_Eventstore_WithMetrics_FallbackToNonContextual(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -867,7 +681,7 @@ func Test_Generic_Eventstore_WithMetrics_FallbackToNonContextual(t *testing.T) {
 	// Use the basic metrics collector (doesn't implement ContextualMetricsCollector)
 	// This will test the fallback paths in recordDurationMetricsContext, recordValueMetricsContext, etc.
 	metricsCollector := NewMetricsCollectorSpy(true)
-	wrapper := CreateWrapperWithTestConfig(t, WithTableName("non_existent_table_fallback"), WithMetrics(metricsCollector))
+	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_fallback"), postgresengine.WithMetrics(metricsCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -892,14 +706,14 @@ func Test_Generic_Eventstore_WithMetrics_FallbackToNonContextual(t *testing.T) {
 		Assert(), "should record error counter via fallback path")
 }
 
-func Test_Generic_Eventstore_WithContextualMetrics_UsesContextualPath(t *testing.T) {
+func Test_Observability_Eventstore_WithContextualMetrics_UsesContextualPath(t *testing.T) {
 	// setup
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	// Use the contextual metrics collector to test the contextual code paths
 	metricsCollector := NewContextualMetricsCollectorSpy(true)
-	wrapper := CreateWrapperWithTestConfig(t, WithTableName("non_existent_table_contextual"), WithMetrics(metricsCollector))
+	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_contextual"), postgresengine.WithMetrics(metricsCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 

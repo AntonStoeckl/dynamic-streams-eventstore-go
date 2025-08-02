@@ -1,7 +1,7 @@
 # Makefile for dynamic-streams-eventstore-go
 
 .PHONY: help install-tools test test-verbose test-coverage lint lint-oteladapters lint-all fmt clean
-.PHONY: test-generic test-pgx test-sql test-sqlx test-all-adapters
+.PHONY: test-generic test-factory test-observability test-pgx test-sql test-sqlx test-all-adapters
 .PHONY: benchmark benchmark-pgx benchmark-sql benchmark-sqlx benchmark-all
 .PHONY: build-fixtures run-generate run-import fixtures-generate fixtures-import
 
@@ -14,7 +14,9 @@ help:
 	@echo "  test               Run all tests (generic + pgx adapter)"
 	@echo "  test-verbose       Run tests with verbose output"
 	@echo "  test-coverage      Generate test coverage report"
-	@echo "  test-generic       Run generic tests only (adapter-independent)"
+	@echo "  test-generic       Run generic tests only (factory + observability)"
+	@echo "  test-factory       Run factory function tests only"
+	@echo "  test-observability Run observability tests only"
 	@echo "  test-pgx           Run functional tests with pgx adapter"
 	@echo "  test-sql           Run functional tests with sql.DB adapter"
 	@echo "  test-sqlx          Run functional tests with sqlx adapter"
@@ -65,35 +67,45 @@ test-coverage:
 	@echo "Coverage report generated: coverage.out"
 	@echo "View in browser with: go tool cover -html=coverage.out"
 
-# Generic tests (adapter-independent factory tests)
+# Generic tests (adapter-independent factory and observability tests)
 test-generic:
 	@echo "Running generic tests (adapter-independent)..."
-	@go test ./eventstore/postgresengine/ -run "^Test_Generic_"
+	@go test ./eventstore/postgresengine/ -run "^Test_FactoryFunctions_|^Test_Observability_"
+
+# Factory function tests (adapter-independent)
+test-factory:
+	@echo "Running factory function tests..."
+	@go test ./eventstore/postgresengine/ -run "^Test_FactoryFunctions_"
+
+# Observability tests (adapter-independent)
+test-observability:
+	@echo "Running observability tests..."
+	@go test ./eventstore/postgresengine/ -run "^Test_Observability_"
 
 # Adapter-specific functional tests (skip generic tests)
 test-pgx:
 	@echo "Running functional tests with pgx.Pool adapter..."
-	@ADAPTER_TYPE=pgx.pool go test ./eventstore/postgresengine/ -run "^Test_" -skip "^Test_Generic_"
+	@ADAPTER_TYPE=pgx.pool go test ./eventstore/postgresengine/ -run "^Test_" -skip "^Test_FactoryFunctions_|^Test_Observability_"
 
 test-sql:
 	@echo "Running functional tests with database/sql adapter..."
-	@ADAPTER_TYPE=sql.db go test ./eventstore/postgresengine/ -run "^Test_" -skip "^Test_Generic_"
+	@ADAPTER_TYPE=sql.db go test ./eventstore/postgresengine/ -run "^Test_" -skip "^Test_FactoryFunctions_|^Test_Observability_"
 
 test-sqlx:
 	@echo "Running functional tests with sqlx adapter..."
-	@ADAPTER_TYPE=sqlx.db go test ./eventstore/postgresengine/ -run "^Test_" -skip "^Test_Generic_"
+	@ADAPTER_TYPE=sqlx.db go test ./eventstore/postgresengine/ -run "^Test_" -skip "^Test_FactoryFunctions_|^Test_Observability_"
 
 test-all-adapters:
 	@echo "Running functional tests with all database adapters..."
 	@echo ""
 	@echo "🔹 Testing with pgx.Pool adapter:"
-	@ADAPTER_TYPE=pgx.pool go test ./eventstore/postgresengine/ -run "^Test_" -skip "^Test_Generic_"
+	@ADAPTER_TYPE=pgx.pool go test ./eventstore/postgresengine/ -run "^Test_" -skip "^Test_FactoryFunctions_|^Test_Observability_"
 	@echo ""
 	@echo "🔹 Testing with database/sql adapter:"
-	@ADAPTER_TYPE=sql.db go test ./eventstore/postgresengine/ -run "^Test_" -skip "^Test_Generic_"
+	@ADAPTER_TYPE=sql.db go test ./eventstore/postgresengine/ -run "^Test_" -skip "^Test_FactoryFunctions_|^Test_Observability_"
 	@echo ""
 	@echo "🔹 Testing with sqlx adapter:"
-	@ADAPTER_TYPE=sqlx.db go test ./eventstore/postgresengine/ -run "^Test_" -skip "^Test_Generic_"
+	@ADAPTER_TYPE=sqlx.db go test ./eventstore/postgresengine/ -run "^Test_" -skip "^Test_FactoryFunctions_|^Test_Observability_"
 	@echo ""
 	@echo "✅ All adapter tests complete"
 

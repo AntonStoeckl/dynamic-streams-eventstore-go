@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/removebookcopy"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"                           //nolint:revive
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"                 //nolint:revive
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper" //nolint:revive
 )
@@ -178,7 +178,7 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 		var queryTime, appendTime, unmarshalTime, bizTime time.Duration
 
 		commandHandler := removebookcopy.NewCommandHandler(es)
-		timingCollector := NewTimingCollector(&queryTime, &unmarshalTime, &bizTime, &appendTime)
+		timingCollector := shell.NewTimingCollector(&queryTime, &unmarshalTime, &bizTime, &appendTime)
 
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
