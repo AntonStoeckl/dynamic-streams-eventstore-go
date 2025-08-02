@@ -61,7 +61,7 @@ logger := oteladapters.NewSlogBridgeLogger("eventstore")
 
 // Option 2: Use your existing slog.Handler (no trace correlation)
 slogHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
-logger := oteladapters.NewSlogBridgeLoggerWithHandler("eventstore", slogHandler)
+logger := oteladapters.NewSlogBridgeLoggerWithHandler(slogHandler)
 ```
 
 **Benefits:**

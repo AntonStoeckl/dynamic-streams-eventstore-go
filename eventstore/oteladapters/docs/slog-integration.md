@@ -173,7 +173,7 @@ func main() {
 
 	// 2. Create the slog bridge logger with your custom handler
 	// Note: This does NOT add OpenTelemetry trace correlation
-	contextualLogger := oteladapters.NewSlogBridgeLoggerWithHandler("eventstore", jsonHandler)
+	contextualLogger := oteladapters.NewSlogBridgeLoggerWithHandler(jsonHandler)
 
 	// 3. Use as in previous examples...
 	_ = contextualLogger // Use your contextual logger here
@@ -184,10 +184,10 @@ func main() {
 
 ## Key Differences
 
-| Function | Trace Correlation | Use Case |
-|----------|-------------------|----------|
-| `NewSlogBridgeLogger("name")` | ✅ **YES** | Want automatic trace/span IDs in logs |
-| `NewSlogBridgeLoggerWithHandler("name", handler)` | ❌ **NO** | Want to use existing slog.Handler as-is |
+| Function                                  | Trace Correlation | Use Case                                |
+|-------------------------------------------|-------------------|-----------------------------------------|
+| `NewSlogBridgeLogger("name")`             | ✅ **YES**         | Want automatic trace/span IDs in logs   |
+| `NewSlogBridgeLoggerWithHandler(handler)` | ❌ **NO**          | Want to use existing slog.Handler as-is |
 
 ## Best Practices
 

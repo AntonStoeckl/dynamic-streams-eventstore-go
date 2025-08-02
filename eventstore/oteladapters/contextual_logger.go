@@ -33,7 +33,7 @@ func NewSlogBridgeLogger(name string) *SlogBridgeLogger {
 // Note: This does NOT add OpenTelemetry trace correlation - it uses the handler as-is.
 // For trace correlation, use NewSlogBridgeLogger() instead.
 // This function is provided for compatibility when you need to use a specific slog.Handler.
-func NewSlogBridgeLoggerWithHandler(name string, handler slog.Handler) *SlogBridgeLogger {
+func NewSlogBridgeLoggerWithHandler(handler slog.Handler) *SlogBridgeLogger {
 	// Use the provided handler directly - no OpenTelemetry integration
 	logger := slog.New(handler)
 	return &SlogBridgeLogger{logger: logger}

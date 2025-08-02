@@ -37,8 +37,8 @@ func NewMetricsCollector(meter metric.Meter) *MetricsCollector {
 // RecordDuration records a duration measurement using an OpenTelemetry histogram.
 // Histograms are ideal for measuring operation durations as they provide
 // percentiles, averages, and distribution information.
-func (m *MetricsCollector) RecordDuration(metric string, duration time.Duration, labels map[string]string) {
-	histogram := m.getOrCreateHistogram(metric)
+func (m *MetricsCollector) RecordDuration(metricName string, duration time.Duration, labels map[string]string) {
+	histogram := m.getOrCreateHistogram(metricName)
 	if histogram == nil {
 		return
 	}
@@ -50,15 +50,32 @@ func (m *MetricsCollector) RecordDuration(metric string, duration time.Duration,
 	}
 
 	// Record duration in seconds (OpenTelemetry convention)
-	// Note: Simplified for compatibility - real implementation would use attributes
-	histogram.Record(context.Background(), duration.Seconds())
+	// Use context.TODO() for backward compatibility
+	histogram.Record(context.TODO(), duration.Seconds(), metric.WithAttributes(attrs...))
+}
+
+// RecordDurationContext records a duration measurement with context for trace correlation.
+func (m *MetricsCollector) RecordDurationContext(ctx context.Context, metricName string, duration time.Duration, labels map[string]string) {
+	histogram := m.getOrCreateHistogram(metricName)
+	if histogram == nil {
+		return
+	}
+
+	// Convert labels map to OpenTelemetry attributes
+	attrs := make([]attribute.KeyValue, 0, len(labels))
+	for key, value := range labels {
+		attrs = append(attrs, attribute.String(key, value))
+	}
+
+	// Record duration in seconds (OpenTelemetry convention) with context
+	histogram.Record(ctx, duration.Seconds(), metric.WithAttributes(attrs...))
 }
 
 // IncrementCounter increments a counter using an OpenTelemetry counter.
 // Counters are monotonically increasing and ideal for counting operations,
 // errors, and other event occurrences.
-func (m *MetricsCollector) IncrementCounter(metric string, labels map[string]string) {
-	counter := m.getOrCreateCounter(metric)
+func (m *MetricsCollector) IncrementCounter(metricName string, labels map[string]string) {
+	counter := m.getOrCreateCounter(metricName)
 	if counter == nil {
 		return
 	}
@@ -69,15 +86,32 @@ func (m *MetricsCollector) IncrementCounter(metric string, labels map[string]str
 		attrs = append(attrs, attribute.String(key, value))
 	}
 
-	// Note: Simplified for compatibility - a real implementation would use attributes
-	counter.Add(context.Background(), 1)
+	// Use context.TODO() for backward compatibility
+	counter.Add(context.TODO(), 1, metric.WithAttributes(attrs...))
+}
+
+// IncrementCounterContext increments a counter with context for trace correlation.
+func (m *MetricsCollector) IncrementCounterContext(ctx context.Context, metricName string, labels map[string]string) {
+	counter := m.getOrCreateCounter(metricName)
+	if counter == nil {
+		return
+	}
+
+	// Convert labels map to OpenTelemetry attributes
+	attrs := make([]attribute.KeyValue, 0, len(labels))
+	for key, value := range labels {
+		attrs = append(attrs, attribute.String(key, value))
+	}
+
+	// Increment counter with context
+	counter.Add(ctx, 1, metric.WithAttributes(attrs...))
 }
 
 // RecordValue records a float64 value using an OpenTelemetry gauge.
 // Gauges represent current values that can go up or down, such as
 // the number of concurrent operations or current queue size.
-func (m *MetricsCollector) RecordValue(metric string, value float64, labels map[string]string) {
-	gauge := m.getOrCreateGauge(metric)
+func (m *MetricsCollector) RecordValue(metricName string, value float64, labels map[string]string) {
+	gauge := m.getOrCreateGauge(metricName)
 	if gauge == nil {
 		return
 	}
@@ -88,8 +122,25 @@ func (m *MetricsCollector) RecordValue(metric string, value float64, labels map[
 		attrs = append(attrs, attribute.String(key, value))
 	}
 
-	// Note: Simplified for compatibility - a real implementation would use attributes
-	gauge.Record(context.Background(), value)
+	// Use context.TODO() for backward compatibility
+	gauge.Record(context.TODO(), value, metric.WithAttributes(attrs...))
+}
+
+// RecordValueContext records a float64 value with context for trace correlation.
+func (m *MetricsCollector) RecordValueContext(ctx context.Context, metricName string, value float64, labels map[string]string) {
+	gauge := m.getOrCreateGauge(metricName)
+	if gauge == nil {
+		return
+	}
+
+	// Convert labels map to OpenTelemetry attributes
+	attrs := make([]attribute.KeyValue, 0, len(labels))
+	for key, value := range labels {
+		attrs = append(attrs, attribute.String(key, value))
+	}
+
+	// Record gauge value with context
+	gauge.Record(ctx, value, metric.WithAttributes(attrs...))
 }
 
 // getOrCreateHistogram gets an existing histogram or creates a new one for the given metric name.
@@ -152,3 +203,6 @@ func (m *MetricsCollector) getOrCreateGauge(name string) metric.Float64Gauge {
 
 // Ensure MetricsCollector implements eventstore.MetricsCollector.
 var _ eventstore.MetricsCollector = (*MetricsCollector)(nil)
+
+// Ensure MetricsCollector implements eventstore.ContextualMetricsCollector.
+var _ eventstore.ContextualMetricsCollector = (*MetricsCollector)(nil)

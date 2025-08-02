@@ -20,6 +20,17 @@ type MetricsCollector interface {
 	RecordValue(metric string, value float64, labels map[string]string)
 }
 
+// ContextualMetricsCollector extends MetricsCollector with context-aware methods for better tracing integration.
+// Implementations can use the context for trace correlation, span propagation, and other contextual metadata.
+// This interface is optional - EventStore will use context-aware methods when available, falling back to
+// the base MetricsCollector interface for backward compatibility.
+type ContextualMetricsCollector interface {
+	MetricsCollector
+	RecordDurationContext(ctx context.Context, metric string, duration time.Duration, labels map[string]string)
+	IncrementCounterContext(ctx context.Context, metric string, labels map[string]string)
+	RecordValueContext(ctx context.Context, metric string, value float64, labels map[string]string)
+}
+
 // SpanContext represents an active tracing span that can be finished and updated with attributes.
 type SpanContext interface {
 	SetStatus(status string)

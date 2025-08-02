@@ -57,8 +57,27 @@ func (es *EventStore) recordErrorMetrics(operation, errorType string) {
 	}
 }
 
-// recordDurationMetrics records duration metricsCollector if the metricsCollector collector is configured.
-func (es *EventStore) recordDurationMetrics(
+// recordErrorMetricsContext records error metricsCollector with context if the collector supports it.
+func (es *EventStore) recordErrorMetricsContext(ctx context.Context, operation, errorType string) {
+	if es.metricsCollector != nil {
+		labels := map[string]string{
+			spanAttrOperation: operation,
+			"status":          statusError,
+			spanAttrErrorType: errorType,
+		}
+
+		// Use context-aware method if available
+		if contextualCollector, ok := es.metricsCollector.(eventstore.ContextualMetricsCollector); ok {
+			contextualCollector.IncrementCounterContext(ctx, metricDatabaseErrors, labels)
+		} else {
+			es.metricsCollector.IncrementCounter(metricDatabaseErrors, labels)
+		}
+	}
+}
+
+// recordDurationMetricsContext records duration metricsCollector with context if the collector supports it.
+func (es *EventStore) recordDurationMetricsContext(
+	ctx context.Context,
 	metricName string,
 	duration time.Duration,
 	operation, status string,
@@ -68,12 +87,19 @@ func (es *EventStore) recordDurationMetrics(
 			spanAttrOperation: operation,
 			"status":          status,
 		}
-		es.metricsCollector.RecordDuration(metricName, duration, labels)
+
+		// Use context-aware method if available
+		if contextualCollector, ok := es.metricsCollector.(eventstore.ContextualMetricsCollector); ok {
+			contextualCollector.RecordDurationContext(ctx, metricName, duration, labels)
+		} else {
+			es.metricsCollector.RecordDuration(metricName, duration, labels)
+		}
 	}
 }
 
-// recordValueMetrics records value metricsCollector if the metricsCollector collector is configured.
-func (es *EventStore) recordValueMetrics(
+// recordValueMetricsContext records value metricsCollector with context if the collector supports it.
+func (es *EventStore) recordValueMetricsContext(
+	ctx context.Context,
 	metricName string,
 	value float64,
 	operation,
@@ -84,7 +110,13 @@ func (es *EventStore) recordValueMetrics(
 			spanAttrOperation: operation,
 			"status":          status,
 		}
-		es.metricsCollector.RecordValue(metricName, value, labels)
+
+		// Use context-aware method if available
+		if contextualCollector, ok := es.metricsCollector.(eventstore.ContextualMetricsCollector); ok {
+			contextualCollector.RecordValueContext(ctx, metricName, value, labels)
+		} else {
+			es.metricsCollector.RecordValue(metricName, value, labels)
+		}
 	}
 }
 
@@ -342,56 +374,60 @@ func (ato *appendTracingObserver) formatDuration(duration time.Duration) string 
 
 // queryMetricsObserver encapsulates the metrics collection for query operations.
 type queryMetricsObserver struct {
-	es *EventStore
+	es  *EventStore
+	ctx context.Context
 }
 
 // appendMetricsObserver encapsulates the metrics collection for append operations.
 type appendMetricsObserver struct {
-	es *EventStore
+	es  *EventStore
+	ctx context.Context
 }
 
 // startQueryMetrics creates a new metrics observer for query operations.
-func (es *EventStore) startQueryMetrics() *queryMetricsObserver {
+func (es *EventStore) startQueryMetrics(ctx context.Context) *queryMetricsObserver {
 	return &queryMetricsObserver{
-		es: es,
+		es:  es,
+		ctx: ctx,
 	}
 }
 
 // startAppendMetrics creates a new metrics observer for append operations.
-func (es *EventStore) startAppendMetrics() *appendMetricsObserver {
+func (es *EventStore) startAppendMetrics(ctx context.Context) *appendMetricsObserver {
 	return &appendMetricsObserver{
-		es: es,
+		es:  es,
+		ctx: ctx,
 	}
 }
 
 // recordSuccess records all metrics for a successful query operation.
 func (qmo *queryMetricsObserver) recordSuccess(eventStream eventstore.StorableEvents, duration time.Duration) {
-	qmo.es.recordDurationMetrics(metricQueryDuration, duration, operationQuery, statusSuccess)
+	qmo.es.recordDurationMetricsContext(qmo.ctx, metricQueryDuration, duration, operationQuery, statusSuccess)
 
 	eventCount := float64(0)
 	if eventStream != nil {
 		eventCount = float64(len(eventStream))
 	}
 
-	qmo.es.recordValueMetrics(metricEventsQueried, eventCount, operationQuery, statusSuccess)
+	qmo.es.recordValueMetricsContext(qmo.ctx, metricEventsQueried, eventCount, operationQuery, statusSuccess)
 }
 
 // recordError records all metrics for a failed query operation.
 func (qmo *queryMetricsObserver) recordError(errorType string, duration time.Duration) {
-	qmo.es.recordDurationMetrics(metricQueryDuration, duration, operationQuery, statusError)
-	qmo.es.recordErrorMetrics(operationQuery, errorType)
+	qmo.es.recordDurationMetricsContext(qmo.ctx, metricQueryDuration, duration, operationQuery, statusError)
+	qmo.es.recordErrorMetricsContext(qmo.ctx, operationQuery, errorType)
 }
 
 // recordSuccess records all metrics for a successful append operation.
 func (amo *appendMetricsObserver) recordSuccess(eventCount int, duration time.Duration) {
-	amo.es.recordDurationMetrics(metricAppendDuration, duration, operationAppend, statusSuccess)
-	amo.es.recordValueMetrics(metricEventsAppended, float64(eventCount), operationAppend, statusSuccess)
+	amo.es.recordDurationMetricsContext(amo.ctx, metricAppendDuration, duration, operationAppend, statusSuccess)
+	amo.es.recordValueMetricsContext(amo.ctx, metricEventsAppended, float64(eventCount), operationAppend, statusSuccess)
 }
 
 // recordError records all metrics for a failed append operation.
 func (amo *appendMetricsObserver) recordError(errorType string, duration time.Duration) {
-	amo.es.recordDurationMetrics(metricAppendDuration, duration, operationAppend, statusError)
-	amo.es.recordErrorMetrics(operationAppend, errorType)
+	amo.es.recordDurationMetricsContext(amo.ctx, metricAppendDuration, duration, operationAppend, statusError)
+	amo.es.recordErrorMetricsContext(amo.ctx, operationAppend, errorType)
 }
 
 // recordConcurrencyConflict records metrics for concurrency conflicts during append operations.

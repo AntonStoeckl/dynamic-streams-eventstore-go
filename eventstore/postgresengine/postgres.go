@@ -205,7 +205,7 @@ func (es *EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 	var empty eventstore.StorableEvents
 
 	tracer, ctx := es.startQueryTracing(ctx)
-	metrics := es.startQueryMetrics()
+	metrics := es.startQueryMetrics(ctx)
 
 	sqlQuery, buildQueryErr := es.buildSelectQuery(filter)
 	if buildQueryErr != nil {
@@ -327,7 +327,7 @@ func (es *EventStore) Append(
 	}
 
 	tracer, ctx := es.startAppendTracing(ctx, storableEvents, expectedMaxSequenceNumber)
-	metrics := es.startAppendMetrics()
+	metrics := es.startAppendMetrics(ctx)
 
 	sqlQuery, buildQueryErr := es.buildAppendQuery(ctx, storableEvents, filter, expectedMaxSequenceNumber, metrics)
 	if buildQueryErr != nil {

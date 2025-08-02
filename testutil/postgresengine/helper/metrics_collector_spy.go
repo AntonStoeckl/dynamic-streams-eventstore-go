@@ -23,7 +23,7 @@ type SpyDurationRecord struct {
 	Labels   map[string]string
 }
 
-// SpyCounterRecord represents a recorded counter-increment call.
+// SpyCounterRecord represents a recorded counter increment call.
 type SpyCounterRecord struct {
 	Metric string
 	Labels map[string]string
@@ -120,7 +120,7 @@ func (s *MetricsCollectorSpy) GetDurationRecordCount() int {
 	return len(s.durationRecords)
 }
 
-// GetCounterRecordCount returns the number of captured counter-records.
+// GetCounterRecordCount returns the number of captured counter records.
 func (s *MetricsCollectorSpy) GetCounterRecordCount() int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -147,7 +147,7 @@ func (s *MetricsCollectorSpy) GetDurationRecords() []SpyDurationRecord {
 	return records
 }
 
-// GetCounterRecords returns a copy of all captured counter-records.
+// GetCounterRecords returns a copy of all captured counter records.
 func (s *MetricsCollectorSpy) GetCounterRecords() []SpyCounterRecord {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -193,7 +193,7 @@ func (s *MetricsCollectorSpy) HasDurationRecord(metric string) bool {
 	return false
 }
 
-// HasCounterRecord checks if there's a counter-record with the specified metric name.
+// HasCounterRecord checks if there's a counter record with the specified metric name.
 func (s *MetricsCollectorSpy) HasCounterRecord(metric string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -246,7 +246,7 @@ func (s *MetricsCollectorSpy) HasDurationRecordForMetric(metric string) *MetricR
 	return &MetricRecordMatcher{collector: s, found: false}
 }
 
-// HasCounterRecordForMetric starts a fluent chain to check a counter-record.
+// HasCounterRecordForMetric starts a fluent chain to check a counter record.
 func (s *MetricsCollectorSpy) HasCounterRecordForMetric(metric string) *MetricRecordMatcher {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -367,7 +367,7 @@ func (s *MetricsCollectorSpy) CountDurationRecordsForMetric(metric string) int {
 	return count
 }
 
-// CountCounterRecordsForMetric counts how many counter-records exist for a specific metric.
+// CountCounterRecordsForMetric counts how many counter records exist for a specific metric.
 func (s *MetricsCollectorSpy) CountCounterRecordsForMetric(metric string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
