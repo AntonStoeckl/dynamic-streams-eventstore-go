@@ -4,18 +4,7 @@ This file tracks larger plans, initiatives, and completed work for the Dynamic E
 
 ## 🚧 Current Plans (Ready to Implement)
 
-### Documentation Review and Consistency Audit  
-- **Priority**: Medium
-- **Description**: Systematic review of all documentation for consistency and accuracy after recent architectural changes
-- **Scope**: 
-  - **Core Docs**: `README.md`, `docs/*.md` (getting-started, core-concepts, usage-examples, api-reference, development, performance)
-  - **OpenTelemetry Docs**: `eventstore/oteladapters/README.md`, `eventstore/oteladapters/docs/*.md`
-- **Focus Areas**:
-  - Verify no old `/adapters/oteladapters` path references remain
-  - Ensure OpenTelemetry integration examples are consistent across all documentation
-  - Update feature lists to reflect new capabilities (contextual logging, trace correlation)
-  - Review code examples for correct import paths and function signatures
-  - Add comprehensive testing guidance to development documentation
+*(Currently empty)*
 
 ---
 
@@ -26,6 +15,38 @@ This file tracks larger plans, initiatives, and completed work for the Dynamic E
 ---
 
 ## ✅ Completed
+
+### Consolidate OpenTelemetry Adapters into Main Module
+- **Completed**: 2025-08-02
+- **Description**: Removed the separate Go submodule for oteladapters and integrated it into the main module to reduce complexity
+- **Tasks Completed**:
+  - ✅ Removed go.mod and go.sum from `eventstore/oteladapters/` directory
+  - ✅ Updated main go.mod to include all OpenTelemetry dependencies (otel v1.37.0, contrib/bridges/otelslog v0.12.0, etc.)
+  - ✅ Verified import paths work correctly with consolidated module structure
+  - ✅ Updated documentation in README.md and oteladapters/README.md to reflect integration
+  - ✅ Completely merged oteladapters README.md content into main README.md OpenTelemetry section
+  - ✅ Moved oteladapters docs/ files to main /docs/ directory (opentelemetry-complete-setup.md, opentelemetry-slog-integration.md)
+  - ✅ Removed oteladapters README.md and docs/ directory entirely
+  - ✅ Confirmed oteladapters tests run properly in GitHub workflow (already configured)
+  - ✅ Tested all adapters work with consolidated module structure (all tests pass)
+- **Benefits Achieved**:
+  - **Simplified dependency management** - single go.mod file
+  - **Reduced complexity** - no separate module to maintain
+  - **Streamlined installation** - users get OpenTelemetry adapters automatically
+  - **Consolidated documentation** - all OpenTelemetry content merged into main README.md and /docs/
+  - **Maintained functionality** - all tests pass, no breaking changes
+
+### Documentation Review and Consistency Audit
+- **Completed**: 2025-08-02
+- **Description**: Systematic review of all documentation for consistency and accuracy after recent architectural changes
+- **Issues Found and Fixed**:
+  - **Import Path Correction**: Fixed incorrect import path in OpenTelemetry documentation from `/eventstore/adapters/otel` to `/eventstore/oteladapters`
+- **Review Scope Completed**:
+  - **Core Documentation**: `README.md` - All import paths and function signatures verified as correct
+  - **OpenTelemetry Adapters**: OpenTelemetry documentation integrated into main `README.md` and `docs/*.md` - Reviewed and updated
+  - **Code Examples**: All examples use correct import paths, function signatures, and current API
+  - **Feature Lists**: Documentation accurately reflects contextual logging, trace correlation, and comprehensive test coverage
+- **Quality Assurance**: All OpenTelemetry integration examples are consistent across documentation with proper error handling and production patterns
 
 ### Comprehensive OpenTelemetry Adapter Test Coverage Implementation
 - **Completed**: 2025-08-02
