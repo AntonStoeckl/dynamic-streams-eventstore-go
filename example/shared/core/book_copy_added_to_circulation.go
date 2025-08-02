@@ -31,7 +31,7 @@ func BuildBookCopyAddedToCirculation(
 	publisher string,
 	publicationYear uint,
 	occurredAt time.Time,
-) DomainEvent {
+) BookCopyAddedToCirculation {
 
 	event := BookCopyAddedToCirculation{
 		BookID:          bookID.String(),

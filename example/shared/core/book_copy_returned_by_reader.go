@@ -17,7 +17,7 @@ type BookCopyReturnedByReader struct {
 }
 
 // BuildBookCopyReturnedFromReader creates a new BookCopyReturnedByReader event.
-func BuildBookCopyReturnedFromReader(bookID uuid.UUID, readerID uuid.UUID, occurredAt time.Time) DomainEvent {
+func BuildBookCopyReturnedFromReader(bookID uuid.UUID, readerID uuid.UUID, occurredAt time.Time) BookCopyReturnedByReader {
 	event := BookCopyReturnedByReader{
 		BookID:     bookID.String(),
 		ReaderID:   readerID.String(),

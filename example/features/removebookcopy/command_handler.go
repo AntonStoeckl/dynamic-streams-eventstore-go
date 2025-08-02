@@ -22,8 +22,7 @@ type EventStore interface {
 		ctx context.Context,
 		filter eventstore.Filter,
 		expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
-		event eventstore.StorableEvent,
-		events ...eventstore.StorableEvent,
+		storableEvents ...eventstore.StorableEvent,
 	) error
 }
 
@@ -61,7 +60,7 @@ func (h CommandHandler) Handle(ctx context.Context, command Command, timingColle
 
 	// Unmarshal phase
 	start = time.Now()
-	domainEvents, err := shell.DomainEventsFrom(storableEvents)
+	history, err := shell.DomainEventsFrom(storableEvents)
 	if err != nil {
 		return err
 	}
@@ -69,11 +68,17 @@ func (h CommandHandler) Handle(ctx context.Context, command Command, timingColle
 
 	// Business logic phase - delegate to pure core function
 	start = time.Now()
-	eventToAppend, producedNewEventToAppend := Decide(domainEvents, command)
+	eventsToAppend := Decide(history, command)
 	timingCollector.RecordBusiness(time.Since(start))
 
+	if len(eventsToAppend) == 0 {
+		return nil // nothing to do
+	}
+
 	// Append phase - only if there are events to append
-	if producedNewEventToAppend {
+	var storableEventsToAppend eventstore.StorableEvents
+
+	for _, eventToAppend := range eventsToAppend {
 		uid := uuid.New()
 		eventMetadata := shell.BuildEventMetadata(uid, uid, uid)
 
@@ -82,18 +87,21 @@ func (h CommandHandler) Handle(ctx context.Context, command Command, timingColle
 			return marshalErr
 		}
 
-		start = time.Now()
-		appendErr := h.eventStore.Append(ctx, filter, maxSequenceNumber, storableEvent)
-		timingCollector.RecordAppend(time.Since(start))
-		if appendErr != nil {
-			return appendErr
-		}
+		storableEventsToAppend = append(storableEventsToAppend, storableEvent)
+	}
+
+	start = time.Now()
+	appendErr := h.eventStore.Append(ctx, filter, maxSequenceNumber, storableEventsToAppend...)
+	timingCollector.RecordAppend(time.Since(start))
+	if appendErr != nil {
+		return appendErr
 	}
 
 	return nil
 }
 
-// buildEventFilter creates the filter for querying all events related to the specified book.
+// buildEventFilter creates the filter for querying all events
+// related to the specified book which are relevant for this feature/use-case.
 func (h CommandHandler) buildEventFilter(bookID uuid.UUID) eventstore.Filter {
 	return eventstore.BuildEventFilter().
 		Matching().

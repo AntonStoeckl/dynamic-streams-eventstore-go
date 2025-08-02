@@ -16,7 +16,7 @@ type BookCopyRemovedFromCirculation struct {
 }
 
 // BuildBookCopyRemovedFromCirculation creates a new BookCopyRemovedFromCirculation event.
-func BuildBookCopyRemovedFromCirculation(bookID uuid.UUID, occurredAt time.Time) DomainEvent {
+func BuildBookCopyRemovedFromCirculation(bookID uuid.UUID, occurredAt time.Time) BookCopyRemovedFromCirculation {
 	event := BookCopyRemovedFromCirculation{
 		BookID:     bookID.String(),
 		OccurredAt: ToOccurredAt(occurredAt),

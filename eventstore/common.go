@@ -11,6 +11,9 @@ var (
 	// ErrConcurrencyConflict is returned when an optimistic concurrency check fails during event appending.
 	ErrConcurrencyConflict = errors.New("concurrency error, no rows were affected")
 
+	// ErrCantBuildQueryForZeroEvents is returned when zero events were supplied to build an append query.
+	ErrCantBuildQueryForZeroEvents = errors.New("can't build query for zero events")
+
 	// ErrNilDatabaseConnection is returned when a nil database connection is provided to event store constructors.
 	ErrNilDatabaseConnection = errors.New("database connection must not be nil")
 

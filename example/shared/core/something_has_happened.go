@@ -7,7 +7,7 @@ import (
 // SomethingHasHappenedEventTypePrefix is the prefix for dynamic event types.
 const SomethingHasHappenedEventTypePrefix = "SomethingHasHappened"
 
-// SomethingHasHappened represents a generic event with dynamic event type.
+// SomethingHasHappened represents a generic event with a dynamic event type.
 type SomethingHasHappened struct {
 	ID               string
 	SomeInformation  string

@@ -13,22 +13,37 @@ import (
 //
 // In a real application there should be a unit test for this business logic, unless coarse-grained
 // feature tests are preferred. Complex business logic typically benefits from dedicated pure unit tests.
-func Decide(domainEvents core.DomainEvents, command Command) (core.DomainEvent, core.ProducedNewEventToAppendBool) {
-	bookExists := false
+func Decide(history core.DomainEvents, command Command) core.DomainEvents {
+	bookIsInCirculation := false
+	bookWasInCirculation := false
 
-	for _, domainEvent := range domainEvents {
-		switch domainEvent.EventType() {
+	for _, event := range history {
+		switch event.EventType() {
 		case core.BookCopyAddedToCirculationEventType:
-			bookExists = true
+			bookIsInCirculation = true
+			bookWasInCirculation = true
 
 		case core.BookCopyRemovedFromCirculationEventType:
-			bookExists = false
+			bookIsInCirculation = false
 		}
 	}
 
-	if bookExists {
-		return core.BuildBookCopyRemovedFromCirculation(command.BookID, command.OccurredAt), true
+	if !bookWasInCirculation {
+		// in a real application this would be a real error event
+		return core.DomainEvents{
+			core.BuildSomethingHasHappened(
+				command.BookID.String(),
+				"book is not in circulation",
+				command.OccurredAt,
+				"RemovingBookFromCirculationFailed",
+			),
+		}
 	}
 
-	return nil, false
+	if !bookIsInCirculation {
+		// idempotency - the book was already removed, so no new event
+		return core.DomainEvents{}
+	}
+
+	return core.DomainEvents{core.BuildBookCopyRemovedFromCirculation(command.BookID, command.OccurredAt)}
 }

@@ -17,7 +17,7 @@ type BookCopyLentToReader struct {
 }
 
 // BuildBookCopyLentToReader creates a new BookCopyLentToReader event.
-func BuildBookCopyLentToReader(bookID uuid.UUID, readerID uuid.UUID, occurredAt time.Time) DomainEvent {
+func BuildBookCopyLentToReader(bookID uuid.UUID, readerID uuid.UUID, occurredAt time.Time) BookCopyLentToReader {
 	event := BookCopyLentToReader{
 		BookID:     bookID.String(),
 		ReaderID:   readerID.String(),

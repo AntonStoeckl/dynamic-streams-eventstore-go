@@ -319,17 +319,17 @@ func (es *EventStore) Append(
 	ctx context.Context,
 	filter eventstore.Filter,
 	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
-	event eventstore.StorableEvent,
-	additionalEvents ...eventstore.StorableEvent,
+	storableEvents ...eventstore.StorableEvent,
 ) error {
 
-	allEvents := eventstore.StorableEvents{event}
-	allEvents = append(allEvents, additionalEvents...)
+	if len(storableEvents) == 0 {
+		return nil // nothing to do
+	}
 
-	tracer, ctx := es.startAppendTracing(ctx, allEvents, expectedMaxSequenceNumber)
+	tracer, ctx := es.startAppendTracing(ctx, storableEvents, expectedMaxSequenceNumber)
 	metrics := es.startAppendMetrics()
 
-	sqlQuery, buildQueryErr := es.buildAppendQuery(ctx, allEvents, filter, expectedMaxSequenceNumber, metrics)
+	sqlQuery, buildQueryErr := es.buildAppendQuery(ctx, storableEvents, filter, expectedMaxSequenceNumber, metrics)
 	if buildQueryErr != nil {
 		tracer.finishErrorWithAttrs(errorTypeBuildQuery, nil)
 		return buildQueryErr
@@ -341,16 +341,16 @@ func (es *EventStore) Append(
 		return execErr
 	}
 
-	if err := es.validateAppendResult(ctx, rowsAffected, len(allEvents), expectedMaxSequenceNumber, metrics); err != nil {
+	if err := es.validateAppendResult(ctx, rowsAffected, len(storableEvents), expectedMaxSequenceNumber, metrics); err != nil {
 		attrs := map[string]string{spanAttrRowsAffected: fmt.Sprintf("%d", rowsAffected)}
 		tracer.finishErrorWithAttrs(errorTypeConcurrencyConflict, attrs)
 
 		return err
 	}
 
-	es.logOperation(logMsgEventsAppended, logAttrEventCount, len(allEvents), logAttrDurationMS, es.toMilliseconds(duration))
-	es.logOperationContext(ctx, logMsgEventsAppended, logAttrEventCount, len(allEvents), logAttrDurationMS, es.toMilliseconds(duration))
-	metrics.recordSuccess(len(allEvents), duration)
+	es.logOperation(logMsgEventsAppended, logAttrEventCount, len(storableEvents), logAttrDurationMS, es.toMilliseconds(duration))
+	es.logOperationContext(ctx, logMsgEventsAppended, logAttrEventCount, len(storableEvents), logAttrDurationMS, es.toMilliseconds(duration))
+	metrics.recordSuccess(len(storableEvents), duration)
 	tracer.finishSuccess(rowsAffected, duration)
 
 	return nil
@@ -359,7 +359,7 @@ func (es *EventStore) Append(
 // buildAppendQuery builds the appropriate SQL query for single or multiple events.
 func (es *EventStore) buildAppendQuery(
 	ctx context.Context,
-	allEvents eventstore.StorableEvents,
+	storableEvents eventstore.StorableEvents,
 	filter eventstore.Filter,
 	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
 	metrics *appendMetricsObserver,
@@ -368,25 +368,28 @@ func (es *EventStore) buildAppendQuery(
 	var sqlQuery sqlQueryString
 	var buildQueryErr error
 
-	switch len(allEvents) {
+	switch len(storableEvents) {
+	case 0:
+		return "", eventstore.ErrCantBuildQueryForZeroEvents
+
 	case 1:
 		sqlQuery, buildQueryErr = es.buildInsertQueryForSingleEvent(
-			allEvents[0],
+			storableEvents[0],
 			filter,
 			expectedMaxSequenceNumber,
 		)
 
 	default:
 		sqlQuery, buildQueryErr = es.buildInsertQueryForMultipleEvents(
-			allEvents,
+			storableEvents,
 			filter,
 			expectedMaxSequenceNumber,
 		)
 	}
 
 	if buildQueryErr != nil {
-		es.logError(logMsgBuildInsertQueryFailed, buildQueryErr, logAttrEventCount, len(allEvents))
-		es.logErrorContext(ctx, logMsgBuildInsertQueryFailed, buildQueryErr, logAttrEventCount, len(allEvents))
+		es.logError(logMsgBuildInsertQueryFailed, buildQueryErr, logAttrEventCount, len(storableEvents))
+		es.logErrorContext(ctx, logMsgBuildInsertQueryFailed, buildQueryErr, logAttrEventCount, len(storableEvents))
 		metrics.recordError(errorTypeBuildQuery, 0)
 
 		return "", buildQueryErr
