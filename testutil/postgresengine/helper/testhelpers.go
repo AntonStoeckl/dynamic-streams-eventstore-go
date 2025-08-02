@@ -28,7 +28,7 @@ func GivenUniqueID(t testing.TB) uuid.UUID {
 func QueryMaxSequenceNumberBeforeAppend(
 	t testing.TB,
 	ctx context.Context, //nolint:revive //nolint:revive
-	es postgresengine.EventStore,
+	es *postgresengine.EventStore,
 	filter eventstore.Filter,
 ) eventstore.MaxSequenceNumberUint {
 
@@ -134,7 +134,7 @@ func ToStorableWithMetadata(
 func GivenBookCopyAddedToCirculationWasAppended(
 	t testing.TB,
 	ctx context.Context, //nolint:revive //nolint:revive
-	es postgresengine.EventStore,
+	es *postgresengine.EventStore,
 	bookID uuid.UUID,
 	fakeClock time.Time,
 ) core.DomainEvent {
@@ -156,7 +156,7 @@ func GivenBookCopyAddedToCirculationWasAppended(
 func GivenBookCopyRemovedFromCirculationWasAppended(
 	t testing.TB,
 	ctx context.Context, //nolint:revive
-	es postgresengine.EventStore,
+	es *postgresengine.EventStore,
 	bookID uuid.UUID,
 	fakeClock time.Time,
 ) core.DomainEvent {
@@ -178,7 +178,7 @@ func GivenBookCopyRemovedFromCirculationWasAppended(
 func GivenBookCopyLentToReaderWasAppended(
 	t testing.TB,
 	ctx context.Context, //nolint:revive
-	es postgresengine.EventStore,
+	es *postgresengine.EventStore,
 	bookID uuid.UUID,
 	readerID uuid.UUID,
 	fakeClock time.Time,
@@ -201,7 +201,7 @@ func GivenBookCopyLentToReaderWasAppended(
 func GivenBookCopyReturnedByReaderWasAppended(
 	t testing.TB,
 	ctx context.Context, //nolint:revive
-	es postgresengine.EventStore,
+	es *postgresengine.EventStore,
 	bookID uuid.UUID,
 	readerID uuid.UUID,
 	fakeClock time.Time,
@@ -224,7 +224,7 @@ func GivenBookCopyReturnedByReaderWasAppended(
 func GivenSomeOtherEventsWereAppended(
 	t testing.TB,
 	ctx context.Context, //nolint:revive
-	es postgresengine.EventStore,
+	es *postgresengine.EventStore,
 	numEvents int,
 	startFrom eventstore.MaxSequenceNumberUint,
 	fakeClock time.Time,

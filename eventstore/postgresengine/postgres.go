@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"math"
 	"time"
 
 	"github.com/doug-martin/goqu/v9"
@@ -135,19 +134,19 @@ type queryResultRow struct {
 }
 
 // NewEventStoreFromPGXPool creates a new EventStore using a pgx Pool with optional configuration.
-func NewEventStoreFromPGXPool(db *pgxpool.Pool, options ...Option) (EventStore, error) {
+func NewEventStoreFromPGXPool(db *pgxpool.Pool, options ...Option) (*EventStore, error) {
 	if db == nil {
-		return EventStore{}, eventstore.ErrNilDatabaseConnection
+		return nil, eventstore.ErrNilDatabaseConnection
 	}
 
-	es := EventStore{
+	es := &EventStore{
 		db:             adapters.NewPGXAdapter(db),
 		eventTableName: defaultEventTableName,
 	}
 
 	for _, option := range options {
-		if err := option(&es); err != nil {
-			return EventStore{}, err
+		if err := option(es); err != nil {
+			return nil, err
 		}
 	}
 
@@ -155,19 +154,19 @@ func NewEventStoreFromPGXPool(db *pgxpool.Pool, options ...Option) (EventStore, 
 }
 
 // NewEventStoreFromSQLDB creates a new EventStore using a sql.DB with optional configuration.
-func NewEventStoreFromSQLDB(db *sql.DB, options ...Option) (EventStore, error) {
+func NewEventStoreFromSQLDB(db *sql.DB, options ...Option) (*EventStore, error) {
 	if db == nil {
-		return EventStore{}, eventstore.ErrNilDatabaseConnection
+		return nil, eventstore.ErrNilDatabaseConnection
 	}
 
-	es := EventStore{
+	es := &EventStore{
 		db:             adapters.NewSQLAdapter(db),
 		eventTableName: defaultEventTableName,
 	}
 
 	for _, option := range options {
-		if err := option(&es); err != nil {
-			return EventStore{}, err
+		if err := option(es); err != nil {
+			return nil, err
 		}
 	}
 
@@ -175,19 +174,19 @@ func NewEventStoreFromSQLDB(db *sql.DB, options ...Option) (EventStore, error) {
 }
 
 // NewEventStoreFromSQLX creates a new EventStore using a sqlx.DB with optional configuration.
-func NewEventStoreFromSQLX(db *sqlx.DB, options ...Option) (EventStore, error) {
+func NewEventStoreFromSQLX(db *sqlx.DB, options ...Option) (*EventStore, error) {
 	if db == nil {
-		return EventStore{}, eventstore.ErrNilDatabaseConnection
+		return nil, eventstore.ErrNilDatabaseConnection
 	}
 
-	es := EventStore{
+	es := &EventStore{
 		db:             adapters.NewSQLXAdapter(db),
 		eventTableName: defaultEventTableName,
 	}
 
 	for _, option := range options {
-		if err := option(&es); err != nil {
-			return EventStore{}, err
+		if err := option(es); err != nil {
+			return nil, err
 		}
 	}
 
@@ -197,53 +196,49 @@ func NewEventStoreFromSQLX(db *sqlx.DB, options ...Option) (EventStore, error) {
 // Query retrieves events from the Postgres event store based on the provided eventstore.Filter criteria
 // and returns them as eventstore.StorableEvents
 // as well as the MaxSequenceNumberUint for this "dynamic event stream" at the time of the query.
-func (es EventStore) Query(ctx context.Context, filter eventstore.Filter) (
+func (es *EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 	eventstore.StorableEvents,
 	eventstore.MaxSequenceNumberUint,
 	error,
 ) {
-
 	var empty eventstore.StorableEvents
 
-	ctx, span := es.startQuerySpan(ctx)
+	tracer, ctx := es.startQueryTracing(ctx)
+	metrics := es.startQueryMetrics()
 
 	sqlQuery, buildQueryErr := es.buildSelectQuery(filter)
 	if buildQueryErr != nil {
 		es.logError(logMsgBuildSelectQueryFailed, buildQueryErr)
-		es.recordErrorMetrics(operationQuery, errorTypeBuildQuery)
-		es.finishQuerySpanError(span, errorTypeBuildQuery, 0)
+		metrics.recordError(errorTypeBuildQuery, 0)
+		tracer.finishError(errorTypeBuildQuery, 0)
 
 		return empty, 0, buildQueryErr
 	}
 
 	rows, duration, queryErr := es.executeQuery(ctx, sqlQuery)
 	if queryErr != nil {
-		es.recordDurationMetrics(metricQueryDuration, duration, operationQuery, statusError)
-		es.recordErrorMetrics(operationQuery, errorTypeDatabaseQuery)
-		es.finishQuerySpanError(span, errorTypeDatabaseQuery, duration)
+		metrics.recordError(errorTypeDatabaseQuery, duration)
+		tracer.finishError(errorTypeDatabaseQuery, duration)
 
 		return empty, 0, queryErr
 	}
 	defer es.closeRows(rows)
 
-	eventStream, maxSequenceNumber, scanErr := es.processQueryResults(rows)
+	eventStream, maxSequenceNumber, scanErr := es.processQueryResults(rows, metrics)
 	if scanErr != nil {
-		es.recordErrorMetrics(operationQuery, errorTypeScanResults)
-		es.finishQuerySpanError(span, errorTypeScanResults, 0)
-
+		tracer.finishError(errorTypeScanResults, 0)
 		return empty, 0, scanErr
 	}
 
 	es.logOperation(logMsgQueryCompleted, logAttrEventCount, len(eventStream), logAttrDurationMS, es.toMilliseconds(duration))
-	es.recordDurationMetrics(metricQueryDuration, duration, operationQuery, statusSuccess)
-	es.recordValueMetrics(metricEventsQueried, float64(len(eventStream)), operationQuery, statusSuccess)
-	es.finishQuerySpanSuccess(span, eventStream, maxSequenceNumber, duration)
+	metrics.recordSuccess(eventStream, duration)
+	tracer.finishSuccess(eventStream, maxSequenceNumber, duration)
 
 	return eventStream, maxSequenceNumber, nil
 }
 
 // executeQuery executes the SQL query and returns rows with timing information.
-func (es EventStore) executeQuery(ctx context.Context, sqlQuery string) (
+func (es *EventStore) executeQuery(ctx context.Context, sqlQuery string) (
 	adapters.DBRows,
 	time.Duration,
 	error,
@@ -256,7 +251,6 @@ func (es EventStore) executeQuery(ctx context.Context, sqlQuery string) (
 
 	if queryErr != nil {
 		es.logError(logMsgDBQueryFailed, queryErr, logAttrQuery, sqlQuery)
-
 		return nil, duration, errors.Join(eventstore.ErrQueryingEventsFailed, queryErr)
 	}
 
@@ -264,7 +258,7 @@ func (es EventStore) executeQuery(ctx context.Context, sqlQuery string) (
 }
 
 // closeRows safely closes database rows and logs any errors.
-func (es EventStore) closeRows(rows adapters.DBRows) {
+func (es *EventStore) closeRows(rows adapters.DBRows) {
 	if closeErr := rows.Close(); closeErr != nil {
 		if es.logger != nil {
 			es.logger.Warn(logMsgCloseRowsFailed, logAttrError, closeErr.Error())
@@ -273,7 +267,7 @@ func (es EventStore) closeRows(rows adapters.DBRows) {
 }
 
 // processQueryResults processes database rows and converts them to domain events.
-func (es EventStore) processQueryResults(rows adapters.DBRows) (
+func (es *EventStore) processQueryResults(rows adapters.DBRows, metrics *queryMetricsObserver) (
 	eventstore.StorableEvents,
 	eventstore.MaxSequenceNumberUint,
 	error,
@@ -288,7 +282,7 @@ func (es EventStore) processQueryResults(rows adapters.DBRows) (
 		rowScanErr := rows.Scan(&result.eventType, &result.occurredAt, &result.payload, &result.metadata, &result.maxSequenceNumber)
 		if rowScanErr != nil {
 			es.logError(logMsgScanRowFailed, rowScanErr)
-			es.recordErrorMetrics(operationQuery, errorTypeRowScan)
+			metrics.recordError(errorTypeRowScan, 0)
 
 			return empty, 0, errors.Join(eventstore.ErrScanningDBRowFailed, rowScanErr)
 		}
@@ -296,7 +290,7 @@ func (es EventStore) processQueryResults(rows adapters.DBRows) (
 		event, buildStorableErr := eventstore.BuildStorableEvent(result.eventType, result.occurredAt, result.payload, result.metadata)
 		if buildStorableErr != nil {
 			es.logError(logMsgBuildStorableEventFailed, buildStorableErr, logAttrEventType, result.eventType)
-			es.recordErrorMetrics(operationQuery, errorTypeBuildStorableEvent)
+			metrics.recordError(errorTypeBuildStorableEvent, 0)
 
 			return empty, 0, errors.Join(eventstore.ErrBuildingStorableEventFailed, buildStorableErr)
 		}
@@ -316,7 +310,7 @@ func (es EventStore) processQueryResults(rows adapters.DBRows) (
 // The insert query to append multiple events atomically is heavier than the one built to append a single event.
 // In event-sourced applications, one command/request should typically only produce one event.
 // Only supply multiple events if you are sure that you need to append multiple events at once!
-func (es EventStore) Append(
+func (es *EventStore) Append(
 	ctx context.Context,
 	filter eventstore.Filter,
 	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
@@ -327,45 +321,41 @@ func (es EventStore) Append(
 	allEvents := eventstore.StorableEvents{event}
 	allEvents = append(allEvents, additionalEvents...)
 
-	ctx, span := es.startAppendSpan(ctx, allEvents, expectedMaxSequenceNumber)
+	tracer, ctx := es.startAppendTracing(ctx, allEvents, expectedMaxSequenceNumber)
+	metrics := es.startAppendMetrics()
 
-	sqlQuery, buildQueryErr := es.buildAppendQuery(allEvents, filter, expectedMaxSequenceNumber)
+	sqlQuery, buildQueryErr := es.buildAppendQuery(allEvents, filter, expectedMaxSequenceNumber, metrics)
 	if buildQueryErr != nil {
-		es.finishAppendSpanError(span, errorTypeBuildQuery, nil)
+		tracer.finishErrorWithAttrs(errorTypeBuildQuery, nil)
 		return buildQueryErr
 	}
 
-	rowsAffected, duration, execErr := es.executeAppendQuery(ctx, sqlQuery)
+	rowsAffected, duration, execErr := es.executeAppendQuery(ctx, sqlQuery, metrics)
 	if execErr != nil {
-		attrs := map[string]string{}
-		if duration >= 0 {
-			attrs[spanAttrDurationMS] = fmt.Sprintf("%.2f", float64(duration.Nanoseconds())/1e6)
-		}
-		es.finishAppendSpanError(span, errorTypeDatabaseExec, attrs)
-
+		tracer.finishError(errorTypeDatabaseExec, duration)
 		return execErr
 	}
 
-	if err := es.validateAppendResult(rowsAffected, len(allEvents), expectedMaxSequenceNumber); err != nil {
+	if err := es.validateAppendResult(rowsAffected, len(allEvents), expectedMaxSequenceNumber, metrics); err != nil {
 		attrs := map[string]string{spanAttrRowsAffected: fmt.Sprintf("%d", rowsAffected)}
-		es.finishAppendSpanError(span, errorTypeConcurrencyConflict, attrs)
+		tracer.finishErrorWithAttrs(errorTypeConcurrencyConflict, attrs)
 
 		return err
 	}
 
 	es.logOperation(logMsgEventsAppended, logAttrEventCount, len(allEvents), logAttrDurationMS, es.toMilliseconds(duration))
-	es.recordDurationMetrics(metricAppendDuration, duration, operationAppend, statusSuccess)
-	es.recordValueMetrics(metricEventsAppended, float64(len(allEvents)), operationAppend, statusSuccess)
-	es.finishAppendSpanSuccess(span, rowsAffected, duration)
+	metrics.recordSuccess(len(allEvents), duration)
+	tracer.finishSuccess(rowsAffected, duration)
 
 	return nil
 }
 
 // buildAppendQuery builds the appropriate SQL query for single or multiple events.
-func (es EventStore) buildAppendQuery(
+func (es *EventStore) buildAppendQuery(
 	allEvents eventstore.StorableEvents,
 	filter eventstore.Filter,
 	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
+	metrics *appendMetricsObserver,
 ) (sqlQueryString, error) {
 
 	var sqlQuery sqlQueryString
@@ -389,7 +379,7 @@ func (es EventStore) buildAppendQuery(
 
 	if buildQueryErr != nil {
 		es.logError(logMsgBuildInsertQueryFailed, buildQueryErr, logAttrEventCount, len(allEvents))
-		es.recordErrorMetrics(operationAppend, errorTypeBuildQuery)
+		metrics.recordError(errorTypeBuildQuery, 0)
 
 		return "", buildQueryErr
 	}
@@ -398,7 +388,7 @@ func (es EventStore) buildAppendQuery(
 }
 
 // executeAppendQuery executes the SQL append query and returns rows affected and duration.
-func (es EventStore) executeAppendQuery(ctx context.Context, sqlQuery string) (
+func (es *EventStore) executeAppendQuery(ctx context.Context, sqlQuery string, metrics *appendMetricsObserver) (
 	rowsAffectedInt64,
 	queryDuration,
 	error,
@@ -411,8 +401,7 @@ func (es EventStore) executeAppendQuery(ctx context.Context, sqlQuery string) (
 
 	if execErr != nil {
 		es.logError(logMsgDBExecFailed, execErr, logAttrQuery, sqlQuery)
-		es.recordDurationMetrics(metricAppendDuration, duration, operationAppend, statusError)
-		es.recordErrorMetrics(operationAppend, errorTypeDatabaseExec)
+		metrics.recordError(errorTypeDatabaseExec, duration)
 
 		return 0, duration, errors.Join(eventstore.ErrAppendingEventFailed, execErr)
 	}
@@ -420,7 +409,7 @@ func (es EventStore) executeAppendQuery(ctx context.Context, sqlQuery string) (
 	rowsAffected, rowsAffectedErr := tag.RowsAffected()
 	if rowsAffectedErr != nil {
 		es.logError(logMsgRowsAffectedFailed, rowsAffectedErr)
-		es.recordErrorMetrics(operationAppend, errorTypeRowsAffected)
+		metrics.recordError(errorTypeRowsAffected, 0)
 
 		return 0, duration, errors.Join(eventstore.ErrGettingRowsAffectedFailed, rowsAffectedErr)
 	}
@@ -429,10 +418,11 @@ func (es EventStore) executeAppendQuery(ctx context.Context, sqlQuery string) (
 }
 
 // validateAppendResult checks if the append operation was successful and detects concurrency conflicts.
-func (es EventStore) validateAppendResult(
+func (es *EventStore) validateAppendResult(
 	rowsAffected int64,
 	expectedEventCount int,
 	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
+	metrics *appendMetricsObserver,
 ) error {
 
 	if rowsAffected < int64(expectedEventCount) {
@@ -443,7 +433,7 @@ func (es EventStore) validateAppendResult(
 			logAttrExpectedSequence, expectedMaxSequenceNumber,
 		)
 
-		es.recordConcurrencyConflictMetrics(operationAppend)
+		metrics.recordConcurrencyConflict()
 
 		return eventstore.ErrConcurrencyConflict
 	}
@@ -451,7 +441,7 @@ func (es EventStore) validateAppendResult(
 	return nil
 }
 
-func (es EventStore) buildSelectQuery(filter eventstore.Filter) (sqlQueryString, error) {
+func (es *EventStore) buildSelectQuery(filter eventstore.Filter) (sqlQueryString, error) {
 	selectStmt := goqu.Dialect(dialectPostgres).
 		From(es.eventTableName).
 		Select(colEventType, colOccurredAt, colPayload, colMetadata, colSequenceNumber).
@@ -467,7 +457,7 @@ func (es EventStore) buildSelectQuery(filter eventstore.Filter) (sqlQueryString,
 	return sqlQuery, nil
 }
 
-func (es EventStore) buildInsertQueryForSingleEvent(
+func (es *EventStore) buildInsertQueryForSingleEvent(
 	event eventstore.StorableEvent,
 	filter eventstore.Filter,
 	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
@@ -499,13 +489,14 @@ func (es EventStore) buildInsertQueryForSingleEvent(
 	if toSQLErr != nil {
 		es.logError(logMsgSingleEventSQLFailed, toSQLErr, logAttrEventType, event.EventType)
 		es.recordErrorMetrics(operationAppend, errorTypeBuildSingleEventSQL)
+
 		return "", errors.Join(eventstore.ErrBuildingQueryFailed, toSQLErr)
 	}
 
 	return sqlQuery, nil
 }
 
-func (es EventStore) buildInsertQueryForMultipleEvents(
+func (es *EventStore) buildInsertQueryForMultipleEvents(
 	events []eventstore.StorableEvent,
 	filter eventstore.Filter,
 	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
@@ -566,7 +557,7 @@ func (es EventStore) buildInsertQueryForMultipleEvents(
 	return sqlQuery, nil
 }
 
-func (es EventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.SelectDataset) *goqu.SelectDataset {
+func (es *EventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.SelectDataset) *goqu.SelectDataset {
 	itemsExpressions := make([]goqu.Expression, 0)
 
 	for _, item := range filter.Items() {
@@ -628,230 +619,4 @@ func (es EventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.S
 	)
 
 	return selectStmt
-}
-
-// logQueryWithDuration logs SQL queries with execution time at debug level if the logger is configured.
-func (es EventStore) logQueryWithDuration(
-	sqlQuery string,
-	action string,
-	duration time.Duration,
-) {
-
-	if es.logger != nil {
-		es.logger.Debug(logMsgSQLExecuted+action, logAttrDurationMS, es.toMilliseconds(duration), logAttrQuery, sqlQuery)
-	}
-}
-
-// logOperation logs operational information at info level if the logger is configured.
-func (es EventStore) logOperation(action string, args ...any) {
-	if es.logger != nil {
-		es.logger.Info(logMsgOperation+action, args...)
-	}
-}
-
-// logError logs error information at the error level if the logger is configured.
-func (es EventStore) logError(
-	message string,
-	err error,
-	args ...any,
-) {
-
-	if es.logger != nil {
-		allArgs := []any{logAttrError, err.Error()}
-		allArgs = append(allArgs, args...)
-		es.logger.Error(message, allArgs...)
-	}
-}
-
-// toMilliseconds converts a time.Duration to float64 milliseconds with 3 decimal places.
-func (es EventStore) toMilliseconds(d time.Duration) float64 {
-	return math.Round(float64(d.Nanoseconds())/1e6*1000) / 1000
-}
-
-// recordErrorMetrics records error metricsCollector if the metricsCollector collector is configured.
-func (es EventStore) recordErrorMetrics(operation, errorType string) {
-	if es.metricsCollector != nil {
-		labels := map[string]string{
-			spanAttrOperation: operation,
-			"status":          statusError,
-			spanAttrErrorType: errorType,
-		}
-		es.metricsCollector.IncrementCounter(metricDatabaseErrors, labels)
-	}
-}
-
-// recordDurationMetrics records duration metricsCollector if the metricsCollector collector is configured.
-func (es EventStore) recordDurationMetrics(
-	metricName string,
-	duration time.Duration,
-	operation, status string,
-) {
-
-	if es.metricsCollector != nil {
-		labels := map[string]string{
-			spanAttrOperation: operation,
-			"status":          status,
-		}
-		es.metricsCollector.RecordDuration(metricName, duration, labels)
-	}
-}
-
-// recordValueMetrics records value metricsCollector if the metricsCollector collector is configured.
-func (es EventStore) recordValueMetrics(
-	metricName string,
-	value float64,
-	operation,
-	status string,
-) {
-
-	if es.metricsCollector != nil {
-		labels := map[string]string{
-			spanAttrOperation: operation,
-			"status":          status,
-		}
-		es.metricsCollector.RecordValue(metricName, value, labels)
-	}
-}
-
-// recordConcurrencyConflictMetrics records concurrency conflict metricsCollector if the metricsCollector collector is configured.
-func (es EventStore) recordConcurrencyConflictMetrics(operation string) {
-	if es.metricsCollector != nil {
-		labels := map[string]string{
-			spanAttrOperation: operation,
-			"conflict_type":   "concurrency",
-		}
-		es.metricsCollector.IncrementCounter(metricConcurrencyConflicts, labels)
-	}
-}
-
-// startTraceSpan starts a tracing span if the tracing collector is configured.
-func (es EventStore) startTraceSpan(
-	ctx context.Context,
-	operation string,
-	attrs map[string]string,
-) (context.Context, SpanContext) {
-
-	if es.tracingCollector != nil {
-		return es.tracingCollector.StartSpan(ctx, operation, attrs)
-	}
-
-	return ctx, nil
-}
-
-// finishTraceSpan finishes a tracing span if the tracing collector is configured.
-func (es EventStore) finishTraceSpan(
-	spanCtx SpanContext,
-	status string,
-	attrs map[string]string,
-) {
-
-	if es.tracingCollector != nil && spanCtx != nil {
-		es.tracingCollector.FinishSpan(spanCtx, status, attrs)
-	}
-}
-
-// startQuerySpan starts a tracing span for query operations.
-func (es EventStore) startQuerySpan(ctx context.Context) (context.Context, SpanContext) {
-	spanAttrs := map[string]string{
-		spanAttrOperation: operationQuery,
-	}
-
-	return es.startTraceSpan(ctx, spanNameQuery, spanAttrs)
-}
-
-// finishQuerySpanSuccess finishes a successful query span with results.
-func (es EventStore) finishQuerySpanSuccess(
-	span SpanContext,
-	eventStream eventstore.StorableEvents,
-	maxSequenceNumber eventstore.MaxSequenceNumberUint,
-	duration time.Duration,
-) {
-
-	if span != nil {
-		span.SetStatus(statusSuccess)
-		span.AddAttribute(spanAttrEventCount, fmt.Sprintf("%d", len(eventStream)))
-		span.AddAttribute(spanAttrMaxSequence, fmt.Sprintf("%d", maxSequenceNumber))
-		span.AddAttribute(spanAttrDurationMS, fmt.Sprintf("%.2f", float64(duration.Nanoseconds())/1e6))
-	}
-
-	es.finishTraceSpan(span, statusSuccess, map[string]string{
-		spanAttrEventCount:  fmt.Sprintf("%d", len(eventStream)),
-		spanAttrMaxSequence: fmt.Sprintf("%d", maxSequenceNumber),
-	})
-}
-
-// finishQuerySpanError finishes a query span with error details.
-func (es EventStore) finishQuerySpanError(
-	span SpanContext,
-	errorType string,
-	duration time.Duration,
-) {
-
-	if span != nil {
-		span.SetStatus(statusError)
-		span.AddAttribute(spanAttrErrorType, errorType)
-		if duration > 0 {
-			span.AddAttribute(spanAttrDurationMS, fmt.Sprintf("%.2f", float64(duration.Nanoseconds())/1e6))
-		}
-	}
-
-	es.finishTraceSpan(span, statusError, map[string]string{spanAttrErrorType: errorType})
-}
-
-// startAppendSpan starts a tracing span for append operations.
-func (es EventStore) startAppendSpan(
-	ctx context.Context,
-	allEvents eventstore.StorableEvents,
-	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
-) (context.Context, SpanContext) {
-
-	spanAttrs := map[string]string{
-		spanAttrOperation:   operationAppend,
-		spanAttrEventCount:  fmt.Sprintf("%d", len(allEvents)),
-		spanAttrEventType:   allEvents[0].EventType,
-		spanAttrExpectedSeq: fmt.Sprintf("%d", expectedMaxSequenceNumber),
-	}
-
-	return es.startTraceSpan(ctx, spanNameAppend, spanAttrs)
-}
-
-// finishAppendSpanSuccess finishes a successful append span with results.
-func (es EventStore) finishAppendSpanSuccess(
-	span SpanContext,
-	rowsAffected int64,
-	duration time.Duration,
-) {
-
-	if span != nil {
-		span.SetStatus(statusSuccess)
-		span.AddAttribute(spanAttrRowsAffected, fmt.Sprintf("%d", rowsAffected))
-		span.AddAttribute(spanAttrDurationMS, fmt.Sprintf("%.2f", float64(duration.Nanoseconds())/1e6))
-	}
-
-	es.finishTraceSpan(span, statusSuccess, map[string]string{
-		spanAttrRowsAffected: fmt.Sprintf("%d", rowsAffected),
-	})
-}
-
-// finishAppendSpanError finishes an append span with error details.
-func (es EventStore) finishAppendSpanError(
-	span SpanContext,
-	errorType string,
-	additionalAttrs map[string]string,
-) {
-
-	if span != nil {
-		span.SetStatus(statusError)
-		span.AddAttribute(spanAttrErrorType, errorType)
-		for key, value := range additionalAttrs {
-			span.AddAttribute(key, value)
-		}
-	}
-
-	attrs := map[string]string{spanAttrErrorType: errorType}
-	for key, value := range additionalAttrs {
-		attrs[key] = value
-	}
-
-	es.finishTraceSpan(span, statusError, attrs)
 }

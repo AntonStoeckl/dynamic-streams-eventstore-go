@@ -67,23 +67,23 @@ func Test_Generic_NewEventStoreWithTableName_ShouldPanic_WithUnsupportedAdapterT
 func Test_Generic_NewEventStore_ShouldFail_WithNilDatabaseConnection(t *testing.T) {
 	testCases := []struct {
 		name        string
-		factoryFunc func() (EventStore, error)
+		factoryFunc func() (*EventStore, error)
 	}{
 		{
 			name: "NewEventStoreFromPGXPool with nil",
-			factoryFunc: func() (EventStore, error) {
+			factoryFunc: func() (*EventStore, error) {
 				return NewEventStoreFromPGXPool(nil)
 			},
 		},
 		{
 			name: "NewEventStoreFromSQLDB with nil",
-			factoryFunc: func() (EventStore, error) {
+			factoryFunc: func() (*EventStore, error) {
 				return NewEventStoreFromSQLDB(nil)
 			},
 		},
 		{
 			name: "NewEventStoreFromSQLX with nil",
-			factoryFunc: func() (EventStore, error) {
+			factoryFunc: func() (*EventStore, error) {
 				return NewEventStoreFromSQLX(nil)
 			},
 		},
@@ -136,11 +136,11 @@ func Test_Generic_EventStore_WithTableName_ShouldWorkCorrectly(t *testing.T) {
 func Test_Generic_FactoryFunctions_ShouldFail_WithEmptyTableName(t *testing.T) {
 	testCases := []struct {
 		name        string
-		factoryFunc func(t *testing.T) (EventStore, error)
+		factoryFunc func(t *testing.T) (*EventStore, error)
 	}{
 		{
 			name: "NewEventStoreFromPGXPool with empty table name",
-			factoryFunc: func(_ *testing.T) (EventStore, error) {
+			factoryFunc: func(_ *testing.T) (*EventStore, error) {
 				connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
 				assert.NoError(t, err, "error connecting to DB pool in test setup")
 				defer connPool.Close()
@@ -150,7 +150,7 @@ func Test_Generic_FactoryFunctions_ShouldFail_WithEmptyTableName(t *testing.T) {
 		},
 		{
 			name: "NewEventStoreFromSQLDB with empty table name",
-			factoryFunc: func(_ *testing.T) (EventStore, error) {
+			factoryFunc: func(_ *testing.T) (*EventStore, error) {
 				db := config.PostgresSQLDBTestConfig()
 				defer func() { _ = db.Close() }()
 
@@ -159,7 +159,7 @@ func Test_Generic_FactoryFunctions_ShouldFail_WithEmptyTableName(t *testing.T) {
 		},
 		{
 			name: "NewEventStoreFromSQLX with empty table name",
-			factoryFunc: func(_ *testing.T) (EventStore, error) {
+			factoryFunc: func(_ *testing.T) (*EventStore, error) {
 				db := config.PostgresSQLXTestConfig()
 				defer func() { _ = db.Close() }()
 

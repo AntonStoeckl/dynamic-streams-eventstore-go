@@ -27,18 +27,18 @@ const (
 
 // Wrapper interface to abstract over different engine types.
 type Wrapper interface {
-	GetEventStore() postgresengine.EventStore
+	GetEventStore() *postgresengine.EventStore
 	Close()
 }
 
 // PGXPoolWrapper wraps pgxpool-based testing.
 type PGXPoolWrapper struct {
 	pool *pgxpool.Pool
-	es   postgresengine.EventStore
+	es   *postgresengine.EventStore
 }
 
 // GetEventStore returns the event store instance for the PGX pool wrapper.
-func (e *PGXPoolWrapper) GetEventStore() postgresengine.EventStore {
+func (e *PGXPoolWrapper) GetEventStore() *postgresengine.EventStore {
 	return e.es
 }
 
@@ -50,11 +50,11 @@ func (e *PGXPoolWrapper) Close() {
 // SQLDBWrapper wraps sql.DB-based testing.
 type SQLDBWrapper struct {
 	db *sql.DB
-	es postgresengine.EventStore
+	es *postgresengine.EventStore
 }
 
 // GetEventStore returns the event store instance for the SQL DB wrapper.
-func (e *SQLDBWrapper) GetEventStore() postgresengine.EventStore {
+func (e *SQLDBWrapper) GetEventStore() *postgresengine.EventStore {
 	return e.es
 }
 
@@ -66,11 +66,11 @@ func (e *SQLDBWrapper) Close() {
 // SQLXWrapper wraps sqlx.DB-based testing.
 type SQLXWrapper struct {
 	db *sqlx.DB
-	es postgresengine.EventStore
+	es *postgresengine.EventStore
 }
 
 // GetEventStore returns the event store instance for the SQLX wrapper.
-func (e *SQLXWrapper) GetEventStore() postgresengine.EventStore {
+func (e *SQLXWrapper) GetEventStore() *postgresengine.EventStore {
 	return e.es
 }
 
