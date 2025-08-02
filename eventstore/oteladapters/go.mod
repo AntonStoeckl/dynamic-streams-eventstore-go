@@ -3,7 +3,7 @@ module github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/oteladap
 go 1.24
 
 require (
-	github.com/AntonStoeckl/dynamic-streams-eventstore-go v1.2.0-beta
+	github.com/AntonStoeckl/dynamic-streams-eventstore-go v1.3.0-beta
 	github.com/stretchr/testify v1.10.0
 	go.opentelemetry.io/contrib/bridges/otelslog v0.12.0
 	go.opentelemetry.io/otel v1.37.0
@@ -24,6 +24,3 @@ require (
 	golang.org/x/sys v0.34.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-// Local development - use local eventstore package
-replace github.com/AntonStoeckl/dynamic-streams-eventstore-go => ../..
