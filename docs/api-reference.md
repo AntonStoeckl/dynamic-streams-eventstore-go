@@ -22,6 +22,7 @@ type Option func(*EventStore) error
 func WithTableName(tableName string) Option
 func WithLogger(logger Logger) Option
 func WithMetrics(metrics MetricsCollector) Option
+func WithTracing(tracing TracingCollector) Option
 
 // Logger interface for SQL query logging, operational metrics, warnings, and error reporting
 type Logger interface {
@@ -36,6 +37,20 @@ type MetricsCollector interface {
     RecordDuration(metric string, duration time.Duration, labels map[string]string)
     IncrementCounter(metric string, labels map[string]string)
     RecordValue(metric string, value float64, labels map[string]string)
+}
+
+// SpanContext represents an active tracing span that can be finished and updated with attributes
+type SpanContext interface {
+    SetStatus(status string)
+    AddAttribute(key, value string)
+}
+
+// TracingCollector interface for distributed tracing information from EventStore operations.
+// This interface follows the same dependency-free pattern as MetricsCollector, allowing users to integrate
+// with any tracing backend (OpenTelemetry, Jaeger, Zipkin, etc.) by implementing this interface.
+type TracingCollector interface {
+    StartSpan(ctx context.Context, name string, attrs map[string]string) (context.Context, SpanContext)
+    FinishSpan(spanCtx SpanContext, status string, attrs map[string]string)
 }
 ```
 
@@ -122,7 +137,8 @@ if err != nil {
 eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
     postgresengine.WithTableName("my_events"),
     postgresengine.WithLogger(debugLogger),
-    postgresengine.WithMetrics(metricsCollector))
+    postgresengine.WithMetrics(metricsCollector),
+    postgresengine.WithTracing(tracingCollector))
 if err != nil {
     return err
 }
@@ -238,6 +254,86 @@ eventstore.append.duration{operation="append",status="error"} 0.008
 eventstore.operations.total{operation="append",status="error"} 1
 eventstore.errors.total{operation="append",error_type="database_error"} 1
 ```
+
+#### Distributed Tracing Integration
+
+The EventStore supports distributed tracing through a dependency-free interface that can integrate with any tracing backend:
+
+**OpenTelemetry Integration Example:**
+```go
+import (
+    "go.opentelemetry.io/otel"
+    "go.opentelemetry.io/otel/trace"
+)
+
+// OpenTelemetry TracingCollector implementation
+type OTelTracingCollector struct {
+    tracer trace.Tracer
+}
+
+func NewOTelTracingCollector(serviceName string) *OTelTracingCollector {
+    return &OTelTracingCollector{
+        tracer: otel.Tracer(serviceName),
+    }
+}
+
+func (c *OTelTracingCollector) StartSpan(ctx context.Context, name string, attrs map[string]string) (context.Context, postgresengine.SpanContext) {
+    ctx, span := c.tracer.Start(ctx, name)
+    
+    // Convert attributes
+    for key, value := range attrs {
+        span.SetAttributes(attribute.String(key, value))
+    }
+    
+    return ctx, &OTelSpanContext{span: span}
+}
+
+func (c *OTelTracingCollector) FinishSpan(spanCtx postgresengine.SpanContext, status string, attrs map[string]string) {
+    if otelSpan, ok := spanCtx.(*OTelSpanContext); ok {
+        // Set final attributes and status
+        for key, value := range attrs {
+            otelSpan.span.SetAttributes(attribute.String(key, value))
+        }
+        
+        if status == "error" {
+            otelSpan.span.SetStatus(codes.Error, "EventStore operation failed")
+        }
+        
+        otelSpan.span.End()
+    }
+}
+
+// Usage with EventStore
+tracingCollector := NewOTelTracingCollector("eventstore")
+eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
+    postgresengine.WithTracing(tracingCollector))
+```
+
+**Custom Tracing Backend Example:**
+```go
+// Simple logging-based tracing collector
+type LoggingTracingCollector struct {
+    logger *slog.Logger
+}
+
+func (c *LoggingTracingCollector) StartSpan(ctx context.Context, name string, attrs map[string]string) (context.Context, postgresengine.SpanContext) {
+    spanID := generateSpanID()
+    c.logger.Info("span.start", "name", name, "span_id", spanID, "attributes", attrs)
+    return ctx, &LoggingSpanContext{spanID: spanID, logger: c.logger}
+}
+
+func (c *LoggingTracingCollector) FinishSpan(spanCtx postgresengine.SpanContext, status string, attrs map[string]string) {
+    if logSpan, ok := spanCtx.(*LoggingSpanContext); ok {
+        logSpan.logger.Info("span.finish", "span_id", logSpan.spanID, "status", status, "attributes", attrs)
+    }
+}
+```
+
+**Tracing Information Captured:**
+- **Query operations**: Filter details, event counts, duration, success/error status
+- **Append operations**: Event types, sequence numbers, rows affected, duration, success/error status  
+- **Error scenarios**: Detailed error classification (build_query, database_query, scan_results, database_exec, concurrency_conflict)
+- **Context propagation**: Trace context threaded through all database operations
 
 #### Methods
 

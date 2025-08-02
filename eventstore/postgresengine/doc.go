@@ -9,7 +9,7 @@
 //   - Atomic event appending with concurrency conflict detection
 //   - Dynamic event stream filtering with JSON predicate support
 //   - Configurable table names and structured logging support
-//   - OpenTelemetry-compatible metrics for comprehensive observability
+//   - OpenTelemetry-compatible metrics and distributed tracing for comprehensive observability
 //   - Transaction-safe operations with proper resource cleanup
 //
 // Usage examples:
@@ -18,12 +18,13 @@
 //	db, _ := pgxpool.New(context.Background(), dsn)
 //	store, _ := postgresengine.NewEventStoreFromPGXPool(db)
 //
-//	// With logging and metrics (production observability)
+//	// With logging, metrics, and tracing (production observability)
 //	store, _ := postgresengine.NewEventStoreFromPGXPool(
 //		db,
 //		postgresengine.WithTableName("my_events"),
 //		postgresengine.WithLogger(logger),
 //		postgresengine.WithMetrics(metricsCollector),
+//		postgresengine.WithTracing(tracingCollector),
 //	)
 //
 //	events, maxSeq, _ := store.Query(ctx, filter)

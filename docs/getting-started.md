@@ -183,8 +183,44 @@ if err != nil {
 - Event counts and sequence numbers (`eventstore.events.count`)
 - Concurrency conflicts (`eventstore.concurrency_conflicts.total`)
 
+##### Distributed Tracing Support
+
+The EventStore supports distributed tracing through a dependency-free interface that integrates with any tracing backend:
+
+```go
+import "context"
+
+// Example tracing collector (implement your tracing backend integration)
+type MyTracingCollector struct {
+    // Your tracing implementation (OpenTelemetry, Jaeger, Zipkin, etc.)
+}
+
+func (t *MyTracingCollector) StartSpan(ctx context.Context, name string, attrs map[string]string) (context.Context, postgresengine.SpanContext) {
+    // Start a new span and return updated context
+    // Implementation depends on your tracing backend
+}
+
+func (t *MyTracingCollector) FinishSpan(spanCtx postgresengine.SpanContext, status string, attrs map[string]string) {
+    // Finish the span with final status and attributes
+}
+
+// Enable tracing instrumentation
+tracingCollector := &MyTracingCollector{}
+eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
+    postgresengine.WithTracing(tracingCollector))
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+**Tracing information automatically captured:**
+- Query operations with filter details, event counts, and durations
+- Append operations with event types, sequence numbers, and success/error status
+- Error scenarios with detailed error classification
+- Context propagation through all database operations
+
 ##### Full Configuration
-Combining custom table name with logging and metrics:
+Combining custom table name with logging, metrics, and tracing:
 
 ```go
 // Create logger appropriate for your environment
@@ -193,11 +229,15 @@ debugLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Leve
 // Create your metrics collector
 metricsCollector := &MyMetricsCollector{}
 
+// Create your tracing collector
+tracingCollector := &MyTracingCollector{}
+
 // Full observability configuration
 eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool,
     postgresengine.WithTableName("my_events"),
     postgresengine.WithLogger(debugLogger),
-    postgresengine.WithMetrics(metricsCollector))
+    postgresengine.WithMetrics(metricsCollector),
+    postgresengine.WithTracing(tracingCollector))
 if err != nil {
     log.Fatal(err)
 }

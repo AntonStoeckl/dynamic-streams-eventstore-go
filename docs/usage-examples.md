@@ -177,13 +177,15 @@ func setupProductionEventStore(dbPool *pgxpool.Pool) postgresengine.EventStore {
         Level: slog.LevelInfo,
     }))
     
-    // Initialize metrics collector
+    // Initialize metrics and tracing collectors
     metricsCollector := &ProductionMetricsCollector{}
+    tracingCollector := &ProductionTracingCollector{}
     
     // Create EventStore with full observability
     eventStore, err := postgresengine.NewEventStoreFromPGXPool(dbPool,
         postgresengine.WithLogger(logger),
-        postgresengine.WithMetrics(metricsCollector))
+        postgresengine.WithMetrics(metricsCollector),
+        postgresengine.WithTracing(tracingCollector))
     if err != nil {
         panic(err)
     }
@@ -246,12 +248,14 @@ func TestLendBookToReader(t *testing.T) {
 func TestLendBookToReaderWithMetrics(t *testing.T) {
     ctx := context.Background()
     
-    // Setup test database and metrics collector
+    // Setup test database and observability collectors
     db := setupTestDB(t)
     metricsCollector := helper.NewTestMetricsCollector(true)
+    tracingCollector := helper.NewTestTracingCollector(true)
     
     es, err := postgresengine.NewEventStoreFromPGXPool(db,
-        postgresengine.WithMetrics(metricsCollector))
+        postgresengine.WithMetrics(metricsCollector),
+        postgresengine.WithTracing(tracingCollector))
     require.NoError(t, err)
     
     // Execute business operation

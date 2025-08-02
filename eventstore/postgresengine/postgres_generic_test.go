@@ -184,8 +184,7 @@ func Test_Generic_EventStore_WithTableName_ShouldFail_WithNonExistentTable(t *te
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	nonExistentTableName := "non_existent_table_xyz"
-	wrapper := CreateWrapperWithTestConfig(t, WithTableName(nonExistentTableName))
+	wrapper := CreateWrapperWithTestConfig(t, WithTableName("non_existent_table_1"))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -545,9 +544,8 @@ func Test_Generic_Eventstore_WithMetrics_RecordsErrorMetrics(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	nonExistentTableName := "non_existent_table_xyz"
 	metricsCollector := NewTestMetricsCollector(true)
-	wrapper := CreateWrapperWithTestConfig(t, WithTableName(nonExistentTableName), WithMetrics(metricsCollector))
+	wrapper := CreateWrapperWithTestConfig(t, WithTableName("non_existent_table_2"), WithMetrics(metricsCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -569,4 +567,137 @@ func Test_Generic_Eventstore_WithMetrics_RecordsErrorMetrics(t *testing.T) {
 		WithStatus("error").
 		WithErrorType("database_query").
 		Assert(), "should record database error counter with correct labels")
+}
+
+func Test_Generic_Eventstore_WithTracing_RecordsQuerySpans(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tracingCollector := NewTestTracingCollector(true)
+	wrapper := CreateWrapperWithTestConfig(t, WithTracing(tracingCollector))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	// arrange
+	CleanUp(t, wrapper)
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// act
+	_, _, err := es.Query(ctxWithTimeout, filter)
+
+	// assert
+	assert.NoError(t, err)
+	assert.True(t, tracingCollector.HasSpanRecordForName("eventstore.query").
+		WithStatus("success").
+		WithStartAttribute("operation", "query").
+		Assert(), "should record query span with correct attributes and status")
+}
+
+func Test_Generic_Eventstore_WithTracing_RecordsAppendSpans(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tracingCollector := NewTestTracingCollector(true)
+	wrapper := CreateWrapperWithTestConfig(t, WithTracing(tracingCollector))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	fakeClock := time.Unix(0, 0).UTC()
+
+	// arrange
+	CleanUp(t, wrapper)
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// act
+	err := es.Append(
+		ctxWithTimeout,
+		filter,
+		QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
+		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
+	)
+
+	// assert
+	assert.NoError(t, err)
+	assert.True(t, tracingCollector.HasSpanRecordForName("eventstore.append").
+		WithStatus("success").
+		WithStartAttribute("operation", "append").
+		WithStartAttribute("event_count", "1").
+		WithStartAttribute("event_type", "BookCopyAddedToCirculation").
+		Assert(), "should record append span with correct attributes and status")
+}
+
+func Test_Generic_Eventstore_WithTracing_RecordsConcurrencyConflictSpans(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tracingCollector := NewTestTracingCollector(true)
+	wrapper := CreateWrapperWithTestConfig(t, WithTracing(tracingCollector))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	fakeClock := time.Unix(0, 0).UTC()
+
+	// arrange
+	CleanUp(t, wrapper)
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// Append the first event successfully
+	err := es.Append(
+		ctxWithTimeout,
+		filter,
+		QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
+		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
+	)
+	assert.NoError(t, err)
+
+	// Reset tracing collector to only capture the conflict
+	tracingCollector.Reset()
+
+	// act - try to append with the wrong expected sequence number (should cause conflict)
+	err = es.Append(
+		ctxWithTimeout,
+		filter,
+		0, // wrong expected sequence - should be 1
+		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(2*time.Second))),
+	)
+
+	// assert
+	assert.ErrorContains(t, err, ErrConcurrencyConflict.Error())
+	assert.True(t, tracingCollector.HasSpanRecordForName("eventstore.append").
+		WithStatus("error").
+		WithStartAttribute("operation", "append").
+		WithEndAttribute("error_type", "concurrency_conflict").
+		Assert(), "should record append span with concurrency conflict error")
+}
+
+func Test_Generic_Eventstore_WithTracing_RecordsErrorSpans(t *testing.T) {
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tracingCollector := NewTestTracingCollector(true)
+	wrapper := CreateWrapperWithTestConfig(t, WithTableName("non_existent_table_3"), WithTracing(tracingCollector))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	// arrange
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// act - attempt to query the non-existent table
+	_, _, err := es.Query(ctxWithTimeout, filter)
+
+	// assert
+	assert.Error(t, err)
+	assert.True(t, tracingCollector.HasSpanRecordForName("eventstore.query").
+		WithStatus("error").
+		WithStartAttribute("operation", "query").
+		WithEndAttribute("error_type", "database_query").
+		Assert(), "should record query span with database error")
 }
