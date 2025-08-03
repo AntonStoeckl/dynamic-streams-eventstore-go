@@ -4,46 +4,61 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
 
+// state represents the current state projected from the event history.
+type state struct {
+	bookIsNotInCirculation         bool
+	bookWasNeverAddedToCirculation bool
+}
+
 // Decide implements the business logic to determine whether a book copy should be removed from circulation.
 // This is a pure function with no side effects - it takes the current domain events and a command
 // and returns the events that should be appended based on the business rules.
 //
-// Business rule: A book copy can only be removed if it currently exists in circulation.
-// The existence is determined by analyzing the event history - the last relevant event determines the current state.
+// Business Rules:
+//   GIVEN: A book copy with BookID
+//   WHEN: RemoveBookCopyFromCirculation command is received
+//   THEN: BookCopyRemovedFromCirculation event is generated
+//   ERROR: "book is not in circulation" if a book was never added to circulation
+//   IDEMPOTENCY: If book already removed from circulation, no event generated (no-op)
 //
-// In a real application there should be a unit test for this business logic, unless coarse-grained
-// feature tests are preferred. Complex business logic typically benefits from dedicated pure unit tests.
 func Decide(history core.DomainEvents, command Command) core.DomainEvents {
-	bookIsInCirculation := false
-	bookWasInCirculation := false
+	s := project(history, command.BookID.String())
 
-	for _, event := range history {
-		switch event.EventType() {
-		case core.BookCopyAddedToCirculationEventType:
-			bookIsInCirculation = true
-			bookWasInCirculation = true
-
-		case core.BookCopyRemovedFromCirculationEventType:
-			bookIsInCirculation = false
-		}
+	if s.bookIsNotInCirculation {
+		return core.DomainEvents{} // idempotency - the book was already removed, so no new event
 	}
 
-	if !bookWasInCirculation {
-		// in a real application this would be a real error event
+	if s.bookWasNeverAddedToCirculation {
 		return core.DomainEvents{
 			core.BuildSomethingHasHappened(
-				command.BookID.String(),
-				"book is not in circulation",
-				command.OccurredAt,
-				"RemovingBookFromCirculationFailed",
-			),
+				command.BookID.String(), "book is not in circulation", command.OccurredAt, "RemovingBookFromCirculationFailed")}
+	}
+
+	return core.DomainEvents{
+		core.BuildBookCopyRemovedFromCirculation(command.BookID, command.OccurredAt)}
+}
+
+// project builds the current state by replaying all events from the history.
+func project(history core.DomainEvents, bookID string) state {
+	s := state{
+		bookIsNotInCirculation:         true, // Default to "not in circulation"
+		bookWasNeverAddedToCirculation: true, // Default to "never added to circulation"
+	}
+
+	for _, event := range history {
+		switch e := event.(type) {
+		case core.BookCopyAddedToCirculation:
+			if e.BookID == bookID {
+				s.bookIsNotInCirculation = false
+				s.bookWasNeverAddedToCirculation = false
+			}
+
+		case core.BookCopyRemovedFromCirculation:
+			if e.BookID == bookID {
+				s.bookIsNotInCirculation = true
+			}
 		}
 	}
 
-	if !bookIsInCirculation {
-		// idempotency - the book was already removed, so no new event
-		return core.DomainEvents{}
-	}
-
-	return core.DomainEvents{core.BuildBookCopyRemovedFromCirculation(command.BookID, command.OccurredAt)}
+	return s
 }

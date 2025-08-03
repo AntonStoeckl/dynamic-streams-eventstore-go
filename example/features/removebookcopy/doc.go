@@ -13,6 +13,9 @@
 // The CommandHandler encapsulates the complete Query() -> Decide() -> Append() cycle,
 // while the pure Decide() function contains only business rules and is easily testable.
 //
+// In a real application there should be a unit test for this business logic, unless coarse-grained
+// feature tests are preferred. Complex business logic typically benefits from dedicated pure unit tests.
+//
 // Note: In a real application, the BuildCommand() function should validate input
 // parameters if necessary. Important domain concepts like BookID might be better
 // encapsulated in value objects rather than primitive types for stronger type safety,
