@@ -3,13 +3,17 @@ package postgresengine_test
 import (
 	"context"
 	"log/slog"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.opentelemetry.io/otel"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/oteladapters"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"                 //nolint:revive
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper" //nolint:revive
 )
@@ -736,4 +740,123 @@ func Test_Observability_Eventstore_WithContextualMetrics_UsesContextualPath(t *t
 		WithOperation("query").
 		WithStatus("error").
 		Assert(), "should record error counter via contextual path")
+}
+
+//nolint:funlen
+func Test_Observability_Eventstore_WithRealObservabilityStack_RealisticLoad(t *testing.T) {
+	// Skip test if observability integration is not enabled
+	if os.Getenv("OBSERVABILITY_ENABLED") != "true" {
+		t.Skip("Skipping real observability stack test - set OBSERVABILITY_ENABLED=true to run")
+	}
+
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Create real OpenTelemetry providers for the test observability stack
+	providers, err := config.NewTestObservabilityConfig()
+	assert.NoError(t, err, "should create observability providers")
+	defer func() {
+		shutdownErr := providers.Shutdown()
+		assert.NoError(t, shutdownErr, "should shutdown observability providers cleanly")
+	}()
+
+	// Create real OpenTelemetry adapters (not spies)
+	tracer := otel.Tracer("des-obs")
+	meter := otel.Meter("des-obs")
+
+	metricsCollector := oteladapters.NewMetricsCollector(meter)
+	tracingCollector := oteladapters.NewTracingCollector(tracer)
+	contextualLogger := oteladapters.NewSlogBridgeLogger("des-obs")
+
+	// Use test database configuration with observability options
+	// Note: We use test config instead of benchmark config since benchmark config doesn't support options
+	wrapper := CreateWrapperWithTestConfig(t,
+		postgresengine.WithMetrics(metricsCollector),
+		postgresengine.WithTracing(tracingCollector),
+		postgresengine.WithContextualLogger(contextualLogger),
+	)
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	// Generate realistic load patterns
+	t.Log("Executing realistic load patterns for observability demonstration...")
+
+	// Pattern 1: Mixed read operations
+	for i := 0; i < 10; i++ {
+		bookID := GivenUniqueID(t)
+		filter := FilterAllEventTypesForOneBook(bookID)
+
+		_, _, err := es.Query(ctxWithTimeout, filter)
+		assert.NoError(t, err, "query should succeed")
+
+		// Small delay to spread operations over time for better metrics visualization
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	// Pattern 2: Mixed write operations
+	fakeClock := time.Unix(0, 0).UTC()
+	for i := 0; i < 5; i++ {
+		bookID := GivenUniqueID(t)
+		filter := FilterAllEventTypesForOneBook(bookID)
+
+		err := es.Append(
+			ctxWithTimeout,
+			filter,
+			QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
+			ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Duration(i)*time.Second))),
+		)
+		assert.NoError(t, err, "append should succeed")
+
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	// Pattern 3: Cross-entity queries (demonstrating dynamic streams)
+	readerID := GivenUniqueID(t)
+	bookID := GivenUniqueID(t)
+
+	crossEntityFilter := eventstore.BuildEventFilter().
+		Matching().
+		AnyEventTypeOf("BookCopyLentToReader", "BookCopyReturnedByReader").
+		AndAnyPredicateOf(eventstore.P("BookID", bookID.String()), eventstore.P("ReaderID", readerID.String())).
+		Finalize()
+
+	_, _, err = es.Query(ctxWithTimeout, crossEntityFilter)
+	assert.NoError(t, err, "cross-entity query should succeed")
+
+	// Pattern 4: Demonstrate concurrency conflict detection
+	conflictBookID := GivenUniqueID(t)
+	conflictFilter := FilterAllEventTypesForOneBook(conflictBookID)
+
+	// First, add an event to establish a sequence number
+	err = es.Append(
+		ctxWithTimeout,
+		conflictFilter,
+		0,
+		ToStorable(t, FixtureBookCopyAddedToCirculation(conflictBookID, fakeClock)),
+	)
+	assert.NoError(t, err, "initial append should succeed")
+
+	// Intentionally trigger a concurrency conflict for observability demonstration
+	err = es.Append(
+		ctxWithTimeout,
+		conflictFilter,
+		0, // Wrong sequence number - should be 1 now
+		ToStorable(t, FixtureBookCopyAddedToCirculation(conflictBookID, fakeClock.Add(time.Second))),
+	)
+	assert.ErrorContains(t, err, eventstore.ErrConcurrencyConflict.Error(), "should detect concurrency conflict")
+
+	t.Log("Realistic load pattern execution completed")
+	t.Log("Observability data should now be visible in:")
+	t.Log("  - Grafana Dashboard: http://localhost:3000 (admin/admin)")
+	t.Log("  - Jaeger Traces: http://localhost:16686")
+	t.Log("  - Prometheus Metrics: http://localhost:9090")
+
+	// Force flush metrics to ensure they are exported before the test completes
+	if err := providers.MeterProvider.ForceFlush(ctxWithTimeout); err != nil {
+		t.Logf("Warning: Failed to flush metrics: %v", err)
+	}
+
+	// Give time for final telemetry to be exported
+	time.Sleep(5 * time.Second)
 }

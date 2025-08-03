@@ -16,6 +16,29 @@ This file tracks larger plans, initiatives, and completed work for the Dynamic E
 
 ## ✅ Completed
 
+### Observability Stack Integration with postgres_observability_test.go
+- **Completed**: 2025-08-03
+- **Description**: Complete observability stack integration (Grafana + Prometheus + Jaeger) with existing observability test suite
+- **Tasks Completed**:
+  - ✅ Created complete observability stack in `testutil/observability/` with Docker Compose
+  - ✅ Implemented config functions in `example/shared/shell/config/observability_config.go` following existing patterns
+  - ✅ Added new test function `Test_Observability_Eventstore_WithRealObservabilityStack_RealisticLoad()` to `postgres_observability_test.go`
+  - ✅ Created pre-configured Grafana dashboards for EventStore metrics visualization
+  - ✅ Verified complete observability stack with real backends working correctly
+  - ✅ Fixed tracing integration - direct OTLP connection from test to Jaeger (localhost:4319)
+  - ✅ Verified metrics integration - OTEL Collector routes metrics to Prometheus (localhost:4317 → localhost:9090)
+- **Architecture Delivered**:
+  - **Metrics Flow**: EventStore Test → OTLP → OTEL Collector → Prometheus → Grafana
+  - **Traces Flow**: EventStore Test → OTLP → Jaeger (direct connection)
+  - **Services**: Prometheus (9090), Grafana (3000), Jaeger (16686), OTEL Collector (4317)
+- **Key Features**:
+  - **Environment-gated execution**: Only runs with `OBSERVABILITY_ENABLED=true`
+  - **Realistic load patterns**: Mixed read/write operations, cross-entity queries, concurrency conflicts
+  - **Real observability data**: Actual metrics and traces visible in production-grade backends
+  - **Pre-built dashboards**: EventStore test load dashboard with P50/P95/P99 percentiles
+  - **Complete documentation**: Setup and usage instructions in `testutil/observability/README.md`
+- **Verified working**: Metrics (`eventstore_query_duration_seconds`, `eventstore_events_queried_total`), Traces (`eventstore.query`, `eventstore.append` spans), Service discovery (`eventstore-test` in Jaeger)
+
 ### Consolidate OpenTelemetry Adapters into Main Module
 - **Completed**: 2025-08-02
 - **Description**: Removed the separate Go submodule for oteladapters and integrated it into the main module to reduce complexity
@@ -127,8 +150,26 @@ This file tracks larger plans, initiatives, and completed work for the Dynamic E
 
 ## 💡 Future Ideas
 
-*(Currently empty)*
+### Standalone Demo Application with Observability
+- **Description**: Create dedicated demo application showcasing EventStore capabilities with realistic workload simulation
+- **Note**: Separate from test integration approach - focuses on user-facing demonstrations
+- **Components**: Workload simulator, realistic scenarios, comprehensive documentation
+- **Stack Options**: Grafana + Prometheus + Jaeger (Option 1) or Elastic Stack (Option 3)
+
+#### **Grafana + Prometheus + Jaeger Stack (Open Source)**
+- **Components**: Prometheus (metrics), Grafana (visualization), Jaeger (tracing), OpenTelemetry Collector
+- **Deliverables**: Complete Docker setup, demo application, pre-built dashboards, documentation
+
+#### **Elastic Stack (ELK)**
+- **Components**: Elasticsearch, Kibana, APM Server, Beats
+- **Deliverables**: Complete Docker setup, demo application, pre-configured dashboards, advanced search examples
+
+#### **Common Demo Features**
+- **Realistic Workload Simulation**: Mixed read/write operations, concurrent access, error injection
+- **Observable Scenarios**: Happy path operations, error scenarios, performance issues, scaling patterns
+- **Expected Output**: Operation duration histograms (P50, P95, P99), throughput graphs, error rates, end-to-end traces
+- **Production Patterns**: Shows how to deploy EventStore observability in real environments
 
 ---
 
-*Last Updated: 2025-08-02*
+*Last Updated: 2025-08-03*
