@@ -11,8 +11,8 @@ import (
 
 // PostgresSQLDBTestConfig creates a configured *sql.DB for the test database.
 func PostgresSQLDBTestConfig() *sql.DB {
-	const defaultMaxOpenConnections = 8
-	const defaultMaxIdleConnections = 2
+	const defaultMaxOpenConnections = 50
+	const defaultMaxIdleConnections = 10
 	const defaultMaxConnLifetime = time.Hour
 	const defaultMaxConnIdleTime = time.Minute * 5
 
@@ -37,8 +37,8 @@ func PostgresSQLDBTestConfig() *sql.DB {
 
 // PostgresSQLDBBenchmarkConfig creates a configured *sql.DB for the benchmark database.
 func PostgresSQLDBBenchmarkConfig() *sql.DB {
-	const defaultMaxOpenConnections = 8
-	const defaultMaxIdleConnections = 2
+	const defaultMaxOpenConnections = 200
+	const defaultMaxIdleConnections = 20
 	const defaultMaxConnLifetime = time.Hour
 	const defaultMaxConnIdleTime = time.Minute * 5
 

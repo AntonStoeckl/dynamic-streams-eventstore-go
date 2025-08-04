@@ -13,29 +13,30 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel"
 
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/oteladapters"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"
 )
 
 const (
 	defaultRate            = 30
-	defaultDatabaseURL     = "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable"
 	defaultInitialBooks    = 1000
-	defaultScenarioWeights = "40,50,10" // circulation, lending, errors
+	defaultScenarioWeights = "20,80" // circulation, lending
 )
 
 type Config struct {
-	Rate                  int
-	DatabaseURL           string
-	ObservabilityEnabled  bool
-	InitialBooks          int
-	ScenarioWeights       []int
-	StateSyncIntervalSec  int
+	Rate                 int
+	ObservabilityEnabled bool
+	InitialBooks         int
+	ScenarioWeights      []int
+	StateSyncIntervalSec int
 }
 
 func main() {
-	config := parseFlags()
+	cfg := parseFlags()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -44,8 +45,8 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// Initialize database connection
-	pgxPool, err := pgxpool.New(ctx, config.DatabaseURL)
+	// Initialize database connection using benchmark config (port 5433)
+	pgxPool, err := pgxpool.NewWithConfig(ctx, config.PostgresPGXPoolBenchmarkConfig())
 	if err != nil {
 		log.Fatalf("Failed to create pgx pool: %v", err)
 	}
@@ -58,8 +59,8 @@ func main() {
 
 	// Initialize observability (if enabled)
 	var eventStoreOptions []postgresengine.Option
-	if config.ObservabilityEnabled {
-		obsConfig := config.NewObservabilityConfig()
+	if cfg.ObservabilityEnabled {
+		obsConfig := cfg.NewObservabilityConfig()
 		if obsConfig.Logger != nil {
 			eventStoreOptions = append(eventStoreOptions, postgresengine.WithLogger(obsConfig.Logger))
 		}
@@ -84,8 +85,13 @@ func main() {
 		log.Fatalf("Failed to create EventStore: %v", err)
 	}
 
-	// Initialize and start load generator
-	loadGen := NewLoadGenerator(eventStore, config)
+	// Initialize and start load generator (pass metrics collector for dashboard integration)
+	var metricsCollector eventstore.MetricsCollector
+	if cfg.ObservabilityEnabled {
+		obsConfig := cfg.NewObservabilityConfig()
+		metricsCollector = obsConfig.MetricsCollector
+	}
+	loadGen := NewLoadGenerator(eventStore, cfg, metricsCollector)
 
 	// Start load generation in a goroutine
 	errChan := make(chan error, 1)
@@ -97,7 +103,7 @@ func main() {
 
 	log.Printf("EventStore Load Generator started")
 	log.Printf("Configuration: rate=%d req/s, initial_books=%d, scenario_weights=%v",
-		config.Rate, config.InitialBooks, config.ScenarioWeights)
+		cfg.Rate, cfg.InitialBooks, cfg.ScenarioWeights)
 	log.Printf("Press Ctrl+C to stop...")
 
 	// Wait for shutdown signal or error
@@ -124,10 +130,9 @@ func main() {
 func parseFlags() Config {
 	var (
 		rate              = flag.Int("rate", defaultRate, "Requests per second")
-		databaseURL       = flag.String("database-url", defaultDatabaseURL, "PostgreSQL connection string")
 		observability     = flag.Bool("observability-enabled", false, "Enable OpenTelemetry observability")
 		initialBooks      = flag.Int("initial-books", defaultInitialBooks, "Number of books to add initially")
-		scenarioWeights   = flag.String("scenario-weights", defaultScenarioWeights, "Comma-separated weights for circulation,lending,errors scenarios")
+		scenarioWeights   = flag.String("scenario-weights", defaultScenarioWeights, "Comma-separated weights for circulation,lending scenarios")
 		stateSyncInterval = flag.Int("state-sync-interval", 60, "State synchronization interval in seconds")
 	)
 
@@ -140,22 +145,21 @@ func parseFlags() Config {
 	}
 
 	return Config{
-		Rate:                  *rate,
-		DatabaseURL:           *databaseURL,
-		ObservabilityEnabled:  *observability,
-		InitialBooks:          *initialBooks,
-		ScenarioWeights:       weights,
-		StateSyncIntervalSec:  *stateSyncInterval,
+		Rate:                 *rate,
+		ObservabilityEnabled: *observability,
+		InitialBooks:         *initialBooks,
+		ScenarioWeights:      weights,
+		StateSyncIntervalSec: *stateSyncInterval,
 	}
 }
 
 func parseScenarioWeights(weightsStr string) ([]int, error) {
 	parts := strings.Split(weightsStr, ",")
-	if len(parts) != 3 {
-		return nil, fmt.Errorf("expected 3 weights, got %d", len(parts))
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("expected 2 weights, got %d", len(parts))
 	}
 
-	weights := make([]int, 3)
+	weights := make([]int, 2)
 	total := 0
 	for i, part := range parts {
 		weight, err := strconv.Atoi(strings.TrimSpace(part))
@@ -176,9 +180,39 @@ func parseScenarioWeights(weightsStr string) ([]int, error) {
 	return weights, nil
 }
 
-func (c Config) NewObservabilityConfig() config.ObservabilityConfig {
+// ObservabilityConfig holds the observability adapters for the EventStore.
+type ObservabilityConfig struct {
+	Logger           eventstore.Logger
+	ContextualLogger eventstore.ContextualLogger
+	MetricsCollector eventstore.MetricsCollector
+	TracingCollector eventstore.TracingCollector
+}
+
+func (c Config) NewObservabilityConfig() ObservabilityConfig {
 	if !c.ObservabilityEnabled {
-		return config.ObservabilityConfig{}
+		return ObservabilityConfig{}
 	}
-	return config.NewObservabilityConfig("eventstore-load-generator")
+
+	// Create real OpenTelemetry providers for the load generator
+	_, err := config.NewTestObservabilityConfig()
+	if err != nil {
+		log.Printf("Failed to create observability providers: %v", err)
+		return ObservabilityConfig{}
+	}
+	// Note: Providers are set globally in OpenTelemetry, no need to store reference
+
+	// Create real OpenTelemetry adapters (same as the test)
+	tracer := otel.Tracer("eventstore-load-generator")
+	meter := otel.Meter("eventstore-load-generator")
+
+	metricsCollector := oteladapters.NewMetricsCollector(meter)
+	tracingCollector := oteladapters.NewTracingCollector(tracer)
+	contextualLogger := oteladapters.NewSlogBridgeLogger("eventstore-load-generator")
+
+	return ObservabilityConfig{
+		Logger:           nil, // Using contextual logger instead
+		ContextualLogger: contextualLogger,
+		MetricsCollector: metricsCollector,
+		TracingCollector: tracingCollector,
+	}
 }

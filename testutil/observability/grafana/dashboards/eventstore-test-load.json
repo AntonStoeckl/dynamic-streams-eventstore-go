@@ -1,7 +1,6 @@
 {
-  "dashboard": {
-    "id": null,
-    "title": "EventStore Test Load Dashboard",
+  "id": null,
+  "title": "EventStore Test Load Dashboard",
     "tags": ["eventstore", "test"],
     "timezone": "browser",
     "time": {
@@ -126,5 +125,4 @@
         }
       }
     ]
-  }
 }
