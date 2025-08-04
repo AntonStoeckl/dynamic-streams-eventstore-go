@@ -30,8 +30,8 @@ func Decide(history core.DomainEvents, command Command) core.DomainEvents {
 
 	if s.bookWasNeverAddedToCirculation {
 		return core.DomainEvents{
-			core.BuildSomethingHasHappened(
-				command.BookID.String(), "book is not in circulation", command.OccurredAt, "RemovingBookFromCirculationFailed")}
+			core.BuildRemovingBookFromCirculationFailed(
+				command.BookID.String(), "book is not in circulation", command.OccurredAt)}
 	}
 
 	return core.DomainEvents{

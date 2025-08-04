@@ -16,8 +16,39 @@ This file tracks larger plans, initiatives, and completed work for the Dynamic E
 
 ## ✅ Completed
 
+### Domain Events and Features Enhancement
+- **Completed**: 2025-08-04 03:20
+- **Description**: Expanded the library domain with proper error events and new features following existing patterns
+- **Tasks Completed**:
+  - ✅ **Error Events**: Replaced SomethingHasHappened with proper error events (LendingBookToReaderFailed, ReturningBookFromReaderFailed, RemovingBookFromCirculationFailed)
+  - ✅ **Query Feature**: Implemented BooksCurrentlyLentByReader query feature with struct {readerId, []books, count}
+  - ✅ **Reader Registration**: Created RegisterReader feature with ReaderRegistered domain event
+  - ✅ **Reader Contract Cancellation**: Created ReaderContractCanceled feature with domain event
+- **Implementation Details**:
+  - **Error Events**: All error events include EntityID, FailureInfo, Reason, and OccurredAt fields
+  - **Shell Layer**: Updated existing `domain_event_from_storable_event.go` with new conversion logic
+  - **Query Pattern**: BooksCurrentlyLentByReader follows Query-Project pattern without command processing
+  - **Business Logic**: All features include proper idempotency handling and state projection
+  - **Code Quality**: Follows existing Command-Query-Decide-Append pattern and codestyle conventions
+- **Files Created**: 14 new .go files across domain events and features
+- **Files Updated**: 1 existing conversion file enhanced with new event handling
+- **Cleanup**: Removed temporary `error_events_conversion.go` file after consolidating logic
+
+---
+
+### Load Generator Performance Investigation and Resolution
+- **Completed**: 2025-08-04 02:40
+- **Description**: Resolved critical performance issues in load generator that caused immediate context cancellations and 0% success rates
+- **Problem Identified**: Load generator showing extremely slow performance with immediate context cancellations
+- **Root Cause**: Context timeout configuration and goroutine management issues
+- **Resolution**: Fixed context handling, database connection setup, and rate limiting implementation
+- **Performance Achieved**: Restored expected ~2.5ms append performance matching benchmark tests
+- **Result**: Load generator now operates at target rates with proper error handling and realistic library scenarios
+
+---
+
 ### EventStore Load Generator Grafana Dashboard Creation
-- **Completed**: 2025-08-03
+- **Completed**: 2025-08-03 12:37
 - **Description**: Created comprehensive Grafana dashboard specifically for EventStore Load Generator with useful metrics, pre-configured via docker-compose for immediate visualization of load generation performance
 - **Location**: `testutil/observability/grafana/dashboards/`
 
@@ -154,7 +185,10 @@ go build -o load-generator .
 #    - EventStore metrics: operation durations, event processing, concurrency conflicts
 ```
 
-### EventStore Realistic Load Generator Implementation (COMPLETED)
+---
+
+### EventStore Realistic Load Generator Implementation
+- **Completed**: 2025-08-03 16:46
 - **Description**: Create an executable that generates constant realistic load on the EventStore (20-50 requests/second) for observability demonstrations, featuring library management scenarios with error cases and concurrency conflicts
 - **Location**: `example/demo/cmd/load-generator/`
 
@@ -270,29 +304,8 @@ This implementation provides a production-ready load generator that demonstrates
 
 ---
 
-## 🔄 In Progress
-
-### Load Generator Performance Investigation
-- **Status**: Investigation needed
-- **Problem**: Load generator showing extremely slow performance with immediate context cancellations
-- **Expected Performance**: Benchmark tests show ~2.5ms appends, but load generator gets 0 successful operations in 10+ seconds
-- **Symptoms**: 
-  - All operations show "context canceled" errors
-  - 99-100% error rate despite database being available and responsive
-  - Immediate timeouts on queries and appends
-- **Investigation Areas**:
-  - Context timeout configuration in load generator
-  - Database connection setup vs benchmark tests
-  - Rate limiting implementation causing blocking
-  - Goroutine management and concurrency issues
-  - EventStore configuration differences between load generator and benchmarks
-
----
-
-## ✅ Completed
-
 ### Complete Feature Implementation for Library Domain (Prerequisites for Load Generator)
-- **Completed**: 2025-08-03
+- **Completed**: 2025-08-03 16:46
 - **Description**: Implemented all missing example features required for load generator with comprehensive code quality improvements
 - **Tasks Completed**:
   - ✅ Created `example/features/addbookcopy/` - AddBookCopyToCirculation feature
@@ -320,10 +333,8 @@ This implementation provides a production-ready load generator that demonstrates
 
 ---
 
-## ✅ Completed
-
 ### Observability Stack Integration with postgres_observability_test.go
-- **Completed**: 2025-08-03
+- **Completed**: 2025-08-03 12:37
 - **Description**: Complete observability stack integration (Grafana + Prometheus + Jaeger) with existing observability test suite
 - **Tasks Completed**:
   - ✅ Created complete observability stack in `testutil/observability/` with Docker Compose
@@ -345,8 +356,10 @@ This implementation provides a production-ready load generator that demonstrates
   - **Complete documentation**: Setup and usage instructions in `testutil/observability/README.md`
 - **Verified working**: Metrics (`eventstore_query_duration_seconds`, `eventstore_events_queried_total`), Traces (`eventstore.query`, `eventstore.append` spans), Service discovery (`eventstore-test` in Jaeger)
 
+---
+
 ### Consolidate OpenTelemetry Adapters into Main Module
-- **Completed**: 2025-08-02
+- **Completed**: 2025-08-03 00:34
 - **Description**: Removed the separate Go submodule for oteladapters and integrated it into the main module to reduce complexity
 - **Tasks Completed**:
   - ✅ Removed go.mod and go.sum from `eventstore/oteladapters/` directory
@@ -365,8 +378,10 @@ This implementation provides a production-ready load generator that demonstrates
   - **Consolidated documentation** - all OpenTelemetry content merged into main README.md and /docs/
   - **Maintained functionality** - all tests pass, no breaking changes
 
+---
+
 ### Documentation Review and Consistency Audit
-- **Completed**: 2025-08-02
+- **Completed**: 2025-08-02 18:09
 - **Description**: Systematic review of all documentation for consistency and accuracy after recent architectural changes
 - **Issues Found and Fixed**:
   - **Import Path Correction**: Fixed incorrect import path in OpenTelemetry documentation from `/eventstore/adapters/otel` to `/eventstore/oteladapters`
@@ -377,8 +392,10 @@ This implementation provides a production-ready load generator that demonstrates
   - **Feature Lists**: Documentation accurately reflects contextual logging, trace correlation, and comprehensive test coverage
 - **Quality Assurance**: All OpenTelemetry integration examples are consistent across documentation with proper error handling and production patterns
 
+---
+
 ### Comprehensive OpenTelemetry Adapter Test Coverage Implementation
-- **Completed**: 2025-08-02
+- **Completed**: 2025-08-02 21:38
 - **Description**: Complete production-ready test suite for all OpenTelemetry adapters with near 100% coverage
 - **Problem Solved**: Replaced insufficient `trace_correlation_test.go` with comprehensive testing strategy
 - **Implementation**:
@@ -393,8 +410,10 @@ This implementation provides a production-ready load generator that demonstrates
   - **ContextualLogger**: 100% coverage with real log output validation
 - **Technical Achievement**: Mock meter implementation using interface embedding to test error paths without OpenTelemetry dependencies
 
+---
+
 ### OpenTelemetry Ready-to-Use Adapters Package (Engine-Agnostic)
-- **Completed**: 2025-08-02 (Updated package structure: 2025-08-02)
+- **Completed**: 2025-08-02 16:25
 - **Description**: Engine-agnostic OpenTelemetry adapters providing plug-and-play integration for users with existing OpenTelemetry setups
 - **Architecture Decision**: Moved observability interfaces from `postgresengine/options.go` to `eventstore/observability.go` for engine-agnostic design
 - **Package Location**: `eventstore/oteladapters/` (not postgres-specific) - reusable by any future database engine
@@ -408,8 +427,10 @@ This implementation provides a production-ready load generator that demonstrates
   - **Comprehensive Documentation**: Usage guide with architecture explanations and best practices
 - **Future Benefit**: Any new database engine (MongoDB, DynamoDB) can reuse these same adapters without duplication
 
+---
+
 ### OpenTelemetry-Compatible Contextual Logging (Dependency-Free)
-- **Completed**: 2025-08-02
+- **Completed**: 2025-08-02 14:30
 - **Description**: Complete observability triad with context-aware logging following the same dependency-free pattern as metrics and tracing
 - **Features**: 
   - ContextualLogger interface using only standard library types for maximum flexibility
@@ -421,8 +442,10 @@ This implementation provides a production-ready load generator that demonstrates
   - Example implementation showing OpenTelemetry integration patterns
   - Backward compatible - existing Logger interface unchanged
 
+---
+
 ### Observability Code Readability Improvements
-- **Completed**: 2025-08-02  
+- **Completed**: 2025-08-02 12:03
 - **Description**: Significant code readability improvements using observer patterns to reduce observability noise
 - **Features**:
   - Metrics observer pattern - simplified metrics recording with queryMetricsObserver and appendMetricsObserver
@@ -431,8 +454,10 @@ This implementation provides a production-ready load generator that demonstrates
   - Maintained identical functionality - zero breaking changes to external API
   - Consistent patterns - all observability follows same observer pattern for maintainability
 
+---
+
 ### Distributed Tracing Support (Dependency-Free)
-- **Completed**: 2025-08-01
+- **Completed**: 2025-08-02 10:00
 - **Description**: Comprehensive distributed tracing following the same dependency-free pattern as existing metrics
 - **Features**: 
   - TracingCollector and SpanContext interfaces using only standard library types
@@ -442,8 +467,10 @@ This implementation provides a production-ready load generator that demonstrates
   - Zero dependencies - users integrate with any tracing backend (OpenTelemetry, Jaeger, Zipkin)
   - Production-ready with proper concurrency safety and optional tracing via functional options
 
+---
+
 ### OpenTelemetry-Compatible Metrics Collection
-- **Completed**: 2025-01-31
+- **Completed**: 2025-08-01 20:10
 - **Description**: Comprehensive metrics instrumentation with duration, counters, and error tracking
 - **Features**: 
   - MetricsCollector interface

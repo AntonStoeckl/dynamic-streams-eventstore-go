@@ -32,14 +32,14 @@ func Decide(history core.DomainEvents, command Command) core.DomainEvents {
 
 	if s.bookIsNotInCirculation {
 		return core.DomainEvents{
-			core.BuildSomethingHasHappened(
-				command.BookID.String(), "book is not in circulation", command.OccurredAt, "ReturningBookFromReaderFailed")}
+			core.BuildReturningBookFromReaderFailed(
+				command.BookID.String(), "book is not in circulation", command.OccurredAt)}
 	}
 
 	if s.bookWasNeverLentToThisReader {
 		return core.DomainEvents{
-			core.BuildSomethingHasHappened(
-				command.BookID.String(), "book is not lent to this reader", command.OccurredAt, "ReturningBookFromReaderFailed")}
+			core.BuildReturningBookFromReaderFailed(
+				command.BookID.String(), "book is not lent to this reader", command.OccurredAt)}
 	}
 
 	return core.DomainEvents{

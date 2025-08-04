@@ -34,20 +34,26 @@ func Decide(history core.DomainEvents, command Command) core.DomainEvents {
 
 	if s.bookIsNotInCirculation {
 		return core.DomainEvents{
-			core.BuildSomethingHasHappened(
-				command.BookID.String(), "book is not in circulation", command.OccurredAt, "LendingBookToReaderFailed")}
+			core.BuildLendingBookToReaderFailed(
+				command.BookID.String(), 
+				"book is not in circulation", 
+				command.OccurredAt)}
 	}
 
 	if s.bookIsLentToAnotherReader {
 		return core.DomainEvents{
-			core.BuildSomethingHasHappened(
-				command.BookID.String(), "book is already lent", command.OccurredAt, "LendingBookToReaderFailed")}
+			core.BuildLendingBookToReaderFailed(
+				command.BookID.String(), 
+				"book is already lent", 
+				command.OccurredAt)}
 	}
 
 	if s.readerCurrentBookCount >= 10 {
 		return core.DomainEvents{
-			core.BuildSomethingHasHappened(
-				command.ReaderID.String(), "reader has too many books", command.OccurredAt, "LendingBookToReaderFailed")}
+			core.BuildLendingBookToReaderFailed(
+				command.ReaderID.String(), 
+				"reader has too many books", 
+				command.OccurredAt)}
 	}
 
 	return core.DomainEvents{
