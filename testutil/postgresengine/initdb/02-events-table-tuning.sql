@@ -6,14 +6,14 @@
 ALTER TABLE events SET (
   -- Vacuum more aggressively for high-insert tables
   autovacuum_vacuum_threshold = 500,        -- Vacuum after 500 dead tuples
-  autovacuum_vacuum_scale_factor = 0.05,    -- Vacuum when 5% of table is dead
+  autovacuum_vacuum_scale_factor = 0.05,    -- Vacuum when 5% of the table is dead
   
   -- Analyze very frequently to keep statistics fresh for query planner
   autovacuum_analyze_threshold = 100,       -- Analyze after 100 inserts/updates
   autovacuum_analyze_scale_factor = 0.02,   -- Analyze when 2% of table changed
   
   -- Faster vacuum to reduce blocking
-  autovacuum_vacuum_cost_delay = 5,         -- 5ms delay (faster than global 10ms)
+  autovacuum_vacuum_cost_delay = 5,         -- 5 ms delay (faster than global 10 ms)
   autovacuum_vacuum_cost_limit = 3000       -- Higher limit for faster completion
 );
 
@@ -26,7 +26,7 @@ ALTER TABLE events ALTER COLUMN metadata SET STATISTICS 2000;
 -- (These would need to be dropped and recreated with new settings)
 -- Note: This will be applied when indexes are created in the main schema
 
--- Create extension for better monitoring
+-- Create an extension for better monitoring
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 
 -- Set up a view for monitoring autovacuum activity
@@ -51,7 +51,7 @@ SELECT
 FROM pg_stat_user_tables 
 WHERE relname = 'events';
 
--- Function to check if events table needs immediate maintenance
+-- Function to check if the events table needs immediate maintenance
 CREATE OR REPLACE FUNCTION check_events_table_health() 
 RETURNS TABLE(
     metric text,
