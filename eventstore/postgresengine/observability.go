@@ -9,6 +9,83 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 )
 
+const (
+	// Structured logging messages.
+	logMsgBuildSelectQueryFailed   = "failed to build select query"
+	logMsgDBQueryFailed            = "database query execution failed"
+	logMsgCloseRowsFailed          = "failed to close database rows"
+	logMsgScanRowFailed            = "failed to scan database row"
+	logMsgBuildStorableEventFailed = "failed to build storable event from database row"
+	logMsgBuildInsertQueryFailed   = "failed to build insert query"
+	logMsgDBExecFailed             = "database execution failed during event append"
+	logMsgRowsAffectedFailed       = "failed to get rows affected count"
+	logMsgSingleEventSQLFailed     = "failed to convert single event insert statement to SQL"
+	logMsgMultiEventSQLFailed      = "failed to convert multiple events insert statement to SQL"
+	logMsgQueryCompleted           = "query completed"
+	logMsgEventsAppended           = "events appended"
+	logMsgConcurrencyConflict      = "concurrency conflict detected"
+	logMsgSQLExecuted              = "executed sql for: "
+	logMsgOperation                = "eventstore operation: "
+
+	// Structured logging attribute names.
+	logAttrError            = "error"
+	logAttrQuery            = "query"
+	logAttrEventType        = "event_type"
+	logAttrEventCount       = "event_count"
+	logAttrDurationMS       = "duration_ms"
+	logAttrExpectedEvents   = "expected_events"
+	logAttrRowsAffected     = "rows_affected"
+	logAttrExpectedSequence = "expected_sequence"
+	logActionQuery          = "query"
+	logActionAppend         = "append"
+
+	// OpenTelemetry-compatible metrics names.
+	metricQueryDuration        = "eventstore_query_duration_seconds"
+	metricAppendDuration       = "eventstore_append_duration_seconds"
+	metricEventsQueried        = "eventstore_events_queried_total"
+	metricEventsAppended       = "eventstore_events_appended_total"
+	metricConcurrencyConflicts = "eventstore_concurrency_conflicts_total"
+	metricDatabaseErrors       = "eventstore_database_errors_total"
+
+	// Method-level metrics (separate from the SQL operation metrics above).
+	metricQueryMethodCalls  = "eventstore_query_method_calls_total"
+	metricAppendMethodCalls = "eventstore_append_method_calls_total"
+
+	// Shared operation constants for metrics and tracing.
+	operationQuery  = "query"
+	operationAppend = "append"
+
+	// Shared status constants for metrics and tracing.
+	statusSuccess = "success"
+	statusError   = "error"
+
+	// Error type classification for metrics and tracing.
+	errorTypeBuildQuery          = "build_query"
+	errorTypeDatabaseQuery       = "database_query"
+	errorTypeScanResults         = "scan_results"
+	errorTypeDatabaseExec        = "database_exec"
+	errorTypeConcurrencyConflict = "concurrency_conflict"
+	errorTypeRowScan             = "row_scan"
+	errorTypeBuildStorableEvent  = "build_storable_event"
+	errorTypeRowsAffected        = "rows_affected"
+	errorTypeBuildSingleEventSQL = "build_single_event_sql"
+	errorTypeBuildMultiEventSQL  = "build_multi_event_sql"
+
+	// Distributed tracing span names.
+	spanNameQuery  = "eventstore.query"
+	spanNameAppend = "eventstore.append"
+
+	// Distributed tracing span attribute names.
+	spanAttrOperation    = "operation"
+	spanAttrEventCount   = "event_count"
+	spanAttrMaxSequence  = "max_sequence"
+	spanAttrDurationMS   = "duration_ms"
+	spanAttrRowsAffected = "rows_affected"
+	spanAttrErrorType    = "error_type"
+	spanAttrEventType    = "event_type"
+	spanAttrExpectedSeq  = "expected_seq"
+)
+
 // logQueryWithDuration logs SQL queries with execution time at debug level if the logger is configured.
 func (es *EventStore) logQueryWithDuration(
 	sqlQuery string,
