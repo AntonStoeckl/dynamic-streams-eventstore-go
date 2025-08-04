@@ -74,7 +74,7 @@ const (
 	metricConcurrencyConflicts = "eventstore_concurrency_conflicts_total"
 	metricDatabaseErrors       = "eventstore_database_errors_total"
 
-	// Method-level metrics (separate from SQL operation metrics above)
+	// Method-level metrics (separate from the SQL operation metrics above).
 	metricQueryMethodCalls  = "eventstore_query_method_calls_total"
 	metricAppendMethodCalls = "eventstore_append_method_calls_total"
 
