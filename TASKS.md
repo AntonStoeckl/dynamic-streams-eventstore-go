@@ -4,13 +4,87 @@ This file tracks larger plans, initiatives, and completed work for the Dynamic E
 
 ## 🚧 Current Plans (Ready to Implement)
 
-*(Currently empty)*
+### Create Realistic Load Testing Scenarios  
+- **Created**: 2025-08-04
+- **Priority**: High - Current 50% idempotency rate is unrealistic for proper load testing
+- **Objective**: Design sophisticated, realistic load generation scenarios that reflect real-world EventStore usage patterns
+
+#### **🔍 Current Problem Analysis**
+- **Current load generator**: 50% scenarios result in idempotency (no events generated)
+- **Business impact**: Unrealistic for load testing - real applications don't have 50% no-op scenarios
+- **Testing limitation**: Can't properly test high-throughput EventStore performance
+- **Scenario weights**: Current "20,80" (circulation, lending) creates too much idempotency
+
+#### **📋 Files/Packages to Review in Next Session**
+1. **Load Generator Core**:
+   - `example/demo/cmd/load-generator/load_generator.go` (scenario selection logic)
+   - `example/demo/cmd/load-generator/main.go` (configuration, scenario weights)
+
+2. **Current Scenarios** (understand business logic causing idempotency):
+   - `example/features/addbookcopy/` (circulation scenarios)
+   - `example/features/removebookcopy/` (circulation scenarios)  
+   - `example/features/lendbookcopytoreader/` (lending scenarios)
+   - `example/features/returnbookcopyfromreader/` (lending scenarios)
+
+3. **Business Logic** (why 50% scenarios generate no events):
+   - `example/features/*/decide.go` (core business decision logic)
+   - `example/shared/core/` (domain events and business rules)
+
+4. **Command Handlers** (understand Query->Decide->Append pattern):
+   - `example/features/*/command_handler.go` (where idempotency logic happens)
+
+#### **🎯 Next Session Implementation Plan**
+1. **Analyze Current Scenarios**: Understand why 50% result in idempotency
+2. **Design New Scenarios**: Create realistic business scenarios with <10% idempotency
+3. **Implement Scenario Variants**: 
+   - Real-world library usage patterns
+   - State-dependent scenario selection
+   - Time-based scenario distribution
+4. **Add Scenario State Management**: Track library state to make informed scenario choices
+5. **Test New Load Patterns**: Validate realistic append/query ratios (80-90% append success rate)
+
+#### **💡 Potential Solutions**
+- **State-aware scenarios**: Track which books are available vs lent out
+- **Sequential scenarios**: Create realistic user journeys (register→lend→return→lend)
+- **Weighted realistic distribution**: 70% lending operations, 25% circulation, 5% reader management
+- **Smart scenario selection**: Avoid scenarios that would obviously fail business rules
+- **Time-based patterns**: Simulate daily usage patterns (morning rush, evening returns)
+
+#### **🎯 Success Criteria**
+- Append success rate: 80-90% (down from current 50%)
+- Realistic load testing: Sustained high throughput without artificial idempotency
+- Business scenario realism: Patterns that reflect actual library management usage
+- Performance validation: Proper stress testing of EventStore under realistic conditions
 
 ---
 
 ## 🔄 In Progress
 
 *(Currently empty)*
+
+#### **🔧 What's Ready for Next Session:**
+- **Load Generator**: Simplified, compiles cleanly, no load generator metrics (pure EventStore focus)
+- **Grafana Dashboards**: 
+  - ✅ "EventStore Performance Dashboard" (6 clean panels)
+  - ✅ "EventStore Debug Dashboard" (success/failure breakdown)
+  - ✅ Login: admin:secretpw (documented everywhere)
+- **PostgreSQL**: 
+  - ✅ Performance-tuned with aggressive autovacuum (eliminates manual VACUUM ANALYZE need)
+  - ✅ Fresh empty table ready for load testing
+  - ✅ Events table has special per-table tuning (analyze every 2% change vs 10% default)
+  - ✅ Should resolve GIN index avoidance issues
+- **Key Files Created/Modified**:
+  - `testutil/observability/grafana/dashboards/eventstore-simplified.json` (main dashboard)
+  - `testutil/observability/grafana/dashboards/eventstore-debug.json` (debug dashboard)  
+  - `testutil/postgresengine/postgresql-performance.conf` (performance tuning)
+  - `testutil/postgresengine/restart-postgres-benchmark.sh` (restart script)
+  - `example/demo/cmd/load-generator/` (simplified, no metrics collection)
+
+#### **🎯 Next Session Goals:**
+1. **Run load generator** at 300 req/sec with observability enabled
+2. **Check debug dashboard** to see success/failure breakdown (why 299+156≠300?)
+3. **Validate main dashboard** shows clear operations/sec, success rate, avg duration
+4. **Confirm PostgreSQL performance** - no more GIN index avoidance, consistent performance
 
 ---
 

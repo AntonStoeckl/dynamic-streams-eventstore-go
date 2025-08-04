@@ -1,86 +1,77 @@
-# EventStore Load Generator Dashboard
+# EventStore Grafana Dashboard  
 
-This directory contains Grafana dashboards for monitoring EventStore performance and load generation.
+This directory contains the **EventStore Performance Dashboard** - a simplified, focused dashboard for monitoring EventStore operations from a real application perspective.
 
-## Dashboards
+## EventStore Performance Dashboard
+**File**: `eventstore-simplified.json`
 
-### eventstore-load-generator.json
-A comprehensive dashboard specifically designed for monitoring the EventStore Load Generator with the following panels:
+Clean 6-panel dashboard focused purely on **EventStore operations** without load generator confusion:
 
-#### Load Generator Performance
-- **Request Rate**: Real-time requests/second with target rate comparison
-- **Scenario Distribution**: Pie chart showing circulation (4%), lending (94%), error (2%) breakdown  
-- **Success vs Error Rate**: Timeline showing successful operations vs errors
-- **Request Duration**: P50, P95, P99 percentiles for load generator operations
+### 📊 **Core Panels**
+1. **Append Operations/sec** - How many append operations per second  
+2. **Query Operations/sec** - How many query operations per second
+3. **Operation Success Rate (%)** - Percentage of successful operations (gauge with thresholds)
+4. **Average Operation Duration** - Mean append/query duration in milliseconds  
+5. **Concurrency Conflicts/sec** - Optimistic concurrency conflicts (expected in high-concurrency apps)
+6. **Error Rate by Type** - Breakdown of error types (database_query, concurrency_conflict, etc.)
 
-#### EventStore Operations
-- **Operation Duration**: P50, P95, P99 percentiles for Query and Append operations
-- **Operations Rate**: Events queried and appended per second
-- **Error Breakdown**: Categorized error types (concurrency conflicts, query errors, etc.)
+### 🎯 **Key Benefits**
+- ✅ **Clear 1:1 mapping**: 250 req/sec load generator = ~250 total operations/sec
+- ✅ **Real application perspective**: Shows what any production app would see  
+- ✅ **No load generator noise**: Pure EventStore performance metrics
+- ✅ **Immediate understanding**: Operations/sec, success rate, avg duration, conflicts
+- ✅ **Simplified visualization**: 6 focused panels instead of complex percentiles
 
-#### Business Logic Monitoring
-- **Scenario Execution**: Timeline showing circulation, lending, and error scenario execution
-- **Concurrency Conflicts**: Rate of optimistic concurrency control failures
-- **Performance Summary**: Table with key metrics overview
-
-### eventstore-test-load.json  
-Pre-existing dashboard for general EventStore test load monitoring.
-
-## Metrics Used
-
-### Load Generator Metrics
-- `load_generator_current_rate` - Current request rate (gauge)
-- `load_generator_request_duration_seconds` - Request execution duration (histogram)
-- `load_generator_scenarios_total` - Total scenarios executed by type (counter)
-- `load_generator_errors_total` - Total errors by type and scenario (counter)
-
-### EventStore Metrics
-- `eventstore_query_duration_seconds` - Query operation duration (histogram)
-- `eventstore_append_duration_seconds` - Append operation duration (histogram)  
-- `eventstore_events_queried_total` - Total events queried (counter)
-- `eventstore_events_appended_total` - Total events appended (counter)
+### 📈 **Core Metrics**
+- `eventstore_append_duration_seconds_count` - Append operations count (for ops/sec)
+- `eventstore_query_duration_seconds_count` - Query operations count (for ops/sec)  
+- `eventstore_*_duration_seconds_sum/_count` - Average duration calculations
+- `eventstore_concurrency_conflicts_total` - Concurrency conflict tracking
+- `eventstore_database_errors_total` - Error breakdown by type
 
 ## Auto-Provisioning
 
-Dashboards are automatically loaded when the observability stack starts via:
+Dashboard is automatically loaded when the observability stack starts via:
 - Volume mount: `./grafana/dashboards:/var/lib/grafana/dashboards`
 - Provisioning config: `./grafana/provisioning/dashboards/dashboards.yml`
 
 ## Usage
 
-1. Start the observability stack:
+1. **Start Observability Stack**: 
    ```bash
    cd testutil/observability && docker compose up -d
    ```
 
-2. Start the benchmark PostgreSQL database:
+2. **Start PostgreSQL Database**:
    ```bash
    cd testutil/postgresengine && docker compose up -d postgres_benchmark
    ```
 
-3. Run the load generator with observability:
+3. **Run Load Generator** (simplified, no load generator metrics):
    ```bash
    cd example/demo/cmd/load-generator
-   ./load-generator --observability-enabled=true --rate=30
+   ./load-generator --observability-enabled=true --rate=250
    ```
 
-4. Access the dashboard:
-   - Grafana UI: http://localhost:3000 (admin/admin)
-   - Navigate to "EventStore" folder → "EventStore Load Generator Dashboard"
+4. **Access Dashboard**:
+   - Grafana UI: http://localhost:3000 (admin/secretpw)
+   - Navigate to "EventStore" folder → "EventStore Performance Dashboard"
+
+## What You'll See
+
+With load generator at 250 req/sec:
+- **Total Operations/sec**: ~250 (sum of append + query panels)
+- **Success Rate**: >95% (green gauge)
+- **Average Duration**: <10ms for typical operations  
+- **Concurrency Conflicts**: A few per second (normal)
+- **Error Breakdown**: Mostly concurrency conflicts (expected)
 
 ## Dashboard Features
 
 - **Real-time Updates**: 5-second refresh for live monitoring
 - **Time Range**: Default 15-minute window with quick selectors (5m, 30m, 1h, 3h)
-- **Color Coding**: Thresholds for performance indicators
-- **Interactive Legends**: Click to filter metrics
-- **Responsive Layout**: Panels automatically adjust to screen size
+- **Color Coding**: Thresholds for performance indicators (green/yellow/red)
+- **Focused Metrics**: Only essential EventStore performance data
+- **Production-Ready**: Suitable for both development and production monitoring
 
-## Expected Behavior
-
-When load generator is running with observability enabled, you should see:
-- Request rate matching configured target (default 30 req/s)
-- Scenario distribution following 4,94,2 pattern (circulation, lending, errors)
-- Occasional concurrency conflicts (expected behavior)
-- Sub-second operation durations for most scenarios
-- EventStore operations correlated with load generator activity
+Perfect for understanding EventStore performance without dashboard confusion!

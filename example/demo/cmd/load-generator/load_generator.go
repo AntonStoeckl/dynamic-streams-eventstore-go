@@ -6,13 +6,11 @@ import (
 	"log"
 	"math/rand"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/addbookcopy"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/lendbookcopytoreader"
@@ -44,17 +42,15 @@ type LoadGenerator struct {
 	startTime    time.Time
 	mu           sync.RWMutex
 
-	// OpenTelemetry metrics collection (optional)
-	metricsCollector eventstore.MetricsCollector
+	// Note: EventStore will still collect its own metrics when observability is enabled
 }
 
 // NewLoadGenerator creates a new LoadGenerator instance with the provided EventStore and configuration.
-func NewLoadGenerator(eventStore *postgresengine.EventStore, config Config, metricsCollector eventstore.MetricsCollector) *LoadGenerator {
+func NewLoadGenerator(eventStore *postgresengine.EventStore, config Config) *LoadGenerator {
 	return &LoadGenerator{
-		eventStore:       eventStore,
-		config:           config,
-		stopChan:         make(chan struct{}),
-		metricsCollector: metricsCollector,
+		eventStore: eventStore,
+		config:     config,
+		stopChan:   make(chan struct{}),
 
 		// Initialize command handlers
 		addBookCopyHandler:    addbookcopy.NewCommandHandler(eventStore),
@@ -130,9 +126,6 @@ func (lg *LoadGenerator) executeScenario(ctx context.Context) {
 	// Select scenario based on weights (circulation: 4%, lending: 94%, errors: 2%)
 	scenarioType := lg.selectScenario()
 
-	// Record scenario execution start time for duration metrics
-	startTime := time.Now()
-
 	var err error
 	switch scenarioType {
 	case "circulation":
@@ -143,9 +136,7 @@ func (lg *LoadGenerator) executeScenario(ctx context.Context) {
 		err = fmt.Errorf("unknown scenario type: %s", scenarioType)
 	}
 
-	// Record metrics
-	duration := time.Since(startTime)
-	lg.recordMetrics(scenarioType, duration, err)
+	// Note: EventStore operations are automatically instrumented when observability is enabled
 
 	// Update internal counters
 	lg.mu.Lock()
@@ -297,62 +288,5 @@ func (lg *LoadGenerator) logFinalStats() {
 	}
 }
 
-// recordMetrics records OpenTelemetry metrics for load generator operations.
-func (lg *LoadGenerator) recordMetrics(scenarioType string, duration time.Duration, err error) {
-	if lg.metricsCollector == nil {
-		return // Metrics collection is optional
-	}
-
-	labels := map[string]string{
-		"scenario_type": scenarioType,
-		"service":       "load-generator",
-	}
-
-	// Record request duration
-	lg.metricsCollector.RecordDuration("load_generator_request_duration_seconds", duration, labels)
-
-	// Record scenario counters
-	lg.metricsCollector.IncrementCounter("load_generator_scenarios_total", labels)
-
-	// Record errors if any
-	if err != nil {
-		errorLabels := map[string]string{
-			"scenario_type": scenarioType,
-			"service":       "load-generator",
-			"error_type":    lg.classifyError(err),
-		}
-		lg.metricsCollector.IncrementCounter("load_generator_errors_total", errorLabels)
-	}
-
-	// Record current request rate (calculated every 10 requests for efficiency)
-	lg.mu.RLock()
-	if lg.requestCount%10 == 0 && lg.requestCount > 0 {
-		currentDuration := time.Since(lg.startTime)
-		if currentDuration > 0 {
-			currentRate := float64(lg.requestCount) / currentDuration.Seconds()
-			lg.metricsCollector.RecordValue("load_generator_current_rate", currentRate, map[string]string{"service": "load-generator"})
-		}
-	}
-	lg.mu.RUnlock()
-}
-
-// classifyError categorizes errors for better metrics labeling.
-func (lg *LoadGenerator) classifyError(err error) string {
-	errStr := err.Error()
-	switch {
-	case strings.Contains(errStr, "concurrency error"):
-		return "concurrency_conflict"
-	case strings.Contains(errStr, "context canceled"):
-		return "context_canceled"
-	case strings.Contains(errStr, "query failed"):
-		return "query_error"
-	case strings.Contains(errStr, "append failed"):
-		return "append_error"
-	case strings.Contains(errStr, "marshaling failed"):
-		return "marshaling_error"
-	case strings.Contains(errStr, "unmarshaling failed"):
-		return "unmarshaling_error"
-	default:
-		return "unknown_error"
-	}
-}
+// Note: All load generator metrics collection removed to simplify dashboard focus on EventStore metrics.
+// EventStore operations are automatically instrumented when observability is enabled.

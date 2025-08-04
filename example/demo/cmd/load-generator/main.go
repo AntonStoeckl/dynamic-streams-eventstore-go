@@ -85,13 +85,8 @@ func main() {
 		log.Fatalf("Failed to create EventStore: %v", err)
 	}
 
-	// Initialize and start load generator (pass metrics collector for dashboard integration)
-	var metricsCollector eventstore.MetricsCollector
-	if cfg.ObservabilityEnabled {
-		obsConfig := cfg.NewObservabilityConfig()
-		metricsCollector = obsConfig.MetricsCollector
-	}
-	loadGen := NewLoadGenerator(eventStore, cfg, metricsCollector)
+	// Initialize load generator (EventStore observability is configured above)
+	loadGen := NewLoadGenerator(eventStore, cfg)
 
 	// Start load generation in a goroutine
 	errChan := make(chan error, 1)

@@ -74,6 +74,10 @@ const (
 	metricConcurrencyConflicts = "eventstore_concurrency_conflicts_total"
 	metricDatabaseErrors       = "eventstore_database_errors_total"
 
+	// Method-level metrics (separate from SQL operation metrics above)
+	metricQueryMethodCalls  = "eventstore_query_method_calls_total"
+	metricAppendMethodCalls = "eventstore_append_method_calls_total"
+
 	// Shared operation constants for metrics and tracing.
 	operationQuery  = "query"
 	operationAppend = "append"
@@ -207,6 +211,18 @@ func (es *EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 	tracer, ctx := es.startQueryTracing(ctx)
 	metrics := es.startQueryMetrics(ctx)
 
+	// Record method call counter (separate from SQL operation metrics)
+	if es.metricsCollector != nil {
+		labels := map[string]string{
+			spanAttrOperation: operationQuery,
+		}
+		if contextualCollector, ok := es.metricsCollector.(eventstore.ContextualMetricsCollector); ok {
+			contextualCollector.IncrementCounterContext(ctx, metricQueryMethodCalls, labels)
+		} else {
+			es.metricsCollector.IncrementCounter(metricQueryMethodCalls, labels)
+		}
+	}
+
 	sqlQuery, buildQueryErr := es.buildSelectQuery(filter)
 	if buildQueryErr != nil {
 		es.logError(logMsgBuildSelectQueryFailed, buildQueryErr)
@@ -328,6 +344,18 @@ func (es *EventStore) Append(
 
 	tracer, ctx := es.startAppendTracing(ctx, storableEvents, expectedMaxSequenceNumber)
 	metrics := es.startAppendMetrics(ctx)
+
+	// Record method call counter (separate from SQL operation metrics)
+	if es.metricsCollector != nil {
+		labels := map[string]string{
+			spanAttrOperation: operationAppend,
+		}
+		if contextualCollector, ok := es.metricsCollector.(eventstore.ContextualMetricsCollector); ok {
+			contextualCollector.IncrementCounterContext(ctx, metricAppendMethodCalls, labels)
+		} else {
+			es.metricsCollector.IncrementCounter(metricAppendMethodCalls, labels)
+		}
+	}
 
 	sqlQuery, buildQueryErr := es.buildAppendQuery(ctx, storableEvents, filter, expectedMaxSequenceNumber, metrics)
 	if buildQueryErr != nil {

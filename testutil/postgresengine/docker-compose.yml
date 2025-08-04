@@ -14,13 +14,14 @@ services:
       - "5432:5432"
   postgres_benchmark:
     image: postgres
-    command: postgres -c max_connections=300
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
     environment:
       POSTGRES_USER: test
       POSTGRES_PASSWORD: test
       POSTGRES_DB: eventstore
     volumes:
       - ./initdb:/docker-entrypoint-initdb.d/
+      - ./postgresql-performance.conf:/etc/postgresql/postgresql.conf
       - pgdata:/var/lib/postgresql/data
       - ./fixtures:/fixtures
     ports:

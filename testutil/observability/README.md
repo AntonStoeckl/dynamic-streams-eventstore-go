@@ -8,7 +8,7 @@ This directory provides a complete observability stack for testing and demonstra
 - **Grafana** (localhost:3000)—Visualization dashboards  
 - **Jaeger** (localhost:16686)—Distributed tracing UI (OTLP: localhost:4319)
 - **OpenTelemetry Collector** (localhost:4317)—Metrics routing to Prometheus
-- **PostgreSQL** (localhost:5433)—Uses an existing benchmark database with fixture data
+- **PostgreSQL** (localhost:5433)—High-performance benchmark database with optimized autovacuum settings
 
 **Note**: Traces are sent directly to Jaeger's OTLP endpoint, while metrics flow through the OTEL Collector to Prometheus.
 
@@ -30,9 +30,9 @@ OBSERVABILITY_ENABLED=true go test -run Test_Observability_Eventstore_WithRealOb
 
 ### 3. View Observability Data
 
-- **Grafana Dashboard**: http://localhost:3000 (admin/admin)
-  - Pre-configured with EventStore test load dashboard
-  - Real-time metrics from test execution
+- **Grafana Dashboard**: http://localhost:3000 (admin/secretpw)
+  - **EventStore Performance Dashboard**: Clean 6-panel dashboard focused purely on EventStore operations
+  - Real-time metrics showing operations/sec, success rate, avg duration, and conflicts
 - **Jaeger Traces**: http://localhost:16686
   - Distributed traces showing operation spans
   - Detailed timing and error information
