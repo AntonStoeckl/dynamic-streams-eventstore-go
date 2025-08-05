@@ -38,3 +38,8 @@ func (e ReaderContractCanceled) EventType() string {
 func (e ReaderContractCanceled) HasOccurredAt() time.Time {
 	return e.OccurredAt
 }
+
+// IsErrorEvent returns false since this event represents a successful operation.
+func (e ReaderContractCanceled) IsErrorEvent() bool {
+	return false
+}

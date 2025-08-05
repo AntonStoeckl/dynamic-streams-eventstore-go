@@ -36,3 +36,8 @@ func (e BookCopyLentToReader) EventType() string {
 func (e BookCopyLentToReader) HasOccurredAt() time.Time {
 	return e.OccurredAt
 }
+
+// IsErrorEvent returns false since this event represents a successful operation.
+func (e BookCopyLentToReader) IsErrorEvent() bool {
+	return false
+}

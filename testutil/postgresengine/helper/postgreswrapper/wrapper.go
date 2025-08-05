@@ -154,28 +154,28 @@ func CreateWrapperWithTestConfig(t testing.TB, options ...postgresengine.Option)
 }
 
 // CreateWrapperWithBenchmarkConfig creates a database wrapper configured for benchmarking.
-func CreateWrapperWithBenchmarkConfig(t testing.TB) Wrapper {
+func CreateWrapperWithBenchmarkConfig(t testing.TB, options ...postgresengine.Option) Wrapper {
 	engineTypeFromEnv := strings.ToLower(os.Getenv("ADAPTER_TYPE"))
 
 	switch engineTypeFromEnv {
 	case typePGXPool, "":
 		connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolBenchmarkConfig())
 		assert.NoError(t, err, "error connecting to DB pool in test setup")
-		es, err := postgresengine.NewEventStoreFromPGXPool(connPool)
+		es, err := postgresengine.NewEventStoreFromPGXPool(connPool, options...)
 		assert.NoError(t, err, "error creating event store")
 
 		return &PGXPoolWrapper{pool: connPool, es: es}
 
 	case typeSQLDB:
 		db := config.PostgresSQLDBBenchmarkConfig()
-		es, err := postgresengine.NewEventStoreFromSQLDB(db)
+		es, err := postgresengine.NewEventStoreFromSQLDB(db, options...)
 		assert.NoError(t, err, "error creating event store")
 
 		return &SQLDBWrapper{db: db, es: es}
 
 	case typeSQLXDB:
 		db := config.PostgresSQLXBenchmarkConfig()
-		es, err := postgresengine.NewEventStoreFromSQLX(db)
+		es, err := postgresengine.NewEventStoreFromSQLX(db, options...)
 		assert.NoError(t, err, "error creating event store")
 
 		return &SQLXWrapper{db: db, es: es}

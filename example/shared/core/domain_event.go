@@ -11,6 +11,10 @@ type DomainEvents = []DomainEvent
 type DomainEvent interface {
 	// EventType returns the string identifier for this event type.
 	EventType() string
+
 	// HasOccurredAt returns when this event occurred.
 	HasOccurredAt() time.Time
+
+	// IsErrorEvent returns true if this event represents an error or failure condition.
+	IsErrorEvent() bool
 }

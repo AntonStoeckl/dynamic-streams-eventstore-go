@@ -9,9 +9,9 @@ const RemovingBookFromCirculationFailedEventType = "RemovingBookFromCirculationF
 
 // RemovingBookFromCirculationFailed represents when removing a book copy from circulation fails due to business rule violations.
 type RemovingBookFromCirculationFailed struct {
-	EntityID     string
-	FailureInfo  string
-	OccurredAt   OccurredAtTS
+	EntityID    string
+	FailureInfo string
+	OccurredAt  OccurredAtTS
 }
 
 // BuildRemovingBookFromCirculationFailed creates a new RemovingBookFromCirculationFailed event.
@@ -38,4 +38,9 @@ func (e RemovingBookFromCirculationFailed) EventType() string {
 // HasOccurredAt returns when this event occurred.
 func (e RemovingBookFromCirculationFailed) HasOccurredAt() time.Time {
 	return e.OccurredAt
+}
+
+// IsErrorEvent returns true since this event represents a failure condition.
+func (e RemovingBookFromCirculationFailed) IsErrorEvent() bool {
+	return true
 }

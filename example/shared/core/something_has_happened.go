@@ -40,3 +40,8 @@ func (e SomethingHasHappened) EventType() string {
 func (e SomethingHasHappened) HasOccurredAt() time.Time {
 	return e.OccurredAt
 }
+
+// IsErrorEvent returns false since this is a generic test event.
+func (e SomethingHasHappened) IsErrorEvent() bool {
+	return false
+}

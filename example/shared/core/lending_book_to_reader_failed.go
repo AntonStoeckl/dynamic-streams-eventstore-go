@@ -9,9 +9,9 @@ const LendingBookToReaderFailedEventType = "LendingBookToReaderFailed"
 
 // LendingBookToReaderFailed represents when lending a book copy to a reader fails due to business rule violations.
 type LendingBookToReaderFailed struct {
-	EntityID     string
-	FailureInfo  string
-	OccurredAt   OccurredAtTS
+	EntityID    string
+	FailureInfo string
+	OccurredAt  OccurredAtTS
 }
 
 // BuildLendingBookToReaderFailed creates a new LendingBookToReaderFailed event.
@@ -38,4 +38,9 @@ func (e LendingBookToReaderFailed) EventType() string {
 // HasOccurredAt returns when this event occurred.
 func (e LendingBookToReaderFailed) HasOccurredAt() time.Time {
 	return e.OccurredAt
+}
+
+// IsErrorEvent returns true since this event represents a failure condition.
+func (e LendingBookToReaderFailed) IsErrorEvent() bool {
+	return true
 }

@@ -1,3 +1,5 @@
+// Package main implements a load generator for testing the Dynamic Event Streams EventStore
+// with configurable request rates and realistic library management scenarios.
 package main
 
 import (
@@ -16,7 +18,6 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/lendbookcopytoreader"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/removebookcopy"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/returnbookcopyfromreader"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
 )
 
 // LoadGenerator orchestrates realistic load generation against the EventStore
@@ -53,10 +54,10 @@ func NewLoadGenerator(eventStore *postgresengine.EventStore, config Config) *Loa
 		stopChan:   make(chan struct{}),
 
 		// Initialize command handlers
-		addBookCopyHandler:    addbookcopy.NewCommandHandler(eventStore),
-		lendBookCopyHandler:   lendbookcopytoreader.NewCommandHandler(eventStore),
-		returnBookCopyHandler: returnbookcopyfromreader.NewCommandHandler(eventStore),
-		removeBookCopyHandler: removebookcopy.NewCommandHandler(eventStore),
+		addBookCopyHandler:    mustCreateCommandHandler(addbookcopy.NewCommandHandler(eventStore)),
+		lendBookCopyHandler:   mustCreateCommandHandler(lendbookcopytoreader.NewCommandHandler(eventStore)),
+		returnBookCopyHandler: mustCreateCommandHandler(returnbookcopyfromreader.NewCommandHandler(eventStore)),
+		removeBookCopyHandler: mustCreateCommandHandler(removebookcopy.NewCommandHandler(eventStore)),
 	}
 }
 
@@ -69,7 +70,7 @@ func (lg *LoadGenerator) Start(ctx context.Context) error {
 	lg.errorCount = 0
 	lg.mu.Unlock()
 
-	// Calculate interval between requests based on target rate
+	// Calculate an interval between requests based on the target rate
 	interval := time.Second / time.Duration(lg.config.Rate)
 	lg.ticker = time.NewTicker(interval)
 	defer lg.ticker.Stop()
@@ -123,15 +124,15 @@ func (lg *LoadGenerator) Stop(ctx context.Context) error {
 func (lg *LoadGenerator) executeScenario(ctx context.Context) {
 	defer lg.wg.Done()
 
-	// Select scenario based on weights (circulation: 4%, lending: 94%, errors: 2%)
+	// Select a scenario based on weights (circulation: 4%, lending: 94%, errors: 2%)
 	scenarioType := lg.selectScenario()
 
 	var err error
 	switch scenarioType {
 	case "circulation":
-		err = lg.runCirculationScenario()
+		err = lg.runCirculationScenario(ctx)
 	case "lending":
-		err = lg.runLendingScenario()
+		err = lg.runLendingScenario(ctx)
 	default:
 		err = fmt.Errorf("unknown scenario type: %s", scenarioType)
 	}
@@ -151,30 +152,28 @@ func (lg *LoadGenerator) executeScenario(ctx context.Context) {
 // selectScenario chooses a scenario type based on configured weights.
 func (lg *LoadGenerator) selectScenario() string {
 	// Generate random number 0-99
-	r := rand.Intn(100)
+	r := rand.Intn(100) //nolint:gosec // Test code - weak random is acceptable
 
 	// Apply weights: [circulation, lending]
 	// Example: [20, 80] -> circulation: 0-19, lending: 20-99
 	if r < lg.config.ScenarioWeights[0] {
 		return "circulation"
-	} else {
-		return "lending"
 	}
+
+	return "lending"
 }
 
 // runCirculationScenario executes book circulation management operations using proper command handlers.
-func (lg *LoadGenerator) runCirculationScenario() error {
+func (lg *LoadGenerator) runCirculationScenario(ctx context.Context) error {
 	// Create timeout context for this operation (like benchmark tests)
-	opCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	opCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	bookID := lg.generateRandomBookID()
-	// Create null timing collector (don't collect timing for load generator)
-	timingCollector := shell.NewTimingCollector(nil, nil, nil, nil)
 
 	// Randomly choose between add and remove operations
-	if rand.Intn(2) == 0 {
-		// Add book to circulation
+	if rand.Intn(2) == 0 { //nolint:gosec // Test code - weak random is acceptable
+		// Add a book to circulation
 		command := addbookcopy.BuildCommand(
 			bookID,
 			"978-0000000000", // placeholder ISBN
@@ -186,50 +185,45 @@ func (lg *LoadGenerator) runCirculationScenario() error {
 			time.Now(),
 		)
 
-		return lg.addBookCopyHandler.Handle(opCtx, command, timingCollector)
-	} else {
-		// Remove book from circulation
-		command := removebookcopy.BuildCommand(bookID, time.Now())
-
-		return lg.removeBookCopyHandler.Handle(opCtx, command, timingCollector)
+		return lg.addBookCopyHandler.Handle(opCtx, command)
 	}
+
+	// Remove a book from circulation
+	command := removebookcopy.BuildCommand(bookID, time.Now())
+	return lg.removeBookCopyHandler.Handle(opCtx, command)
 }
 
 // runLendingScenario executes book lending and return operations using proper command handlers.
-func (lg *LoadGenerator) runLendingScenario() error {
+func (lg *LoadGenerator) runLendingScenario(ctx context.Context) error {
 	// Create timeout context for this operation (like benchmark tests)
-	opCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	opCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	bookID := lg.generateRandomBookID()
 	readerID := lg.generateRandomReaderID()
-	// Create null timing collector (don't collect timing for load generator)
-	timingCollector := shell.NewTimingCollector(nil, nil, nil, nil)
 
 	// Randomly choose between lend and return operations
-	if rand.Intn(2) == 0 {
-		// Lend book to reader
+	if rand.Intn(2) == 0 { //nolint:gosec // Test code - weak random is acceptable
+		// Lend a book to a reader
 		command := lendbookcopytoreader.BuildCommand(bookID, readerID, time.Now())
 
-		return lg.lendBookCopyHandler.Handle(opCtx, command, timingCollector)
-	} else {
-		// Return book from reader
-		command := returnbookcopyfromreader.BuildCommand(bookID, readerID, time.Now())
-
-		return lg.returnBookCopyHandler.Handle(opCtx, command, timingCollector)
+		return lg.lendBookCopyHandler.Handle(opCtx, command)
 	}
+	// Return a book from a reader
+	command := returnbookcopyfromreader.BuildCommand(bookID, readerID, time.Now())
+	return lg.returnBookCopyHandler.Handle(opCtx, command)
 }
 
 // generateRandomBookID creates a random book ID for testing.
 func (lg *LoadGenerator) generateRandomBookID() uuid.UUID {
 	// Create deterministic UUIDs based on incremental numbers for better testing
-	bookNum := rand.Int63n(1000) + 1
+	bookNum := rand.Int63n(1000) + 1 //nolint:gosec // Test code - weak random is acceptable
 	return uuid.NewSHA1(uuid.NameSpaceOID, []byte(fmt.Sprintf("book-%d", bookNum)))
 }
 
 // generateRandomReaderID creates a random reader ID for testing.
 func (lg *LoadGenerator) generateRandomReaderID() uuid.UUID {
-	readerNum := rand.Int63n(100) + 1
+	readerNum := rand.Int63n(100) + 1 //nolint:gosec // Test code - weak random is acceptable
 	return uuid.NewSHA1(uuid.NameSpaceOID, []byte(fmt.Sprintf("reader-%d", readerNum)))
 }
 
@@ -290,3 +284,12 @@ func (lg *LoadGenerator) logFinalStats() {
 
 // Note: All load generator metrics collection removed to simplify dashboard focus on EventStore metrics.
 // EventStore operations are automatically instrumented when observability is enabled.
+
+// mustCreateCommandHandler is a helper function that panics if command handler creation fails.
+// This is appropriate for the load generator since it cannot continue without command handlers.
+func mustCreateCommandHandler[T any](handler T, err error) T {
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create command handler: %v", err))
+	}
+	return handler
+}

@@ -41,3 +41,8 @@ func (e ReaderRegistered) EventType() string {
 func (e ReaderRegistered) HasOccurredAt() time.Time {
 	return e.OccurredAt
 }
+
+// IsErrorEvent returns false since this event represents a successful operation.
+func (e ReaderRegistered) IsErrorEvent() bool {
+	return false
+}

@@ -11,6 +11,10 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
 )
 
+const (
+	commandType = "ReturnBookCopy"
+)
+
 // EventStore defines the interface needed by the CommandHandler for event store operations.
 type EventStore interface {
 	Query(ctx context.Context, filter eventstore.Filter) (
@@ -30,48 +34,61 @@ type EventStore interface {
 // It handles infrastructure concerns like event store interactions, timing collection,
 // and delegates business logic decisions to the pure core functions.
 type CommandHandler struct {
-	eventStore EventStore
+	eventStore       EventStore
+	metricsCollector shell.MetricsCollector
+	tracingCollector shell.TracingCollector
+	contextualLogger shell.ContextualLogger
+	logger           shell.Logger
 }
 
-// NewCommandHandler creates a new CommandHandler with the provided EventStore dependency.
-func NewCommandHandler(eventStore EventStore) CommandHandler {
-	return CommandHandler{
+// NewCommandHandler creates a new CommandHandler with the provided EventStore dependency and options.
+func NewCommandHandler(eventStore EventStore, opts ...Option) (CommandHandler, error) {
+	h := CommandHandler{
 		eventStore: eventStore,
 	}
+
+	for _, opt := range opts {
+		if err := opt(&h); err != nil {
+			return CommandHandler{}, err
+		}
+	}
+
+	return h, nil
 }
 
 // Handle executes the complete command processing workflow: Query -> Decide -> Append.
 // It queries the current event history, delegates business logic to the core Decide function,
-// and appends any resulting events while collecting detailed timing measurements.
-//
-// Note: The timingCollector parameter is used for testing and benchmarking purposes only.
-// In production code, this timing collection would typically not exist or be replaced
-// with a proper observability/metrics collection.
-func (h CommandHandler) Handle(ctx context.Context, command Command, timingCollector shell.TimingCollector) error {
+// and appends any resulting events with comprehensive observability instrumentation.
+func (h CommandHandler) Handle(ctx context.Context, command Command) error {
+	// Start command handler instrumentation
+	commandStart := time.Now()
+	ctx, span := shell.StartCommandSpan(ctx, h.tracingCollector, commandType)
+	shell.LogCommandStart(ctx, h.logger, h.contextualLogger, commandType)
+
 	filter := h.buildEventFilter(command.BookID, command.ReaderID)
 
 	// Query phase
-	start := time.Now()
 	storableEvents, maxSequenceNumber, err := h.eventStore.Query(ctx, filter)
-	timingCollector.RecordQuery(time.Since(start))
 	if err != nil {
+		h.recordCommandError(ctx, err, time.Since(commandStart), span)
 		return err
 	}
 
 	// Unmarshal phase
-	start = time.Now()
 	history, err := shell.DomainEventsFrom(storableEvents)
 	if err != nil {
+		h.recordCommandError(ctx, err, time.Since(commandStart), span)
 		return err
 	}
-	timingCollector.RecordUnmarshal(time.Since(start))
 
 	// Business logic phase - delegate to pure core function
-	start = time.Now()
 	eventsToAppend := Decide(history, command)
-	timingCollector.RecordBusiness(time.Since(start))
+
+	// Classify the business outcome for observability
+	businessOutcome := shell.ClassifyBusinessOutcome(eventsToAppend)
 
 	if len(eventsToAppend) == 0 {
+		h.recordCommandSuccess(ctx, businessOutcome, time.Since(commandStart), span)
 		return nil // nothing to do
 	}
 
@@ -84,18 +101,20 @@ func (h CommandHandler) Handle(ctx context.Context, command Command, timingColle
 
 		storableEvent, marshalErr := shell.StorableEventFrom(eventToAppend, eventMetadata)
 		if marshalErr != nil {
+			h.recordCommandError(ctx, marshalErr, time.Since(commandStart), span)
 			return marshalErr
 		}
 
 		storableEventsToAppend = append(storableEventsToAppend, storableEvent)
 	}
 
-	start = time.Now()
 	appendErr := h.eventStore.Append(ctx, filter, maxSequenceNumber, storableEventsToAppend...)
-	timingCollector.RecordAppend(time.Since(start))
 	if appendErr != nil {
+		h.recordCommandError(ctx, appendErr, time.Since(commandStart), span)
 		return appendErr
 	}
+
+	h.recordCommandSuccess(ctx, businessOutcome, time.Since(commandStart), span)
 
 	return nil
 }
@@ -116,4 +135,55 @@ func (h CommandHandler) buildEventFilter(bookID uuid.UUID, readerID uuid.UUID) e
 			eventstore.P("ReaderID", readerID.String()),
 		).
 		Finalize()
+}
+
+/*** Command Handler Options and helper methods for observability ***/
+
+// recordCommandSuccess records successful command execution with observability.
+func (h CommandHandler) recordCommandSuccess(ctx context.Context, businessOutcome string, duration time.Duration, span shell.SpanContext) {
+	shell.RecordCommandMetrics(ctx, h.metricsCollector, commandType, businessOutcome, duration)
+	shell.FinishCommandSpan(h.tracingCollector, span, businessOutcome, duration, nil)
+	shell.LogCommandSuccess(ctx, h.logger, h.contextualLogger, commandType, businessOutcome, duration)
+}
+
+// recordCommandError records failed command execution with observability.
+func (h CommandHandler) recordCommandError(ctx context.Context, err error, duration time.Duration, span shell.SpanContext) {
+	shell.RecordCommandMetrics(ctx, h.metricsCollector, commandType, shell.StatusError, duration)
+	shell.FinishCommandSpan(h.tracingCollector, span, shell.StatusError, duration, err)
+	shell.LogCommandError(ctx, h.logger, h.contextualLogger, commandType, err)
+}
+
+// Option defines a functional option for configuring CommandHandler.
+type Option func(*CommandHandler) error
+
+// WithMetrics sets the metrics collector for the CommandHandler.
+func WithMetrics(collector shell.MetricsCollector) Option {
+	return func(h *CommandHandler) error {
+		h.metricsCollector = collector
+		return nil
+	}
+}
+
+// WithTracing sets the tracing collector for the CommandHandler.
+func WithTracing(collector shell.TracingCollector) Option {
+	return func(h *CommandHandler) error {
+		h.tracingCollector = collector
+		return nil
+	}
+}
+
+// WithContextualLogging sets the contextual logger for the CommandHandler.
+func WithContextualLogging(logger shell.ContextualLogger) Option {
+	return func(h *CommandHandler) error {
+		h.contextualLogger = logger
+		return nil
+	}
+}
+
+// WithLogging sets the basic logger for the CommandHandler.
+func WithLogging(logger shell.Logger) Option {
+	return func(h *CommandHandler) error {
+		h.logger = logger
+		return nil
+	}
 }

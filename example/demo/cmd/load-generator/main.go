@@ -35,7 +35,7 @@ type Config struct {
 	StateSyncIntervalSec int
 }
 
-func main() {
+func main() { //nolint:funlen // Main function requires setup and configuration logic
 	cfg := parseFlags()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -48,13 +48,15 @@ func main() {
 	// Initialize database connection using benchmark config (port 5433)
 	pgxPool, err := pgxpool.NewWithConfig(ctx, config.PostgresPGXPoolBenchmarkConfig())
 	if err != nil {
-		log.Fatalf("Failed to create pgx pool: %v", err)
+		cancel() // Clean up context before exiting
+		log.Fatalf("Failed to create pgx pool: %v", err) //nolint:gocritic // Manual cleanup before fatal exit
 	}
 	defer pgxPool.Close()
 
 	// Test database connection
 	if err := pgxPool.Ping(ctx); err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		cancel() // Clean up context before exiting
+		log.Fatalf("Failed to connect to database: %v", err) //nolint:gocritic // Manual cleanup before fatal exit
 	}
 
 	// Initialize observability (if enabled)
@@ -101,7 +103,7 @@ func main() {
 		cfg.Rate, cfg.InitialBooks, cfg.ScenarioWeights)
 	log.Printf("Press Ctrl+C to stop...")
 
-	// Wait for shutdown signal or error
+	// Wait for a shutdown signal or error
 	select {
 	case sig := <-sigChan:
 		log.Printf("Received signal %v, initiating graceful shutdown...", sig)
@@ -111,7 +113,7 @@ func main() {
 		cancel()
 	}
 
-	// Give some time for graceful shutdown
+	// Give some time for a graceful shutdown
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 

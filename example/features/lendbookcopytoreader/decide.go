@@ -6,7 +6,7 @@ import (
 
 // state represents the current state projected from the event history.
 type state struct {
-	bookIsNotInCirculation  bool
+	bookIsNotInCirculation    bool
 	bookIsLentToThisReader    bool
 	bookIsLentToAnotherReader bool
 	readerCurrentBookCount    int
@@ -17,14 +17,14 @@ type state struct {
 // and returns the events that should be appended based on the business rules.
 //
 // Business Rules:
-//   GIVEN: A book copy with BookID and reader with ReaderID
-//   WHEN: LendBookCopyToReader command is received
-//   THEN: BookCopyLentToReader event is generated
-//   ERROR: "book is not in circulation" if a book not added or was removed
-//   ERROR: "book is already lent" if book currently lent to any reader
-//   ERROR: "reader has too many books" if reader already has 10 books lent
-//   IDEMPOTENCY: If book already lent to this reader, no event generated (no-op)
 //
+//	GIVEN: A book copy with BookID and reader with ReaderID
+//	WHEN: LendBookCopyToReader command is received
+//	THEN: BookCopyLentToReader event is generated
+//	ERROR: "book is not in circulation" if a book not added or was removed
+//	ERROR: "book is already lent" if book currently lent to any reader
+//	ERROR: "reader has too many books" if reader already has 10 books lent
+//	IDEMPOTENCY: If book already lent to this reader, no event generated (no-op)
 func Decide(history core.DomainEvents, command Command) core.DomainEvents {
 	s := project(history, command.BookID.String(), command.ReaderID.String())
 
@@ -35,24 +35,24 @@ func Decide(history core.DomainEvents, command Command) core.DomainEvents {
 	if s.bookIsNotInCirculation {
 		return core.DomainEvents{
 			core.BuildLendingBookToReaderFailed(
-				command.BookID.String(), 
-				"book is not in circulation", 
+				command.BookID.String(),
+				"book is not in circulation",
 				command.OccurredAt)}
 	}
 
 	if s.bookIsLentToAnotherReader {
 		return core.DomainEvents{
 			core.BuildLendingBookToReaderFailed(
-				command.BookID.String(), 
-				"book is already lent", 
+				command.BookID.String(),
+				"book is already lent",
 				command.OccurredAt)}
 	}
 
 	if s.readerCurrentBookCount >= 10 {
 		return core.DomainEvents{
 			core.BuildLendingBookToReaderFailed(
-				command.ReaderID.String(), 
-				"reader has too many books", 
+				command.ReaderID.String(),
+				"reader has too many books",
 				command.OccurredAt)}
 	}
 
@@ -62,7 +62,7 @@ func Decide(history core.DomainEvents, command Command) core.DomainEvents {
 }
 
 // project builds the current state by replaying all events from the history.
-func project(history core.DomainEvents, bookID string, readerID string) state {
+func project(history core.DomainEvents, bookID string, readerID string) state { //nolint:gocognit // Complex business logic with multiple domain rule checks
 	s := state{
 		bookIsNotInCirculation:    true,  // Default to "not in circulation"
 		bookIsLentToThisReader:    false, // Default to "not lent to this reader"

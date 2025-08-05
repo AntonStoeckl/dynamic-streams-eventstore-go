@@ -12,35 +12,43 @@ import (
 const (
 	// CommandHandlerDurationMetric tracks command handler execution duration (OpenTelemetry-compatible).
 	CommandHandlerDurationMetric = "commandhandler_handle_duration_seconds"
+
 	// CommandHandlerCallsMetric tracks total command handler calls.
 	CommandHandlerCallsMetric = "commandhandler_handle_calls_total"
+
 	// CommandHandlerIdempotentMetric tracks idempotent operations.
 	CommandHandlerIdempotentMetric = "commandhandler_idempotent_operations_total"
 
 	// StatusSuccess indicates successful command completion.
 	StatusSuccess = "success"
-	// StatusError indicates command processing error.
+
+	// StatusError indicates a command processing error.
 	StatusError = "error"
+
 	// StatusIdempotent indicates no state change was needed.
 	StatusIdempotent = "idempotent"
 
 	// LogMsgCommandStarted is logged when command processing begins.
 	LogMsgCommandStarted = "command handler started"
+
 	// LogMsgCommandCompleted is logged when command processing succeeds.
 	LogMsgCommandCompleted = "command handler completed"
+
 	// LogMsgCommandFailed is logged when command processing fails.
 	LogMsgCommandFailed = "command handler failed"
 
 	// LogAttrCommandType identifies the command type in logs.
 	LogAttrCommandType = "command_type"
+
 	// LogAttrStatus indicates the command processing status.
 	LogAttrStatus = "status"
+
 	// LogAttrDurationMS indicates the processing duration in milliseconds.
 	LogAttrDurationMS = "duration_ms"
+
 	// LogAttrBusinessOutcome classifies the business result.
 	LogAttrBusinessOutcome = "business_outcome"
-	// LogAttrEventCount indicates the number of events processed.
-	LogAttrEventCount = "event_count"
+
 	// LogAttrError contains error details.
 	LogAttrError = "error"
 

@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/removebookcopy"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"                 //nolint:revive
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper" //nolint:revive
 )
@@ -159,26 +159,27 @@ func Benchmark_Query_With_Many_Events_InTheStore(b *testing.B) {
 	})
 }
 
-func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
+func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) { //nolint:funlen // Benchmark function requires setup and validation logic
 	// setup
 	ctx := context.Background()
-	wrapper := CreateWrapperWithBenchmarkConfig(b)
+
+	metricsSpy := NewMetricsCollectorSpy(true)
+
+	wrapper := CreateWrapperWithBenchmarkConfig(b, postgresengine.WithMetrics(metricsSpy))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
+
+	commandHandler, err := removebookcopy.NewCommandHandler(es, removebookcopy.WithMetrics(metricsSpy))
+	assert.NoError(b, err)
 
 	// arrange
 	GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 10000)
 	fakeClock := GetGreatestOccurredAtTimeFromDB(b, wrapper).Add(time.Second)
-
 	bookID := GivenUniqueID(b)
 
 	// act
 	b.Run("query decide append", func(b *testing.B) {
 		b.ResetTimer()
-		var queryTime, appendTime, unmarshalTime, bizTime time.Duration
-
-		commandHandler := removebookcopy.NewCommandHandler(es)
-		timingCollector := shell.NewTimingCollector(&queryTime, &unmarshalTime, &bizTime, &appendTime)
 
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
@@ -190,10 +191,10 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 			command := removebookcopy.BuildCommand(bookID, fakeClock)
 
 			b.StartTimer()
-			err := commandHandler.Handle(ctx, command, timingCollector)
+			handleErr := commandHandler.Handle(ctx, command)
 			b.StopTimer()
 
-			assert.NoError(b, err)
+			assert.NoError(b, handleErr)
 
 			rowsAffected, dbErr := CleanUpBookEvents(ctx, wrapper, bookID)
 			assert.NoError(b, dbErr)
@@ -205,9 +206,38 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) {
 			}
 		}
 
-		totalTime := queryTime + appendTime + unmarshalTime + bizTime
-		b.ReportMetric(float64(totalTime.Milliseconds())/float64(b.N), "ms/total-op")
-		b.ReportMetric(float64(appendTime.Milliseconds())/float64(b.N), "ms/append-op")
-		b.ReportMetric(float64(queryTime.Milliseconds())/float64(b.N), "ms/query-op")
+		// Validate that metrics were captured
+		assert.True(b, metricsSpy.HasDurationRecord("eventstore_query_duration_seconds"), "Missing query duration metrics")
+		assert.True(b, metricsSpy.HasDurationRecord("eventstore_append_duration_seconds"), "Missing append duration metrics")
+		assert.True(b, metricsSpy.HasDurationRecord("commandhandler_handle_duration_seconds"), "Missing command handler duration metrics")
+
+		// Report average durations from captured metrics
+		queryRecords := metricsSpy.GetDurationRecords()
+		var totalQueryTime, totalAppendTime, totalCommandTime time.Duration
+		var queryCount, appendCount, commandCount int
+
+		for _, record := range queryRecords {
+			switch record.Metric {
+			case "eventstore_query_duration_seconds":
+				totalQueryTime += record.Duration
+				queryCount++
+			case "eventstore_append_duration_seconds":
+				totalAppendTime += record.Duration
+				appendCount++
+			case "commandhandler_handle_duration_seconds":
+				totalCommandTime += record.Duration
+				commandCount++
+			}
+		}
+
+		if queryCount > 0 {
+			b.ReportMetric(float64(totalQueryTime.Milliseconds())/float64(queryCount), "ms/query-op")
+		}
+		if appendCount > 0 {
+			b.ReportMetric(float64(totalAppendTime.Milliseconds())/float64(appendCount), "ms/append-op")
+		}
+		if commandCount > 0 {
+			b.ReportMetric(float64(totalCommandTime.Milliseconds())/float64(commandCount), "ms/total-op")
+		}
 	})
 }

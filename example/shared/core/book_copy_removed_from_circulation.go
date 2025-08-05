@@ -34,3 +34,8 @@ func (e BookCopyRemovedFromCirculation) EventType() string {
 func (e BookCopyRemovedFromCirculation) HasOccurredAt() time.Time {
 	return e.OccurredAt
 }
+
+// IsErrorEvent returns false since this event represents a successful operation.
+func (e BookCopyRemovedFromCirculation) IsErrorEvent() bool {
+	return false
+}
