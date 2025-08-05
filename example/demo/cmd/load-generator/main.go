@@ -15,7 +15,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel"
 
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/oteladapters"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"
@@ -48,14 +47,14 @@ func main() { //nolint:funlen // Main function requires setup and configuration 
 	// Initialize database connection using benchmark config (port 5433)
 	pgxPool, err := pgxpool.NewWithConfig(ctx, config.PostgresPGXPoolBenchmarkConfig())
 	if err != nil {
-		cancel() // Clean up context before exiting
+		cancel()                                         // Clean up context before exiting
 		log.Fatalf("Failed to create pgx pool: %v", err) //nolint:gocritic // Manual cleanup before fatal exit
 	}
 	defer pgxPool.Close()
 
 	// Test database connection
 	if err := pgxPool.Ping(ctx); err != nil {
-		cancel() // Clean up context before exiting
+		cancel()                                             // Clean up context before exiting
 		log.Fatalf("Failed to connect to database: %v", err) //nolint:gocritic // Manual cleanup before fatal exit
 	}
 
@@ -87,8 +86,11 @@ func main() { //nolint:funlen // Main function requires setup and configuration 
 		log.Fatalf("Failed to create EventStore: %v", err)
 	}
 
+	// Get observability config for command handlers
+	obsConfig := cfg.NewObservabilityConfig()
+
 	// Initialize load generator (EventStore observability is configured above)
-	loadGen := NewLoadGenerator(eventStore, cfg)
+	loadGen := NewLoadGenerator(eventStore, cfg, obsConfig)
 
 	// Start load generation in a goroutine
 	errChan := make(chan error, 1)
@@ -175,14 +177,6 @@ func parseScenarioWeights(weightsStr string) ([]int, error) {
 	}
 
 	return weights, nil
-}
-
-// ObservabilityConfig holds the observability adapters for the EventStore.
-type ObservabilityConfig struct {
-	Logger           eventstore.Logger
-	ContextualLogger eventstore.ContextualLogger
-	MetricsCollector eventstore.MetricsCollector
-	TracingCollector eventstore.TracingCollector
 }
 
 func (c Config) NewObservabilityConfig() ObservabilityConfig {

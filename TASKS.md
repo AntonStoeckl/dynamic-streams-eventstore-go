@@ -4,6 +4,46 @@ This file tracks larger plans, initiatives, and completed work for the Dynamic E
 
 ## 🚧 Current Plans (Ready to Implement)
 
+### Implement Cancelled Operations Tracking System
+- **Created**: 2025-08-05
+- **Priority**: High - Required for complete Grafana dashboard metrics
+- **Objective**: Add comprehensive tracking of cancelled operations (context cancellation) at both EventStore and Command/Query Handler levels
+
+#### **🔍 Problem Analysis**
+- **Current Grafana Dashboard**: Has panels expecting cancelled operation metrics that don't exist yet
+- **Missing Instrumentation**: No tracking of context.Context cancellation in EventStore operations
+- **Observability Gap**: Cannot distinguish between errors and cancellations in monitoring
+
+#### **📋 Implementation Requirements**
+1. **EventStore Level Cancellation Tracking**:
+   - Add cancelled status detection in `eventstore/postgresengine/postgres.go`
+   - Update metrics to track `eventstore_append_cancelled_total` and `eventstore_query_cancelled_total`
+   - Distinguish context.Canceled errors from other error types
+
+2. **Command/Query Handler Level Cancellation**:
+   - Update `example/shared/shell/command_handler_observability.go` to add `StatusCancelled = "cancelled"`
+   - Instrument command and query handlers to detect context cancellation
+   - Add cancellation metrics: `commandhandler_cancelled_operations_total`
+
+3. **Grafana Dashboard Integration**:
+   - Add "Canceled EventStore.Append() Ops/sec" and "Canceled EventStore.Query() Ops/sec" panels
+   - Update existing dashboard with proper cancellation metrics
+
+#### **🎯 Implementation Files to Modify**
+- `eventstore/postgresengine/postgres.go` (detect context.Canceled in error handling)
+- `eventstore/postgresengine/observability.go` (add cancelled metrics constants and recording)
+- `example/shared/shell/command_handler_observability.go` (add StatusCancelled support)
+- `example/features/*/command_handler.go` (detect cancellation in error handling - 6 files)
+- `example/features/*/query_handler.go` (detect cancellation in error handling - 3 files)
+- `testutil/observability/grafana/dashboards/eventstore-dashboard.json` (add cancellation panels)
+
+#### **💡 Technical Approach**
+- Use `errors.Is(err, context.Canceled)` for detection
+- Separate cancellation from general errors in observability classification
+- Maintain backward compatibility with existing error handling patterns
+
+---
+
 ### Create Realistic Load Testing Scenarios  
 - **Created**: 2025-08-04
 - **Priority**: Medium - Depends on improved query handlers above
@@ -60,7 +100,15 @@ This file tracks larger plans, initiatives, and completed work for the Dynamic E
 
 ## 🔄 In Progress
 
-*(Currently empty)*
+### Debug Grafana Dashboard Empty Panels Issue
+- **Created**: 2025-08-05  
+- **Priority**: High - Dashboard restoration blocked
+- **Problem**: All 12 dashboard panels show no data despite:
+  - ✅ Metrics being generated correctly (eventstore_*, commandhandler_* metrics confirmed in Prometheus)
+  - ✅ Load generator running with observability enabled  
+  - ✅ All panels configured with correct Prometheus datasource UID ("PBFA97CFB590B2093")
+  - ✅ Observability stack running properly (Grafana, Prometheus, OTEL Collector)
+- **Investigation Required**: Root cause analysis by specialized agent to identify why Grafana panels remain empty when all prerequisites appear satisfied
 
 #### **🔧 What's Ready for Next Session:**
 - **Load Generator**: Simplified, compiles cleanly, no load generator metrics (pure EventStore focus)

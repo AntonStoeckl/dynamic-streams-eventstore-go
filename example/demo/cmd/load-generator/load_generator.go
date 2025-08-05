@@ -13,12 +13,22 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
+	"github.com/A
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/addbookcopy"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/lendbookcopytoreader"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/removebookcopy"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/returnbookcopyfromreader"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 )
+
+// ObservabilityConfig holds the observability adapters for command handlers.
+type ObservabilityConfig struct {
+	Logger           eventstore.Logger
+	ContextualLogger eventstore.ContextualLogger
+	MetricsCollector eventstore.MetricsCollector
+	TracingCollector eventstore.TracingCollector
+}
 
 // LoadGenerator orchestrates realistic load generation against the EventStore
 // with configurable request rates and library management scenarios.
@@ -47,18 +57,90 @@ type LoadGenerator struct {
 }
 
 // NewLoadGenerator creates a new LoadGenerator instance with the provided EventStore and configuration.
-func NewLoadGenerator(eventStore *postgresengine.EventStore, config Config) *LoadGenerator {
+func NewLoadGenerator(eventStore *postgresengine.EventStore, config Config, obsConfig ObservabilityConfig) *LoadGenerator {
 	return &LoadGenerator{
 		eventStore: eventStore,
 		config:     config,
 		stopChan:   make(chan struct{}),
 
-		// Initialize command handlers
-		addBookCopyHandler:    mustCreateCommandHandler(addbookcopy.NewCommandHandler(eventStore)),
-		lendBookCopyHandler:   mustCreateCommandHandler(lendbookcopytoreader.NewCommandHandler(eventStore)),
-		returnBookCopyHandler: mustCreateCommandHandler(returnbookcopyfromreader.NewCommandHandler(eventStore)),
-		removeBookCopyHandler: mustCreateCommandHandler(removebookcopy.NewCommandHandler(eventStore)),
+		// Initialize command handlers with observability
+		addBookCopyHandler:    mustCreateCommandHandler(addbookcopy.NewCommandHandler(eventStore, buildAddBookCopyOptions(obsConfig)...)),
+		lendBookCopyHandler:   mustCreateCommandHandler(lendbookcopytoreader.NewCommandHandler(eventStore, buildLendBookCopyOptions(obsConfig)...)),
+		returnBookCopyHandler: mustCreateCommandHandler(returnbookcopyfromreader.NewCommandHandler(eventStore, buildReturnBookCopyOptions(obsConfig)...)),
+		removeBookCopyHandler: mustCreateCommandHandler(removebookcopy.NewCommandHandler(eventStore, buildRemoveBookCopyOptions(obsConfig)...)),
 	}
+}
+
+// buildAddBookCopyOptions creates observability options for AddBookCopy command handler.
+func buildAddBookCopyOptions(obsConfig ObservabilityConfig) []addbookcopy.Option {
+	var options []addbookcopy.Option
+	if obsConfig.MetricsCollector != nil {
+		options = append(options, addbookcopy.WithMetrics(obsConfig.MetricsCollector))
+	}
+	if obsConfig.TracingCollector != nil {
+		options = append(options, addbookcopy.WithTracing(obsConfig.TracingCollector))
+	}
+	if obsConfig.ContextualLogger != nil {
+		options = append(options, addbookcopy.WithContextualLogging(obsConfig.ContextualLogger))
+	}
+	if obsConfig.Logger != nil {
+		options = append(options, addbookcopy.WithLogging(obsConfig.Logger))
+	}
+	return options
+}
+
+// buildLendBookCopyOptions creates observability options for LendBookCopy command handler.
+func buildLendBookCopyOptions(obsConfig ObservabilityConfig) []lendbookcopytoreader.Option {
+	var options []lendbookcopytoreader.Option
+	if obsConfig.MetricsCollector != nil {
+		options = append(options, lendbookcopytoreader.WithMetrics(obsConfig.MetricsCollector))
+	}
+	if obsConfig.TracingCollector != nil {
+		options = append(options, lendbookcopytoreader.WithTracing(obsConfig.TracingCollector))
+	}
+	if obsConfig.ContextualLogger != nil {
+		options = append(options, lendbookcopytoreader.WithContextualLogging(obsConfig.ContextualLogger))
+	}
+	if obsConfig.Logger != nil {
+		options = append(options, lendbookcopytoreader.WithLogging(obsConfig.Logger))
+	}
+	return options
+}
+
+// buildReturnBookCopyOptions creates observability options for ReturnBookCopy command handler.
+func buildReturnBookCopyOptions(obsConfig ObservabilityConfig) []returnbookcopyfromreader.Option {
+	var options []returnbookcopyfromreader.Option
+	if obsConfig.MetricsCollector != nil {
+		options = append(options, returnbookcopyfromreader.WithMetrics(obsConfig.MetricsCollector))
+	}
+	if obsConfig.TracingCollector != nil {
+		options = append(options, returnbookcopyfromreader.WithTracing(obsConfig.TracingCollector))
+	}
+	if obsConfig.ContextualLogger != nil {
+		options = append(options, returnbookcopyfromreader.WithContextualLogging(obsConfig.ContextualLogger))
+	}
+	if obsConfig.Logger != nil {
+		options = append(options, returnbookcopyfromreader.WithLogging(obsConfig.Logger))
+	}
+	return options
+}
+
+// buildRemoveBookCopyOptions creates observability options for RemoveBookCopy command handler.
+func buildRemoveBookCopyOptions(obsConfig ObservabilityConfig) []removebookcopy.Option {
+	var options []removebookcopy.Option
+	if obsConfig.MetricsCollector != nil {
+		options = append(options, removebookcopy.WithMetrics(obsConfig.MetricsCollector))
+	}
+	if obsConfig.TracingCollector != nil {
+		options = append(options, removebookcopy.WithTracing(obsConfig.TracingCollector))
+	}
+	if obsConfig.ContextualLogger != nil {
+		options = append(options, removebookcopy.WithContextualLogging(obsConfig.ContextualLogger))
+	}
+	if obsConfig.Logger != nil {
+		options = append(options, removebookcopy.WithLogging(obsConfig.Logger))
+	}
+	return options
 }
 
 // Start begins load generation with the configured request rate.

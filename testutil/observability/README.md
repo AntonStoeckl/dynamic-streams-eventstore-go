@@ -12,6 +12,21 @@ This directory provides a complete observability stack for testing and demonstra
 
 **Note**: Traces are sent directly to Jaeger's OTLP endpoint, while metrics flow through the OTEL Collector to Prometheus.
 
+## 📊 Grafana Dashboard - Persistent & Pre-configured
+
+The stack includes a **persistent EventStore Dashboard** with 12 panels displaying:
+- EventStore operations/sec (successful appends, queries, errors)
+- Average operation durations (append/query performance)  
+- SQL operations/sec (INSERT/SELECT breakdown)
+- Command handler metrics (success/error/idempotent rates)
+- Concurrency conflicts tracking
+
+**Access**: http://localhost:3000 (admin:secretpw) → "EventStore Dashboard"
+
+**Persistence**: Dashboard survives Docker restarts and rebuilds via file provisioning.
+
+> **🔧 Dashboard Configuration**: For details on Grafana provisioning setup, see [`GRAFANA-PROVISIONING-GUIDE.md`](GRAFANA-PROVISIONING-GUIDE.md)
+
 ## Quick Start
 
 ### 1. Start the Observability Stack

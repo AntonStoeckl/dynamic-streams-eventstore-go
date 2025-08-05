@@ -17,10 +17,16 @@ ALTER TABLE events SET (
   autovacuum_vacuum_cost_limit = 3000       -- Higher limit for faster completion
 );
 
--- Set higher statistics target for JSONB columns used in GIN indexes
--- This helps the query planner make better decisions with JSONB queries
-ALTER TABLE events ALTER COLUMN payload SET STATISTICS 2000;
-ALTER TABLE events ALTER COLUMN metadata SET STATISTICS 2000;
+-- Set aggressive statistics targets for all indexed columns
+-- Critical for accurate cost estimation at 2M+ event scale
+ALTER TABLE events ALTER COLUMN event_type SET STATISTICS 5000;    -- High cardinality
+ALTER TABLE events ALTER COLUMN payload SET STATISTICS 5000;       -- JSONB selectivity
+ALTER TABLE events ALTER COLUMN metadata SET STATISTICS 2000;      -- Less critical
+ALTER TABLE events ALTER COLUMN sequence_number SET STATISTICS 5000; -- Critical for sorts
+ALTER TABLE events ALTER COLUMN occurred_at SET STATISTICS 3000;   -- Time-based queries
+
+-- Force immediate statistics collection with higher sampling
+ANALYZE events;
 
 -- Ensure GIN indexes have optimal settings
 -- (These would need to be dropped and recreated with new settings)
