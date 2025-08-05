@@ -25,40 +25,40 @@ type state struct {
 //	ERROR: "book is already lent" if book currently lent to any reader
 //	ERROR: "reader has too many books" if reader already has 10 books lent
 //	IDEMPOTENCY: If book already lent to this reader, no event generated (no-op)
-func Decide(history core.DomainEvents, command Command) core.DomainEvents {
+func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 	s := project(history, command.BookID.String(), command.ReaderID.String())
 
 	if s.bookIsLentToThisReader {
-		return core.DomainEvents{} // idempotency - the book is already lent to this reader, so no new event
+		return core.IdempotentDecision() // idempotency - the book is already lent to this reader, so no new event
 	}
 
 	if s.bookIsNotInCirculation {
-		return core.DomainEvents{
+		return core.ErrorDecision(
 			core.BuildLendingBookToReaderFailed(
 				command.BookID.String(),
 				"book is not in circulation",
-				command.OccurredAt)}
+				command.OccurredAt))
 	}
 
 	if s.bookIsLentToAnotherReader {
-		return core.DomainEvents{
+		return core.ErrorDecision(
 			core.BuildLendingBookToReaderFailed(
 				command.BookID.String(),
 				"book is already lent",
-				command.OccurredAt)}
+				command.OccurredAt))
 	}
 
 	if s.readerCurrentBookCount >= 10 {
-		return core.DomainEvents{
+		return core.ErrorDecision(
 			core.BuildLendingBookToReaderFailed(
 				command.ReaderID.String(),
 				"reader has too many books",
-				command.OccurredAt)}
+				command.OccurredAt))
 	}
 
-	return core.DomainEvents{
+	return core.SuccessDecision(
 		core.BuildBookCopyLentToReader(
-			command.BookID, command.ReaderID, command.OccurredAt)}
+			command.BookID, command.ReaderID, command.OccurredAt))
 }
 
 // project builds the current state by replaying all events from the history.

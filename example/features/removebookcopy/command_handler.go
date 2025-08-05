@@ -82,39 +82,30 @@ func (h CommandHandler) Handle(ctx context.Context, command Command) error {
 	}
 
 	// Business logic phase - delegate to pure core function
-	eventsToAppend := Decide(history, command)
+	result := Decide(history, command)
 
-	// Classify the business outcome for observability
-	businessOutcome := shell.ClassifyBusinessOutcome(eventsToAppend)
-
-	if len(eventsToAppend) == 0 {
-		h.recordCommandSuccess(ctx, businessOutcome, time.Since(commandStart), span)
+	if !result.HasEventToAppend() {
+		h.recordCommandSuccess(ctx, result.Outcome, time.Since(commandStart), span)
 		return nil // nothing to do
 	}
 
-	// Append phase - only if there are events to append
-	var storableEventsToAppend eventstore.StorableEvents
+	// Append phase - single event to append
+	uid := uuid.New()
+	eventMetadata := shell.BuildEventMetadata(uid, uid, uid)
 
-	for _, eventToAppend := range eventsToAppend {
-		uid := uuid.New()
-		eventMetadata := shell.BuildEventMetadata(uid, uid, uid)
-
-		storableEvent, marshalErr := shell.StorableEventFrom(eventToAppend, eventMetadata)
-		if marshalErr != nil {
-			h.recordCommandError(ctx, marshalErr, time.Since(commandStart), span)
-			return marshalErr
-		}
-
-		storableEventsToAppend = append(storableEventsToAppend, storableEvent)
+	storableEvent, marshalErr := shell.StorableEventFrom(result.Event, eventMetadata)
+	if marshalErr != nil {
+		h.recordCommandError(ctx, marshalErr, time.Since(commandStart), span)
+		return marshalErr
 	}
 
-	appendErr := h.eventStore.Append(ctx, filter, maxSequenceNumber, storableEventsToAppend...)
+	appendErr := h.eventStore.Append(ctx, filter, maxSequenceNumber, storableEvent)
 	if appendErr != nil {
 		h.recordCommandError(ctx, appendErr, time.Since(commandStart), span)
 		return appendErr
 	}
 
-	h.recordCommandSuccess(ctx, businessOutcome, time.Since(commandStart), span)
+	h.recordCommandSuccess(ctx, result.Outcome, time.Since(commandStart), span)
 
 	return nil
 }

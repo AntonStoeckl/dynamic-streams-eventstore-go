@@ -14,25 +14,26 @@ type state struct {
 // and returns the events that should be appended based on the business rules.
 //
 // Business Rules:
-//   GIVEN: A reader with ReaderID
-//   WHEN: RegisterReader command is received
-//   THEN: ReaderRegistered event is generated
-//   ERROR: None (always succeeds)
-//   IDEMPOTENCY: If reader already registered, no event generated (no-op)
-func Decide(history core.DomainEvents, command Command) core.DomainEvents {
+//
+//	GIVEN: A reader with ReaderID
+//	WHEN: RegisterReader command is received
+//	THEN: ReaderRegistered event is generated
+//	ERROR: None (always succeeds)
+//	IDEMPOTENCY: If reader already registered, no event generated (no-op)
+func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 	s := project(history, command.ReaderID.String())
 
 	if s.readerIsRegistered {
-		return core.DomainEvents{} // idempotency - the reader is already registered, so no new event
+		return core.IdempotentDecision() // idempotency - the reader is already registered, so no new event
 	}
 
-	return core.DomainEvents{
+	return core.SuccessDecision(
 		core.BuildReaderRegistered(
 			command.ReaderID,
 			command.Name,
 			command.OccurredAt,
 		),
-	}
+	)
 }
 
 // project builds the current state by replaying all events from the history.

@@ -20,19 +20,19 @@ type state struct {
 //	THEN: ReaderContractCanceled event is generated
 //	ERROR: None (always succeeds)
 //	IDEMPOTENCY: If reader not registered or already canceled, no event generated (no-op)
-func Decide(history core.DomainEvents, command Command) core.DomainEvents {
+func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 	s := project(history, command.ReaderID.String())
 
 	if !s.readerIsRegistered {
-		return core.DomainEvents{} // idempotency - the reader is not registered or already canceled, so no new event
+		return core.IdempotentDecision() // idempotency - the reader is not registered or already canceled, so no new event
 	}
 
-	return core.DomainEvents{
+	return core.SuccessDecision(
 		core.BuildReaderContractCanceled(
 			command.ReaderID,
 			command.OccurredAt,
 		),
-	}
+	)
 }
 
 // project builds the current state by replaying all events from the history.

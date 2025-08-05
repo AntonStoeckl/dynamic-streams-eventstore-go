@@ -6,7 +6,7 @@ import (
 
 // state represents the current state projected from the event history.
 type state struct {
-	bookIsNotInCirculation             bool
+	bookIsNotInCirculation       bool
 	bookWasNeverLentToThisReader bool
 	bookIsNotLentToThisReader    bool
 }
@@ -16,35 +16,35 @@ type state struct {
 // and returns the events that should be appended based on the business rules.
 //
 // Business Rules:
-//   GIVEN: A book copy with BookID and reader with ReaderID
-//   WHEN: ReturnBookCopyFromReader command is received
-//   THEN: BookCopyReturnedByReader event is generated
-//   ERROR: "book is not in circulation" if a book not added or was removed
-//   ERROR: "book is not lent to this reader" if a book not lent to this specific reader
-//   IDEMPOTENCY: If book already returned by this reader, no event generated (no-op)
 //
-func Decide(history core.DomainEvents, command Command) core.DomainEvents {
+//	GIVEN: A book copy with BookID and reader with ReaderID
+//	WHEN: ReturnBookCopyFromReader command is received
+//	THEN: BookCopyReturnedByReader event is generated
+//	ERROR: "book is not in circulation" if a book not added or was removed
+//	ERROR: "book is not lent to this reader" if a book not lent to this specific reader
+//	IDEMPOTENCY: If book already returned by this reader, no event generated (no-op)
+func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 	s := project(history, command.BookID.String(), command.ReaderID.String())
 
 	if s.bookIsNotLentToThisReader {
-		return core.DomainEvents{} // idempotency - the book was already returned by this reader, so no new event
+		return core.IdempotentDecision() // idempotency - the book was already returned by this reader, so no new event
 	}
 
 	if s.bookIsNotInCirculation {
-		return core.DomainEvents{
+		return core.ErrorDecision(
 			core.BuildReturningBookFromReaderFailed(
-				command.BookID.String(), "book is not in circulation", command.OccurredAt)}
+				command.BookID.String(), "book is not in circulation", command.OccurredAt))
 	}
 
 	if s.bookWasNeverLentToThisReader {
-		return core.DomainEvents{
+		return core.ErrorDecision(
 			core.BuildReturningBookFromReaderFailed(
-				command.BookID.String(), "book is not lent to this reader", command.OccurredAt)}
+				command.BookID.String(), "book is not lent to this reader", command.OccurredAt))
 	}
 
-	return core.DomainEvents{
+	return core.SuccessDecision(
 		core.BuildBookCopyReturnedFromReader(
-			command.BookID, command.ReaderID, command.OccurredAt)}
+			command.BookID, command.ReaderID, command.OccurredAt))
 }
 
 // project builds the current state by replaying all events from the history.

@@ -11,7 +11,7 @@ type state struct {
 
 // Decide implements the business logic to determine whether a book copy should be added to circulation.
 // This is a pure function with no side effects - it takes the current domain events and a command
-// and returns the events that should be appended based on the business rules.
+// and returns a DecisionResult representing the business outcome.
 //
 // Business Rules:
 //
@@ -20,14 +20,14 @@ type state struct {
 //	THEN: BookCopyAddedToCirculation event is generated
 //	ERROR: None (always succeeds)
 //	IDEMPOTENCY: If book already in circulation, no event generated (no-op)
-func Decide(history core.DomainEvents, command Command) core.DomainEvents {
+func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 	s := project(history, command.BookID.String())
 
 	if s.bookIsInCirculation {
-		return core.DomainEvents{} // idempotency - the book is already in circulation, so no new event
+		return core.IdempotentDecision() // idempotency - the book is already in circulation, so no new event
 	}
 
-	return core.DomainEvents{
+	return core.SuccessDecision(
 		core.BuildBookCopyAddedToCirculation(
 			command.BookID,
 			command.ISBN,
@@ -38,7 +38,7 @@ func Decide(history core.DomainEvents, command Command) core.DomainEvents {
 			command.PublicationYear,
 			command.OccurredAt,
 		),
-	}
+	)
 }
 
 // project builds the current state by replaying all events from the history.

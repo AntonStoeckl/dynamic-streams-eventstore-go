@@ -15,27 +15,27 @@ type state struct {
 // and returns the events that should be appended based on the business rules.
 //
 // Business Rules:
-//   GIVEN: A book copy with BookID
-//   WHEN: RemoveBookCopyFromCirculation command is received
-//   THEN: BookCopyRemovedFromCirculation event is generated
-//   ERROR: "book is not in circulation" if a book was never added to circulation
-//   IDEMPOTENCY: If book already removed from circulation, no event generated (no-op)
 //
-func Decide(history core.DomainEvents, command Command) core.DomainEvents {
+//	GIVEN: A book copy with BookID
+//	WHEN: RemoveBookCopyFromCirculation command is received
+//	THEN: BookCopyRemovedFromCirculation event is generated
+//	ERROR: "book is not in circulation" if a book was never added to circulation
+//	IDEMPOTENCY: If book already removed from circulation, no event generated (no-op)
+func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 	s := project(history, command.BookID.String())
 
 	if s.bookIsNotInCirculation {
-		return core.DomainEvents{} // idempotency - the book was already removed, so no new event
+		return core.IdempotentDecision() // idempotency - the book was already removed, so no new event
 	}
 
 	if s.bookWasNeverAddedToCirculation {
-		return core.DomainEvents{
+		return core.ErrorDecision(
 			core.BuildRemovingBookFromCirculationFailed(
-				command.BookID.String(), "book is not in circulation", command.OccurredAt)}
+				command.BookID.String(), "book is not in circulation", command.OccurredAt))
 	}
 
-	return core.DomainEvents{
-		core.BuildBookCopyRemovedFromCirculation(command.BookID, command.OccurredAt)}
+	return core.SuccessDecision(
+		core.BuildBookCopyRemovedFromCirculation(command.BookID, command.OccurredAt))
 }
 
 // project builds the current state by replaying all events from the history.
