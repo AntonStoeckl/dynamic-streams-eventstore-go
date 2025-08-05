@@ -130,20 +130,6 @@ func (h CommandHandler) buildEventFilter(bookID uuid.UUID) eventstore.Filter {
 // Option defines a functional option for configuring CommandHandler.
 type Option func(*CommandHandler) error
 
-// recordCommandSuccess records successful command execution with observability.
-func (h CommandHandler) recordCommandSuccess(ctx context.Context, businessOutcome string, duration time.Duration, span shell.SpanContext) {
-	shell.RecordCommandMetrics(ctx, h.metricsCollector, commandType, businessOutcome, duration)
-	shell.FinishCommandSpan(h.tracingCollector, span, businessOutcome, duration, nil)
-	shell.LogCommandSuccess(ctx, h.logger, h.contextualLogger, commandType, businessOutcome, duration)
-}
-
-// recordCommandError records failed command execution with observability.
-func (h CommandHandler) recordCommandError(ctx context.Context, err error, duration time.Duration, span shell.SpanContext) {
-	shell.RecordCommandMetrics(ctx, h.metricsCollector, commandType, shell.StatusError, duration)
-	shell.FinishCommandSpan(h.tracingCollector, span, shell.StatusError, duration, err)
-	shell.LogCommandError(ctx, h.logger, h.contextualLogger, commandType, err)
-}
-
 // WithMetrics sets the metrics collector for the CommandHandler.
 func WithMetrics(collector shell.MetricsCollector) Option {
 	return func(h *CommandHandler) error {
@@ -174,4 +160,18 @@ func WithLogging(logger shell.Logger) Option {
 		h.logger = logger
 		return nil
 	}
+}
+
+// recordCommandSuccess records successful command execution with observability.
+func (h CommandHandler) recordCommandSuccess(ctx context.Context, businessOutcome string, duration time.Duration, span shell.SpanContext) {
+	shell.RecordCommandMetrics(ctx, h.metricsCollector, commandType, businessOutcome, duration)
+	shell.FinishCommandSpan(h.tracingCollector, span, businessOutcome, duration, nil)
+	shell.LogCommandSuccess(ctx, h.logger, h.contextualLogger, commandType, businessOutcome, duration)
+}
+
+// recordCommandError records failed command execution with observability.
+func (h CommandHandler) recordCommandError(ctx context.Context, err error, duration time.Duration, span shell.SpanContext) {
+	shell.RecordCommandMetrics(ctx, h.metricsCollector, commandType, shell.StatusError, duration)
+	shell.FinishCommandSpan(h.tracingCollector, span, shell.StatusError, duration, err)
+	shell.LogCommandError(ctx, h.logger, h.contextualLogger, commandType, err)
 }

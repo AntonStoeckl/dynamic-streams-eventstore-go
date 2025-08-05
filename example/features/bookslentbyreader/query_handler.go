@@ -106,20 +106,6 @@ func (h QueryHandler) buildEventFilter(readerID uuid.UUID) eventstore.Filter {
 // Option defines a functional option for configuring QueryHandler.
 type Option func(*QueryHandler) error
 
-// recordQuerySuccess records successful query execution with observability.
-func (h QueryHandler) recordQuerySuccess(ctx context.Context, duration time.Duration, span shell.SpanContext) {
-	shell.RecordCommandMetrics(ctx, h.metricsCollector, queryType, shell.StatusSuccess, duration)
-	shell.FinishCommandSpan(h.tracingCollector, span, shell.StatusSuccess, duration, nil)
-	shell.LogCommandSuccess(ctx, h.logger, h.contextualLogger, queryType, shell.StatusSuccess, duration)
-}
-
-// recordQueryError records failed query execution with observability.
-func (h QueryHandler) recordQueryError(ctx context.Context, err error, duration time.Duration, span shell.SpanContext) {
-	shell.RecordCommandMetrics(ctx, h.metricsCollector, queryType, shell.StatusError, duration)
-	shell.FinishCommandSpan(h.tracingCollector, span, shell.StatusError, duration, err)
-	shell.LogCommandError(ctx, h.logger, h.contextualLogger, queryType, err)
-}
-
 // WithMetrics sets the metrics collector for the QueryHandler.
 func WithMetrics(collector shell.MetricsCollector) Option {
 	return func(h *QueryHandler) error {
@@ -150,4 +136,18 @@ func WithLogging(logger shell.Logger) Option {
 		h.logger = logger
 		return nil
 	}
+}
+
+// recordQuerySuccess records successful query execution with observability.
+func (h QueryHandler) recordQuerySuccess(ctx context.Context, duration time.Duration, span shell.SpanContext) {
+	shell.RecordCommandMetrics(ctx, h.metricsCollector, queryType, shell.StatusSuccess, duration)
+	shell.FinishCommandSpan(h.tracingCollector, span, shell.StatusSuccess, duration, nil)
+	shell.LogCommandSuccess(ctx, h.logger, h.contextualLogger, queryType, shell.StatusSuccess, duration)
+}
+
+// recordQueryError records failed query execution with observability.
+func (h QueryHandler) recordQueryError(ctx context.Context, err error, duration time.Duration, span shell.SpanContext) {
+	shell.RecordCommandMetrics(ctx, h.metricsCollector, queryType, shell.StatusError, duration)
+	shell.FinishCommandSpan(h.tracingCollector, span, shell.StatusError, duration, err)
+	shell.LogCommandError(ctx, h.logger, h.contextualLogger, queryType, err)
 }
