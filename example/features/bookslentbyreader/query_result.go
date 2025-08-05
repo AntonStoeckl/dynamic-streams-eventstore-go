@@ -1,9 +1,7 @@
-package bookscurrentlylentbyreader
+package bookslentbyreader
 
 import (
 	"time"
-
-	"github.com/google/uuid"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
@@ -21,16 +19,4 @@ type BooksCurrentlyLent struct {
 	ReaderID core.ReaderIDString
 	Books    []BookInfo
 	Count    int
-}
-
-// Query represents the intent to query books currently lent by a reader.
-type Query struct {
-	ReaderID uuid.UUID
-}
-
-// BuildQuery creates a new Query with the provided reader ID.
-func BuildQuery(readerID uuid.UUID) Query {
-	return Query{
-		ReaderID: readerID,
-	}
 }

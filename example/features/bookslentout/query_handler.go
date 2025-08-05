@@ -1,10 +1,8 @@
-package bookscurrentlylentbyreader
+package bookslentout
 
 import (
 	"context"
 	"time"
-
-	"github.com/google/uuid"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
@@ -21,7 +19,7 @@ type EventStore interface {
 }
 
 const (
-	queryType = "BooksCurrentlyLentByReader"
+	queryType = "BooksLentOut"
 )
 
 // QueryHandler orchestrates the complete query processing workflow.
@@ -53,40 +51,39 @@ func NewQueryHandler(eventStore EventStore, opts ...Option) (QueryHandler, error
 // Handle executes the complete query processing workflow: Query -> Project.
 // It queries the current event history, delegates projection logic to the core function,
 // and instruments the operation with comprehensive observability.
-func (h QueryHandler) Handle(ctx context.Context, query Query) (BooksCurrentlyLent, error) {
+func (h QueryHandler) Handle(ctx context.Context) (BooksLentOut, error) {
 	// Start query handler instrumentation
 	queryStart := time.Now()
 	ctx, span := shell.StartCommandSpan(ctx, h.tracingCollector, queryType)
 	shell.LogCommandStart(ctx, h.logger, h.contextualLogger, queryType)
 
-	filter := h.buildEventFilter(query.ReaderID)
+	filter := h.buildEventFilter()
 
 	// Query phase
 	storableEvents, _, err := h.eventStore.Query(ctx, filter)
 	if err != nil {
 		h.recordQueryError(ctx, err, time.Since(queryStart), span)
-		return BooksCurrentlyLent{}, err
+		return BooksLentOut{}, err
 	}
 
 	// Unmarshal phase
 	history, err := shell.DomainEventsFrom(storableEvents)
 	if err != nil {
 		h.recordQueryError(ctx, err, time.Since(queryStart), span)
-		return BooksCurrentlyLent{}, err
+		return BooksLentOut{}, err
 	}
 
 	// Projection phase - delegate to pure core function
-	result := ProjectBooksCurrentlyLent(history, query)
+	result := ProjectBooksLentOut(history)
 
 	h.recordQuerySuccess(ctx, time.Since(queryStart), span)
 
 	return result, nil
 }
 
-// buildEventFilter creates the filter for querying all events
-// related to the specified reader and all book circulation events
+// buildEventFilter creates the filter for querying all book circulation and lending events
 // which are relevant for this query/use-case.
-func (h QueryHandler) buildEventFilter(readerID uuid.UUID) eventstore.Filter {
+func (h QueryHandler) buildEventFilter() eventstore.Filter {
 	return eventstore.BuildEventFilter().
 		Matching().
 		AnyEventTypeOf(
@@ -94,9 +91,6 @@ func (h QueryHandler) buildEventFilter(readerID uuid.UUID) eventstore.Filter {
 			core.BookCopyRemovedFromCirculationEventType,
 			core.BookCopyLentToReaderEventType,
 			core.BookCopyReturnedByReaderEventType,
-		).
-		AndAnyPredicateOf(
-			eventstore.P("ReaderID", readerID.String()),
 		).
 		Finalize()
 }

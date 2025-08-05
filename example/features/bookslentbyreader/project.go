@@ -1,4 +1,4 @@
-package bookscurrentlylentbyreader
+package bookslentbyreader
 
 import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
@@ -10,7 +10,7 @@ import (
 //
 // Query Logic:
 //   GIVEN: A reader with ReaderID
-//   WHEN: BooksCurrentlyLentByReader query is executed
+//   WHEN: BooksLentByReader query is executed
 //   THEN: BooksCurrentlyLent struct is returned with current lending state
 //   INCLUDES: Book information (ID, title, authors, lent date)
 //   EXCLUDES: Books that have been returned or removed from circulation

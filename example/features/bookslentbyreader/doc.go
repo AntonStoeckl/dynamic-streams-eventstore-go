@@ -1,4 +1,4 @@
-// Package bookscurrentlylentbyreader implements the Books Currently Lent By Reader query use case.
+// Package bookslentbyreader implements the Books Lent By Reader query use case.
 //
 // This feature provides a pure query operation that returns information about books
 // currently lent to a specific reader. It follows the Query-Project pattern without
@@ -9,4 +9,4 @@
 //
 // This is a read-only operation that projects the current state from the event history
 // without modifying any data or generating new events.
-package bookscurrentlylentbyreader
+package bookslentbyreader
