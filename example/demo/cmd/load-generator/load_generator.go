@@ -14,12 +14,11 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	"github.com/A
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/addbookcopy"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/lendbookcopytoreader"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/removebookcopy"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/returnbookcopyfromreader"
 )
 
 // ObservabilityConfig holds the observability adapters for command handlers.
@@ -255,7 +254,7 @@ func (lg *LoadGenerator) runCirculationScenario(ctx context.Context) error {
 
 	// Randomly choose between add and remove operations
 	if rand.Intn(2) == 0 { //nolint:gosec // Test code - weak random is acceptable
-		// Add a book to circulation
+		// to Add a book to circulation
 		command := addbookcopy.BuildCommand(
 			bookID,
 			"978-0000000000", // placeholder ISBN
@@ -286,7 +285,7 @@ func (lg *LoadGenerator) runLendingScenario(ctx context.Context) error {
 
 	// Randomly choose between lend and return operations
 	if rand.Intn(2) == 0 { //nolint:gosec // Test code - weak random is acceptable
-		// Lend a book to a reader
+		// to Lend a book to a reader
 		command := lendbookcopytoreader.BuildCommand(bookID, readerID, time.Now())
 
 		return lg.lendBookCopyHandler.Handle(opCtx, command)
