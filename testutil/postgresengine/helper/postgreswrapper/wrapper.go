@@ -216,15 +216,15 @@ func GetGreatestOccurredAtTimeFromDB(t testing.TB, wrapper Wrapper) time.Time {
 
 	switch e := wrapper.(type) {
 	case *PGXPoolWrapper:
-		row := e.pool.QueryRow(context.Background(), `select max(occurred_at) from events`)
+		row := e.pool.QueryRow(context.Background(), `select COALESCE(max(occurred_at), '2025-01-01T00:00:00Z'::timestamptz) from events`)
 		err = row.Scan(&greatestOccurredAtTime)
 
 	case *SQLDBWrapper:
-		row := e.db.QueryRowContext(ctx, `select max(occurred_at) from events`)
+		row := e.db.QueryRowContext(ctx, `select COALESCE(max(occurred_at), '2025-01-01T00:00:00Z'::timestamptz) from events`)
 		err = row.Scan(&greatestOccurredAtTime)
 
 	case *SQLXWrapper:
-		row := e.db.QueryRowContext(ctx, `select max(occurred_at) from events`)
+		row := e.db.QueryRowContext(ctx, `select COALESCE(max(occurred_at), '2025-01-01T00:00:00Z'::timestamptz) from events`)
 		err = row.Scan(&greatestOccurredAtTime)
 
 	default:
