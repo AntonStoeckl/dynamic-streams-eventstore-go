@@ -1,31 +1,116 @@
 name: des
 
+networks:
+  postgres-cluster:
+    driver: bridge
+
+volumes:
+  pgdata_benchmark_master:
+  pgdata_benchmark_replica:
+
 services:
+
+  # Test Database - Single Instance (2GB allocation)
   postgres_test:
-    image: postgres
-    command: postgres -c max_connections=300
-    environment:
-      POSTGRES_USER: test
-      POSTGRES_PASSWORD: test
-      POSTGRES_DB: eventstore
-    volumes:
-      - ./initdb:/docker-entrypoint-initdb.d/
-    ports:
-      - "5432:5432"
-  postgres_benchmark:
-    image: postgres
+    image: postgres:17.5-alpine
+    container_name: postgres_test
     command: postgres -c config_file=/etc/postgresql/postgresql.conf
     environment:
       POSTGRES_USER: test
       POSTGRES_PASSWORD: test
       POSTGRES_DB: eventstore
     volumes:
-      - ./initdb:/docker-entrypoint-initdb.d/
-      - ./postgresql-performance.conf:/etc/postgresql/postgresql.conf
-      - pgdata:/var/lib/postgresql/data
+      - ./initdb/01-init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./initdb/02-monitoring.sql:/docker-entrypoint-initdb.d/02-monitoring.sql
+      - ./tuning/testdb-postgresql.conf:/etc/postgresql/postgresql.conf
+    ports:
+      - "5432:5432"
+    networks:
+      - postgres-cluster
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d eventstore"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 2048M
+        reservations:
+          memory: 1024M
+
+  # Benchmark Master Database - Write Optimized for Replication (7GB allocation)
+  postgres_benchmark_master:
+    image: postgres:17.5-alpine
+    container_name: postgres_benchmark_master
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf -c hba_file=/etc/postgresql/pg_hba.conf
+    environment:
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: eventstore
+      POSTGRES_REPLICATION_USER: replicator
+      POSTGRES_REPLICATION_PASSWORD: replicator_password
+    volumes:
+      - ./initdb/01-init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./initdb/02-monitoring.sql:/docker-entrypoint-initdb.d/02-monitoring.sql
+      - ./initdb/03-replication-setup.sql:/docker-entrypoint-initdb.d/03-replication-setup.sql
+      - ./initdb/05-replication-monitoring.sql:/docker-entrypoint-initdb.d/05-replication-monitoring.sql
+      - ./tuning/benchmarkdb-master-postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./hba/hba.conf:/etc/postgresql/pg_hba.conf
+      - pgdata_benchmark_master:/var/lib/postgresql/data
       - ./fixtures:/fixtures
     ports:
       - "5433:5432"
+    networks:
+      - postgres-cluster
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d eventstore"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    deploy:
+      resources:
+        limits:
+          memory: 7168M
+        reservations:
+          memory: 3584M
 
-volumes:
-  pgdata:
+  # Benchmark Replica - Query Optimized (3GB allocation)
+  postgres_benchmark_replica:
+    image: postgres:17.5-alpine
+    container_name: postgres_benchmark_replica
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    environment:
+      PGUSER: test
+      POSTGRES_PASSWORD: test
+      POSTGRES_MASTER_HOST: postgres_benchmark_master
+      POSTGRES_MASTER_PORT: 5432
+      POSTGRES_MASTER_USER: test
+      POSTGRES_MASTER_PASSWORD: test
+      POSTGRES_MASTER_DB: eventstore
+      POSTGRES_REPLICATION_USER: replicator
+      POSTGRES_REPLICATION_PASSWORD: replicator_password
+      POSTGRES_REPLICA_SLOT: replica_slot
+    volumes:
+      - pgdata_benchmark_replica:/var/lib/postgresql/data
+      - ./tuning/benchmarkdb-replica-postgresql.conf:/etc/postgresql/postgresql.conf
+      - ./initdb/04-setup-replica.sh:/docker-entrypoint-initdb.d/04-setup-replica.sh
+    ports:
+      - "5434:5432"
+    networks:
+      - postgres-cluster
+    depends_on:
+      postgres_benchmark_master:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U test -d eventstore"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s  # Allow extra time for replica initialization
+    deploy:
+      resources:
+        limits:
+          memory: 3072M
+        reservations:
+          memory: 1536M

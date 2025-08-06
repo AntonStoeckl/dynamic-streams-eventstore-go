@@ -1,17 +1,3 @@
--- EventStore Events Table Performance Tuning for High-Throughput Load Testing
--- This script optimizes the events table for aggressive autovacuum and better query planning
-
--- Set aggressive statistics targets for all indexed columns
--- Critical for accurate cost estimation at 2M+ event scale
-ALTER TABLE events ALTER COLUMN event_type SET STATISTICS 5000;    -- High cardinality
-ALTER TABLE events ALTER COLUMN payload SET STATISTICS 5000;       -- JSONB selectivity
-ALTER TABLE events ALTER COLUMN metadata SET STATISTICS 2000;      -- Less critical
-ALTER TABLE events ALTER COLUMN sequence_number SET STATISTICS 5000; -- Critical for sorts
-ALTER TABLE events ALTER COLUMN occurred_at SET STATISTICS 3000;   -- Time-based queries
-
--- Force immediate statistics collection with higher sampling
-ANALYZE events;
-
 -- Create an extension for better monitoring
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
 
