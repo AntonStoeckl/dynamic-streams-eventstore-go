@@ -130,8 +130,8 @@ func Test_TracingCollector_StatusMapping(t *testing.T) {
 		{"error", codes.Error, "Operation failed"},
 		{"failed", codes.Error, "Operation failed"},
 		{"failure", codes.Error, "Operation failed"},
-		{"cancelled", codes.Error, "Operation cancelled"},
-		{"canceled", codes.Error, "Operation cancelled"},
+		{"cancelled", codes.Error, "Operation canceled"},
+		{"canceled", codes.Error, "Operation canceled"},
 		{"timeout", codes.Error, "Operation timed out"},
 		{"conflict", codes.Error, "Concurrency conflict"},
 	}

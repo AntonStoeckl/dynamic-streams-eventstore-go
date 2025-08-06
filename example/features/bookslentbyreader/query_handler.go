@@ -147,7 +147,31 @@ func (h QueryHandler) recordQuerySuccess(ctx context.Context, duration time.Dura
 
 // recordQueryError records failed query execution with observability.
 func (h QueryHandler) recordQueryError(ctx context.Context, err error, duration time.Duration, span shell.SpanContext) {
+	if shell.IsCancellationError(err) {
+		h.recordQueryCancelled(ctx, err, duration, span)
+		return
+	}
+
+	if shell.IsTimeoutError(err) {
+		h.recordQueryTimeout(ctx, err, duration, span)
+		return
+	}
+
 	shell.RecordCommandMetrics(ctx, h.metricsCollector, queryType, shell.StatusError, duration)
 	shell.FinishCommandSpan(h.tracingCollector, span, shell.StatusError, duration, err)
+	shell.LogCommandError(ctx, h.logger, h.contextualLogger, queryType, err)
+}
+
+// recordQueryCancelled records canceled query execution with observability.
+func (h QueryHandler) recordQueryCancelled(ctx context.Context, err error, duration time.Duration, span shell.SpanContext) {
+	shell.RecordCommandMetrics(ctx, h.metricsCollector, queryType, shell.StatusCanceled, duration)
+	shell.FinishCommandSpan(h.tracingCollector, span, shell.StatusCanceled, duration, err)
+	shell.LogCommandError(ctx, h.logger, h.contextualLogger, queryType, err)
+}
+
+// recordQueryTimeout records timeout query execution with observability.
+func (h QueryHandler) recordQueryTimeout(ctx context.Context, err error, duration time.Duration, span shell.SpanContext) {
+	shell.RecordCommandMetrics(ctx, h.metricsCollector, queryType, shell.StatusTimeout, duration)
+	shell.FinishCommandSpan(h.tracingCollector, span, shell.StatusTimeout, duration, err)
 	shell.LogCommandError(ctx, h.logger, h.contextualLogger, queryType, err)
 }

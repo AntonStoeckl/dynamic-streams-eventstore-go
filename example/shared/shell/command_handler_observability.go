@@ -2,6 +2,7 @@ package shell
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -19,6 +20,12 @@ const (
 	// CommandHandlerIdempotentMetric tracks idempotent operations.
 	CommandHandlerIdempotentMetric = "commandhandler_idempotent_operations_total"
 
+	// CommandHandlerCanceledMetric tracks canceled operations.
+	CommandHandlerCanceledMetric = "commandhandler_canceled_operations_total"
+
+	// CommandHandlerTimeoutMetric tracks timeout operations.
+	CommandHandlerTimeoutMetric = "commandhandler_timeout_operations_total"
+
 	// StatusSuccess indicates successful command completion.
 	StatusSuccess = "success"
 
@@ -27,6 +34,12 @@ const (
 
 	// StatusIdempotent indicates no state change was needed.
 	StatusIdempotent = "idempotent"
+
+	// StatusCanceled indicates the operation was canceled due to context cancellation.
+	StatusCanceled = "canceled"
+
+	// StatusTimeout indicates the operation timed out due to context deadline exceeded.
+	StatusTimeout = "timeout"
 
 	// LogMsgCommandStarted is logged when command processing begins.
 	LogMsgCommandStarted = "command handler started"
@@ -139,6 +152,26 @@ func RecordCommandMetrics(
 			collector.IncrementCounter(CommandHandlerIdempotentMetric, idempotentLabels)
 		}
 	}
+
+	// Record canceled operations separately
+	if status == StatusCanceled {
+		canceledLabels := BuildCommandLabels(commandType, StatusCanceled)
+		if contextualCollector, ok := collector.(ContextualMetricsCollector); ok {
+			contextualCollector.IncrementCounterContext(ctx, CommandHandlerCanceledMetric, canceledLabels)
+		} else {
+			collector.IncrementCounter(CommandHandlerCanceledMetric, canceledLabels)
+		}
+	}
+
+	// Record timeout operations separately
+	if status == StatusTimeout {
+		timeoutLabels := BuildCommandLabels(commandType, StatusTimeout)
+		if contextualCollector, ok := collector.(ContextualMetricsCollector); ok {
+			contextualCollector.IncrementCounterContext(ctx, CommandHandlerTimeoutMetric, timeoutLabels)
+		} else {
+			collector.IncrementCounter(CommandHandlerTimeoutMetric, timeoutLabels)
+		}
+	}
 }
 
 // StartCommandSpan starts a distributed tracing span for command operations.
@@ -247,4 +280,14 @@ func formatDurationMS(duration time.Duration) string {
 // formatFloat formats a float64 with specified precision.
 func formatFloat(value float64, _ int) string {
 	return fmt.Sprintf("%.2f", value)
+}
+
+// IsCancellationError checks if an error is due to context cancellation.
+func IsCancellationError(err error) bool {
+	return errors.Is(err, context.Canceled)
+}
+
+// IsTimeoutError checks if an error is due to context deadline exceeded.
+func IsTimeoutError(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded)
 }

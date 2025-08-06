@@ -4,43 +4,204 @@ This file tracks larger plans, initiatives, and completed work for the Dynamic E
 
 ## 🚧 Current Plans (Ready to Implement)
 
-### Implement Cancelled Operations Tracking System
-- **Created**: 2025-08-05
-- **Priority**: High - Required for complete Grafana dashboard metrics
-- **Objective**: Add comprehensive tracking of cancelled operations (context cancellation) at both EventStore and Command/Query Handler levels
+### Implement Retry Logic for Command/Query Handlers
+- **Created**: 2025-08-06
+- **Priority**: Medium - Production resilience improvement
+- **Objective**: Add configurable retry logic with exponential backoff to command and query handlers for handling transient database errors and concurrency conflicts
 
-#### **🔍 Problem Analysis**
-- **Current Grafana Dashboard**: Has panels expecting cancelled operation metrics that don't exist yet
-- **Missing Instrumentation**: No tracking of context.Context cancellation in EventStore operations
-- **Observability Gap**: Cannot distinguish between errors and cancellations in monitoring
+#### **🔍 Current Problem Analysis**
+- **Current behavior**: Single-attempt operations fail immediately on transient errors (network issues, temporary DB unavailability, high concurrency)
+- **Production impact**: Reduces system resilience under load or during infrastructure issues
+- **User experience**: Operations that could succeed with retry fail permanently
+- **Missing patterns**: No standardized retry configuration across different handler types
 
-#### **📋 Implementation Requirements**
-1. **EventStore Level Cancellation Tracking**:
-   - Add cancelled status detection in `eventstore/postgresengine/postgres.go`
-   - Update metrics to track `eventstore_append_cancelled_total` and `eventstore_query_cancelled_total`
-   - Distinguish context.Canceled errors from other error types
+#### **📋 Files/Packages to Review in Next Session**
+1. **Handler Infrastructure**:
+   - `example/shared/shell/command_handler_observability.go` (add retry status tracking)
+   - `example/features/*/command_handler.go` (6 command handlers to update)
+   - `example/features/*/query_handler.go` (3 query handlers to update)
 
-2. **Command/Query Handler Level Cancellation**:
-   - Update `example/shared/shell/command_handler_observability.go` to add `StatusCancelled = "cancelled"`
-   - Instrument command and query handlers to detect context cancellation
-   - Add cancellation metrics: `commandhandler_cancelled_operations_total`
+2. **Error Classification** (determine retryable vs non-retryable):
+   - `eventstore/postgresengine/postgres.go` (context errors, DB errors, concurrency conflicts)
+   - `eventstore/errors.go` (ErrConcurrencyConflict, ErrInvalidPayloadJSON patterns)
 
-3. **Grafana Dashboard Integration**:
-   - Add "Canceled EventStore.Append() Ops/sec" and "Canceled EventStore.Query() Ops/sec" panels
-   - Update existing dashboard with proper cancellation metrics
+3. **Configuration**:
+   - `example/shared/shell/config/` (add retry configuration options)
+   - Consider environment variables: `MAX_RETRIES`, `RETRY_BASE_DELAY`, `RETRY_MAX_DELAY`
 
-#### **🎯 Implementation Files to Modify**
-- `eventstore/postgresengine/postgres.go` (detect context.Canceled in error handling)
-- `eventstore/postgresengine/observability.go` (add cancelled metrics constants and recording)
-- `example/shared/shell/command_handler_observability.go` (add StatusCancelled support)
-- `example/features/*/command_handler.go` (detect cancellation in error handling - 6 files)
-- `example/features/*/query_handler.go` (detect cancellation in error handling - 3 files)
-- `testutil/observability/grafana/dashboards/eventstore-dashboard.json` (add cancellation panels)
+#### **🎯 Next Session Implementation Plan**
+1. **Design Retry Configuration**: Create RetryConfig struct with max attempts, base delay, max delay, backoff multiplier
+2. **Error Classification**: Implement `IsRetryableError()` helper to distinguish permanent vs transient failures
+3. **Retry Logic Pattern**: Create reusable retry wrapper that works with existing handler patterns
+4. **Observability Integration**: Add retry attempt counts, failure reasons, backoff delays to metrics
+5. **Handler Updates**: Integrate retry logic into all command and query handlers
+6. **Configuration Management**: Add retry settings to shell/config with sensible defaults
 
-#### **💡 Technical Approach**
-- Use `errors.Is(err, context.Canceled)` for detection
-- Separate cancellation from general errors in observability classification
-- Maintain backward compatibility with existing error handling patterns
+#### **💡 Implementation Approach**
+- **Retryable Errors**: Context timeouts, temporary DB connection issues, some concurrency conflicts
+- **Non-Retryable Errors**: Business rule violations, invalid payloads, permanent authentication issues
+- **Backoff Strategy**: Exponential with jitter to avoid thundering herd effects
+- **Observability**: Track retry attempts, success after retry, permanent failures
+- **Configuration**: Environment-driven with production-safe defaults
+
+#### **🎯 Success Criteria**
+- Configurable retry logic across all handlers
+- Improved resilience under temporary infrastructure issues
+- Proper error classification (retryable vs permanent)
+- Complete observability for retry patterns
+- Zero breaking changes to existing handler APIs
+
+---
+
+### Investigate Read Replicas for Benchmark Postgres
+- **Created**: 2025-08-06  
+- **Priority**: Medium - Performance optimization for read-heavy workloads
+- **Objective**: Investigate PostgreSQL read replica setup for benchmark database with independent tuning of write master and read replicas
+
+#### **🔍 Current Architecture Analysis**
+- **Current setup**: Single PostgreSQL instance handling both read and write operations
+- **Bottleneck**: Query operations compete with append operations for same database resources
+- **Benchmark limitation**: Cannot test true read scaling patterns or read/write separation benefits
+- **Missing capability**: No way to tune read replicas differently from write master
+
+#### **📋 Files/Packages to Review in Next Session**
+1. **Database Configuration**:
+   - `testutil/postgresengine/docker-compose.yml` (add read replica services)
+   - `testutil/postgresengine/postgresql-performance.conf` (write master tuning)
+   - New: `postgresql-replica.conf` (read replica specific tuning)
+
+2. **Connection Management**:
+   - `testutil/postgresengine/helper/postgreswrapper/` (add read/write connection splitting)
+   - `example/shared/shell/config/database_config.go` (separate read/write connection strings)
+
+3. **Load Generator Integration**:
+   - `example/demo/cmd/load-generator/` (configure for read replica usage)
+   - Query handlers should use read replicas, command handlers use write master
+
+#### **🎯 Next Session Implementation Plan**
+1. **Docker Compose Setup**: Add PostgreSQL read replica containers with streaming replication
+2. **Separate Tuning Configurations**: 
+   - Write master: Optimized for writes, WAL, concurrent appends
+   - Read replicas: Optimized for query performance, larger cache, read-ahead
+3. **Connection Splitting**: Update wrapper to use read replica for Query operations, master for Append
+4. **Replication Health Monitoring**: Add lag monitoring and replica status checks
+5. **Load Generator Testing**: Configure load generator to use read replicas for state queries
+6. **Performance Benchmarking**: Compare single instance vs read replica performance
+
+#### **💡 Investigation Areas**
+- **Write Master Tuning**: `wal_buffers`, `checkpoint_segments`, `synchronous_commit` for append performance
+- **Read Replica Tuning**: `effective_cache_size`, `random_page_cost`, `seq_page_cost` for query performance  
+- **Replication Configuration**: Streaming replication, replica lag monitoring, failover scenarios
+- **Connection Pooling**: Separate pools for read/write operations, connection distribution
+- **Load Testing**: Read-heavy vs write-heavy workloads with replica architecture
+
+#### **🎯 Success Criteria**
+- PostgreSQL master/replica setup with Docker Compose
+- Independent tuning configurations for write master and read replicas
+- Connection splitting: queries use replicas, appends use master
+- Performance comparison: single instance vs replica architecture
+- Monitoring for replication lag and replica health
+- Documentation for replica setup and tuning considerations
+
+---
+
+### Investigate Duration Metric Values in Observability
+- **Created**: 2025-08-06
+- **Priority**: High - Critical for accurate performance monitoring
+- **Objective**: Debug inconsistency between duration metrics reported in Grafana vs actual benchmark test performance
+
+#### **🔍 Current Problem Analysis**
+- **Grafana metrics**: Showing different performance values than expected
+- **Benchmark tests**: Known performance characteristics (~2.5ms per operation)
+- **Disconnect**: Duration metrics in observability don't correlate with benchmark results
+- **Monitoring concern**: Cannot trust production performance monitoring if metrics are inaccurate
+
+#### **📋 Files/Packages to Review in Next Session**
+1. **Metrics Collection**:
+   - `eventstore/postgresengine/observability.go` (duration recording logic)
+   - `eventstore/postgresengine/postgres.go` (timer start/stop placement)
+   - `eventstore/oteladapters/metrics_collector.go` (OpenTelemetry duration recording)
+
+2. **Prometheus/OTEL Pipeline**:
+   - `testutil/observability/otel-collector-config.yml` (metric processing configuration)
+   - Grafana dashboard queries: Check if rate() calculations are correct
+   - Histogram bucket configuration and percentile calculations
+
+3. **Test Infrastructure**:
+   - `eventstore/postgresengine/postgres_benchmark_test.go` (baseline performance measurements)
+   - `postgres_observability_test.go` (compare actual vs observed durations)
+   - Load generator duration reporting vs actual operation times
+
+#### **🎯 Next Session Investigation Plan**
+1. **Baseline Verification**: Run benchmark tests to establish known performance baseline
+2. **Instrumentation Audit**: Verify timer placement around actual database operations (not including observability overhead)
+3. **Metrics Pipeline Debug**: Check OpenTelemetry histogram recording and Prometheus ingestion
+4. **Dashboard Query Analysis**: Review Grafana queries for duration calculations (rate() vs histogram_quantile())
+5. **Load Generator Comparison**: Compare load generator reported durations with EventStore metrics
+6. **Unit Conversion Check**: Verify seconds vs milliseconds consistency across the pipeline
+
+#### **💡 Potential Root Causes**
+- **Timer Placement**: Timing includes observability overhead instead of just database operations
+- **Unit Conversion**: Metrics recorded in nanoseconds but displayed assuming milliseconds
+- **Aggregation Issues**: Histogram buckets or percentile calculations configured incorrectly
+- **Pipeline Latency**: OpenTelemetry collector introduces delays in metric reporting
+- **Dashboard Queries**: Grafana queries using wrong rate windows or aggregation functions
+
+#### **🎯 Success Criteria**
+- Duration metrics match benchmark test measurements within ±10%
+- Grafana dashboard shows realistic performance values (2-5ms range for typical operations)
+- Clear documentation of what each duration metric measures
+- Validated metrics pipeline from EventStore through to Grafana display
+- Reliable performance monitoring for production usage
+
+---
+
+### Re-order Panels in Grafana Dashboard  
+- **Created**: 2025-08-06
+- **Priority**: Low - UX improvement for better dashboard usability
+- **Objective**: Reorganize the 16-panel Grafana dashboard for better logical flow and visual hierarchy
+
+#### **🔍 Current Dashboard Analysis**
+- **Current layout**: 16 panels in chronological order of implementation
+- **User experience**: Related panels scattered across dashboard, non-intuitive flow
+- **Visual hierarchy**: No clear grouping of related metrics (operations, errors, performance, context)
+
+#### **📋 Files/Packages to Review in Next Session**
+1. **Dashboard Configuration**:
+   - `testutil/observability/grafana/dashboards/eventstore-dashboard.json` (panel positioning)
+   - Panel `gridPos` coordinates and sizing for logical grouping
+
+2. **Current Panel Inventory** (for reorganization planning):
+   - **Operations**: Successful Append/Query Ops/sec (panels 1,2)  
+   - **Errors**: Append/Query Errors/sec (panels 3,4)
+   - **Performance**: Average durations (panels 7,8), SQL ops/sec (panels 5,6)
+   - **Business Logic**: Command operations (panels 9,10), concurrency conflicts (panel 11), idempotent (panel 12)
+   - **Context Errors**: Canceled operations (panels 13,14), timeout operations (panels 15,16)
+
+#### **🎯 Next Session Implementation Plan**
+1. **Design Logical Groupings**: Group related panels into visual sections
+2. **Proposed Layout**:
+   - **Top Row**: Primary operations (successful append/query ops/sec)
+   - **Second Row**: Performance metrics (average durations, P95/P99 if added)
+   - **Third Row**: Error handling (errors/sec, concurrency conflicts)
+   - **Fourth Row**: Context management (canceled, timeout operations)
+   - **Bottom Row**: Business logic (command operations, idempotent)
+3. **Update Panel Coordinates**: Modify `gridPos` for each panel
+4. **Consider Panel Sizing**: Optimize panel widths for related metrics
+5. **Visual Consistency**: Ensure consistent color schemes within groups
+
+#### **💡 Proposed Grouping Strategy**
+- **Core Operations Group**: Focus on primary EventStore operations and performance
+- **Error Handling Group**: All error scenarios including business rules and infrastructure
+- **Context Management Group**: Cancellation and timeout patterns
+- **Business Logic Group**: Domain-specific operations and idempotency
+
+#### **🎯 Success Criteria**
+- Logical flow from most important to least important metrics
+- Related panels grouped visually 
+- Improved dashboard usability for operations monitoring
+- Maintained functionality of all 16 panels
+- Clean visual layout with consistent spacing
 
 ---
 
@@ -100,43 +261,111 @@ This file tracks larger plans, initiatives, and completed work for the Dynamic E
 
 ## 🔄 In Progress
 
-### Debug Grafana Dashboard Empty Panels Issue
-- **Created**: 2025-08-05  
-- **Priority**: High - Dashboard restoration blocked
-- **Problem**: All 12 dashboard panels show no data despite:
-  - ✅ Metrics being generated correctly (eventstore_*, commandhandler_* metrics confirmed in Prometheus)
-  - ✅ Load generator running with observability enabled  
-  - ✅ All panels configured with correct Prometheus datasource UID ("PBFA97CFB590B2093")
-  - ✅ Observability stack running properly (Grafana, Prometheus, OTEL Collector)
-- **Investigation Required**: Root cause analysis by specialized agent to identify why Grafana panels remain empty when all prerequisites appear satisfied
-
-#### **🔧 What's Ready for Next Session:**
-- **Load Generator**: Simplified, compiles cleanly, no load generator metrics (pure EventStore focus)
-- **Grafana Dashboards**: 
-  - ✅ "EventStore Performance Dashboard" (6 clean panels)
-  - ✅ "EventStore Debug Dashboard" (success/failure breakdown)
-  - ✅ Login: admin:secretpw (documented everywhere)
-- **PostgreSQL**: 
-  - ✅ Performance-tuned with aggressive autovacuum (eliminates manual VACUUM ANALYZE need)
-  - ✅ Fresh empty table ready for load testing
-  - ✅ Events table has special per-table tuning (analyze every 2% change vs 10% default)
-  - ✅ Should resolve GIN index avoidance issues
-- **Key Files Created/Modified**:
-  - `testutil/observability/grafana/dashboards/eventstore-simplified.json` (main dashboard)
-  - `testutil/observability/grafana/dashboards/eventstore-debug.json` (debug dashboard)  
-  - `testutil/postgresengine/postgresql-performance.conf` (performance tuning)
-  - `testutil/postgresengine/restart-postgres-benchmark.sh` (restart script)
-  - `example/demo/cmd/load-generator/` (simplified, no metrics collection)
-
-#### **🎯 Next Session Goals:**
-1. **Run load generator** at 300 req/sec with observability enabled
-2. **Check debug dashboard** to see success/failure breakdown (why 299+156≠300?)
-3. **Validate main dashboard** shows clear operations/sec, success rate, avg duration
-4. **Confirm PostgreSQL performance** - no more GIN index avoidance, consistent performance
+*No active items*
 
 ---
 
 ## ✅ Completed
+
+### Implement Context Timeout/Deadline Tracking System
+- **Completed**: 2025-08-06
+- **Description**: Implemented comprehensive context timeout tracking system to complement existing cancellation tracking by detecting `context.DeadlineExceeded` errors separately from `context.Canceled`
+- **Problem Solved**: Load generator showing "context deadline exceeded" errors required separate instrumentation from cancellation tracking to distinguish user cancellations vs system timeouts
+- **Technical Achievement**:
+  - **EventStore Level Timeout Detection**: Added `errors.Is(err, context.DeadlineExceeded)` detection with `isTimeoutError()` helper function parallel to cancellation detection
+  - **Handler Level Timeout Tracking**: Implemented `StatusTimeout` support in all 6 command handlers and 3 query handlers with dedicated timeout recording methods
+  - **Comprehensive Metrics Coverage**: Added `eventstore_query_timeout_total`, `eventstore_append_timeout_total`, and `commandhandler_timeout_operations_total` metrics
+  - **Grafana Dashboard Integration**: Added 2 new timeout tracking panels (15-16) completing 16-panel comprehensive observability dashboard
+- **Implementation Completed**:
+  - ✅ **Context Timeout Detection**: Added `isTimeoutError()` helper and detection in `eventstore/postgresengine/postgres.go`
+  - ✅ **Observability Infrastructure**: Added timeout metrics constants, observer methods, and recording in `observability.go` 
+  - ✅ **Handler Support**: Added `StatusTimeout` constant and `IsTimeoutError()` helper in `command_handler_observability.go`
+  - ✅ **Command Handler Updates**: Updated all 6 command handlers with timeout detection and `recordCommandTimeout()` methods
+  - ✅ **Query Handler Updates**: Updated all 3 query handlers with timeout detection and `recordQueryTimeout()` methods
+  - ✅ **Dashboard Panels**: Added "Timeout EventStore Operations/sec" and "Timeout Command/Query Operations/sec" panels (15-16)
+  - ✅ **Documentation Updates**: Enhanced README.md with context error distinction explanation and complete 16-panel coverage
+- **Files Modified**:
+  - `eventstore/postgresengine/postgres.go` - Context timeout detection in Query/Append operations
+  - `eventstore/postgresengine/observability.go` - Timeout metrics infrastructure with observer pattern support
+  - `example/shared/shell/command_handler_observability.go` - StatusTimeout constant and helper functions
+  - 6 command handler files - Timeout detection and dedicated timeout recording methods
+  - 3 query handler files - Timeout detection and dedicated timeout recording methods
+  - `testutil/observability/grafana/dashboards/eventstore-dashboard.json` - 2 new timeout tracking panels (16 total panels)
+  - `testutil/observability/grafana/dashboards/README.md` - Complete documentation with context error distinction
+- **Production Benefits**:
+  - **Complete Context Error Classification**: Success/Error/Canceled/Timeout/Idempotent operation tracking for comprehensive observability
+  - **Separate Timeout Monitoring**: Distinguish `context.DeadlineExceeded` (system timeouts) from `context.Canceled` (user cancellations)
+  - **Load Testing Insights**: Timeout tracking enables performance analysis under high load conditions
+  - **Production Debugging**: Separate metrics help identify system performance issues vs client behavior problems
+- **Context Error Types Tracked**:
+  - **Context.Canceled**: User cancellations, system shutdown, network issues, client actions
+  - **Context.DeadlineExceeded**: Context timeouts, database timeouts, load balancer timeouts, performance bottlenecks
+- **Backward Compatibility**: All changes maintain existing error handling patterns while adding timeout detection
+- **Documentation Updated**: README.md updated with context error detection features and comprehensive observability capabilities
+
+### Implement Cancelled Operations Tracking System
+- **Completed**: 2025-08-06
+- **Description**: Implemented comprehensive context cancellation tracking across all levels of the EventStore operations and Command/Query handlers with complete Grafana dashboard integration
+- **Problem Solved**: Missing observability gap preventing distinction between real errors and context cancellations in production monitoring
+- **Technical Achievement**:
+  - **EventStore Level Cancellation Detection**: Added `errors.Is(err, context.Canceled)` detection in EventStore operations with dedicated cancellation metrics
+  - **Handler Level Cancellation Tracking**: Implemented `StatusCancelled` support in all 6 command handlers and 3 query handlers
+  - **Comprehensive Metrics Coverage**: Added `eventstore_query_canceled_total`, `eventstore_append_canceled_total`, and `commandhandler_canceled_operations_total` metrics
+  - **Grafana Dashboard Integration**: Added 2 new cancellation tracking panels to complete the observability story
+- **Implementation Completed**:
+  - ✅ **Context Cancellation Detection**: Added `isCancellationError()` helper and detection in `eventstore/postgresengine/postgres.go`
+  - ✅ **Observability Infrastructure**: Added canceled metrics constants, observer methods, and recording in `observability.go`
+  - ✅ **Handler Support**: Added `StatusCanceled` constant and `IsCancellationError()` helper in `command_handler_observability.go`
+  - ✅ **Command Handler Updates**: Updated all 6 command handlers with cancellation detection and `recordCommandCanceled()` methods
+  - ✅ **Query Handler Updates**: Updated all 3 query handlers with cancellation detection and `recordQueryCanceled()` methods  
+  - ✅ **Dashboard Panels**: Added "Canceled EventStore Operations/sec" and "Canceled Command/Query Operations/sec" panels
+- **Files Modified**:
+  - `eventstore/postgresengine/postgres.go` - Context cancellation detection in Query/Append operations
+  - `eventstore/postgresengine/observability.go` - Cancellation metrics infrastructure with observer pattern support
+  - `example/shared/shell/command_handler_observability.go` - StatusCanceled constant and helper functions
+  - 6 command handler files - Cancellation detection and dedicated cancellation recording
+  - 3 query handler files - Cancellation detection and dedicated cancellation recording
+  - `testutil/observability/grafana/dashboards/eventstore-dashboard.json` - 2 new cancellation tracking panels (14 total panels)
+  - `testutil/observability/grafana/dashboards/README.md` - Updated documentation with cancellation tracking explanation
+- **Production Benefits**:
+  - **Operational Visibility**: Distinguish context timeouts from real errors in monitoring dashboards
+  - **Performance Insights**: Cancellation rates indicate system stress, client timeout issues, or capacity limits
+  - **Debug Capabilities**: Identify applications with aggressive timeout settings or infrastructure-level cancellations
+  - **Complete Status Classification**: Success/Error/Cancelled/Idempotent operation tracking for comprehensive observability
+- **Backward Compatibility**: All changes maintain existing error handling patterns while adding cancellation detection
+
+### Grafana Dashboard File Provisioning Complete Solution
+- **Completed**: 2025-08-05
+- **Description**: Successfully resolved all Grafana dashboard file provisioning issues and achieved 100% persistent dashboards across Docker restarts
+- **Problem Solved**: Grafana dashboards were not persisting across Docker restarts and panels were not displaying EventStore metrics
+- **Root Cause**: File provisioning requires different JSON format than API creation (raw dashboard JSON vs wrapped structure)
+- **Resolution Achieved**:
+  - ✅ **100% Persistent Grafana Dashboards**: Survives all Docker operations (down/up/restart/rebuild)
+  - ✅ **File-Based Dashboard Management**: Version-controlled dashboard configuration
+  - ✅ **All 12 Panels Displaying Live Metrics**: Real-time EventStore performance monitoring
+  - ✅ **Root Folder Location**: Dashboard properly located without unwanted subfolders
+  - ✅ **Load Generator Performance**: Running at target 300 req/sec with observability enabled
+  - ✅ **PostgreSQL Performance**: Confirmed optimal performance with GIN index usage
+- **Technical Solution**:
+  - **Correct JSON Format**: Converted from API wrapper format to raw dashboard JSON with required uid/version fields
+  - **File Provisioning Setup**: Configured proper Grafana provisioning with empty folder string for root location
+  - **Persistent Storage**: Added grafana-storage volume for data retention across Docker operations
+  - **Metrics Pipeline**: EventStore → OTEL Collector → Prometheus → Grafana integration working correctly
+- **Key Components Delivered**:
+  - `testutil/observability/grafana/dashboards/eventstore-dashboard.json` (persistent dashboard - fully functional)
+  - `testutil/postgresengine/postgresql-performance.conf` (performance tuning configuration)
+  - `testutil/postgresengine/restart-postgres-benchmark.sh` (restart script for performance settings)
+  - `example/demo/cmd/load-generator/` (simplified load generator with clean observability integration)
+- **Documentation Created**:
+  - `GRAFANA-PROVISIONING-ISSUE.md` - Complete problem analysis and solution
+  - `GRAFANA-PROVISIONING-GUIDE.md` - Quick reference for future use
+  - `SOLUTION-SUMMARY.md` - Technical insights and solution pattern
+- **Dashboard Access**: http://localhost:3000/d/eventstore-main-dashboard/eventstore-dashboard
+- **Benefits Achieved**:
+  - **Production-Ready Monitoring**: Persistent, version-controlled EventStore performance dashboards
+  - **Complete Observability Visibility**: Real-time monitoring of operations, success rates, performance metrics
+  - **Reliable Load Testing**: Consistent performance testing with accurate metrics collection
+  - **Maintenance Simplicity**: File-based configuration eliminates manual dashboard recreation
 
 ### Query Handler Improvements and Expansion - State-Aware Load Generator Support
 - **Completed**: 2025-08-05

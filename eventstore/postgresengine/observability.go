@@ -50,14 +50,20 @@ const (
 	// Method-level metrics (separate from the SQL operation metrics above).
 	metricQueryMethodCalls  = "eventstore_query_method_calls_total"
 	metricAppendMethodCalls = "eventstore_append_method_calls_total"
+	metricQueryCanceled     = "eventstore_query_canceled_total"
+	metricAppendCanceled    = "eventstore_append_canceled_total"
+	metricQueryTimeout      = "eventstore_query_timeout_total"
+	metricAppendTimeout     = "eventstore_append_timeout_total"
 
 	// Shared operation constants for metrics and tracing.
 	operationQuery  = "query"
 	operationAppend = "append"
 
 	// Shared status constants for metrics and tracing.
-	statusSuccess = "success"
-	statusError   = "error"
+	statusSuccess  = "success"
+	statusError    = "error"
+	statusCanceled = "canceled"
+	statusTimeout  = "timeout"
 
 	// Error type classification for metrics and tracing.
 	errorTypeBuildQuery          = "build_query"
@@ -70,6 +76,8 @@ const (
 	errorTypeRowsAffected        = "rows_affected"
 	errorTypeBuildSingleEventSQL = "build_single_event_sql"
 	errorTypeBuildMultiEventSQL  = "build_multi_event_sql"
+	errorTypeCancelled           = "cancelled"
+	errorTypeTimeout             = "timeout"
 
 	// Distributed tracing span names.
 	spanNameQuery  = "eventstore.query"
@@ -205,6 +213,92 @@ func (es *EventStore) recordConcurrencyConflictMetrics(operation string) {
 			"conflict_type":   "concurrency",
 		}
 		es.metricsCollector.IncrementCounter(metricConcurrencyConflicts, labels)
+	}
+}
+
+// recordCancelledMetrics records canceled operation metrics if the metrics collector is configured.
+func (es *EventStore) recordCancelledMetrics(operation string) {
+	if es.metricsCollector != nil {
+		labels := map[string]string{
+			spanAttrOperation: operation,
+			"status":          statusCanceled,
+		}
+
+		switch operation {
+		case operationQuery:
+			es.metricsCollector.IncrementCounter(metricQueryCanceled, labels)
+		case operationAppend:
+			es.metricsCollector.IncrementCounter(metricAppendCanceled, labels)
+		}
+	}
+}
+
+// recordCancelledMetricsContext records canceled operation metrics with context if the collector supports it.
+func (es *EventStore) recordCancelledMetricsContext(ctx context.Context, operation string) {
+	if es.metricsCollector != nil {
+		labels := map[string]string{
+			spanAttrOperation: operation,
+			"status":          statusCanceled,
+		}
+
+		var metricName string
+		switch operation {
+		case operationQuery:
+			metricName = metricQueryCanceled
+		case operationAppend:
+			metricName = metricAppendCanceled
+		default:
+			return
+		}
+
+		if contextualCollector, ok := es.metricsCollector.(eventstore.ContextualMetricsCollector); ok {
+			contextualCollector.IncrementCounterContext(ctx, metricName, labels)
+		} else {
+			es.metricsCollector.IncrementCounter(metricName, labels)
+		}
+	}
+}
+
+// recordTimeoutMetrics records timeout operation metrics if the metrics collector is configured.
+func (es *EventStore) recordTimeoutMetrics(operation string) {
+	if es.metricsCollector != nil {
+		labels := map[string]string{
+			spanAttrOperation: operation,
+			"status":          statusTimeout,
+		}
+
+		switch operation {
+		case operationQuery:
+			es.metricsCollector.IncrementCounter(metricQueryTimeout, labels)
+		case operationAppend:
+			es.metricsCollector.IncrementCounter(metricAppendTimeout, labels)
+		}
+	}
+}
+
+// recordTimeoutMetricsContext records timeout operation metrics with context if the collector supports it.
+func (es *EventStore) recordTimeoutMetricsContext(ctx context.Context, operation string) {
+	if es.metricsCollector != nil {
+		labels := map[string]string{
+			spanAttrOperation: operation,
+			"status":          statusTimeout,
+		}
+
+		var metricName string
+		switch operation {
+		case operationQuery:
+			metricName = metricQueryTimeout
+		case operationAppend:
+			metricName = metricAppendTimeout
+		default:
+			return
+		}
+
+		if contextualCollector, ok := es.metricsCollector.(eventstore.ContextualMetricsCollector); ok {
+			contextualCollector.IncrementCounterContext(ctx, metricName, labels)
+		} else {
+			es.metricsCollector.IncrementCounter(metricName, labels)
+		}
 	}
 }
 
@@ -393,6 +487,24 @@ func (qto *queryTracingObserver) finishError(errorType string, duration time.Dur
 	qto.es.finishQuerySpanError(qto.span, errorType, duration)
 }
 
+// finishCancelled completes the query tracing span with cancellation details.
+func (qto *queryTracingObserver) finishCancelled(duration time.Duration) {
+	if qto.span == nil {
+		return
+	}
+
+	qto.es.finishQuerySpanError(qto.span, errorTypeCancelled, duration)
+}
+
+// finishTimeout completes the query tracing span with timeout details.
+func (qto *queryTracingObserver) finishTimeout(duration time.Duration) {
+	if qto.span == nil {
+		return
+	}
+
+	qto.es.finishQuerySpanError(qto.span, errorTypeTimeout, duration)
+}
+
 // finishSuccess completes the query tracing span for successful operations.
 func (qto *queryTracingObserver) finishSuccess(
 	eventStream eventstore.StorableEvents,
@@ -421,6 +533,38 @@ func (ato *appendTracingObserver) finishError(errorType string, duration time.Du
 	}
 
 	ato.es.finishAppendSpanError(ato.span, errorType, attrs)
+}
+
+// finishCancelled completes the append operation's tracing span with cancellation details.
+func (ato *appendTracingObserver) finishCancelled(duration time.Duration) {
+	if ato.span == nil {
+		return
+	}
+
+	var attrs map[string]string
+	if duration > 0 {
+		attrs = map[string]string{
+			spanAttrDurationMS: ato.formatDuration(duration),
+		}
+	}
+
+	ato.es.finishAppendSpanError(ato.span, errorTypeCancelled, attrs)
+}
+
+// finishTimeout completes the append operation's tracing span with timeout details.
+func (ato *appendTracingObserver) finishTimeout(duration time.Duration) {
+	if ato.span == nil {
+		return
+	}
+
+	var attrs map[string]string
+	if duration > 0 {
+		attrs = map[string]string{
+			spanAttrDurationMS: ato.formatDuration(duration),
+		}
+	}
+
+	ato.es.finishAppendSpanError(ato.span, errorTypeTimeout, attrs)
 }
 
 // finishErrorWithAttrs completes the append operation's tracing span with error details and additional attributes.
@@ -495,6 +639,18 @@ func (qmo *queryMetricsObserver) recordError(errorType string, duration time.Dur
 	qmo.es.recordErrorMetricsContext(qmo.ctx, operationQuery, errorType)
 }
 
+// recordCanceled records all metrics for a canceled query operation.
+func (qmo *queryMetricsObserver) recordCanceled(duration time.Duration) {
+	qmo.es.recordDurationMetricsContext(qmo.ctx, metricQueryDuration, duration, operationQuery, statusCanceled)
+	qmo.es.recordCancelledMetricsContext(qmo.ctx, operationQuery)
+}
+
+// recordTimeout records all metrics for a timeout query operation.
+func (qmo *queryMetricsObserver) recordTimeout(duration time.Duration) {
+	qmo.es.recordDurationMetricsContext(qmo.ctx, metricQueryDuration, duration, operationQuery, statusTimeout)
+	qmo.es.recordTimeoutMetricsContext(qmo.ctx, operationQuery)
+}
+
 // recordSuccess records all metrics for a successful append operation.
 func (amo *appendMetricsObserver) recordSuccess(eventCount int, duration time.Duration) {
 	amo.es.recordDurationMetricsContext(amo.ctx, metricAppendDuration, duration, operationAppend, statusSuccess)
@@ -505,6 +661,18 @@ func (amo *appendMetricsObserver) recordSuccess(eventCount int, duration time.Du
 func (amo *appendMetricsObserver) recordError(errorType string, duration time.Duration) {
 	amo.es.recordDurationMetricsContext(amo.ctx, metricAppendDuration, duration, operationAppend, statusError)
 	amo.es.recordErrorMetricsContext(amo.ctx, operationAppend, errorType)
+}
+
+// recordCanceled records all metrics for a canceled append operation.
+func (amo *appendMetricsObserver) recordCanceled(duration time.Duration) {
+	amo.es.recordDurationMetricsContext(amo.ctx, metricAppendDuration, duration, operationAppend, statusCanceled)
+	amo.es.recordCancelledMetricsContext(amo.ctx, operationAppend)
+}
+
+// recordTimeout records all metrics for a timeout append operation.
+func (amo *appendMetricsObserver) recordTimeout(duration time.Duration) {
+	amo.es.recordDurationMetricsContext(amo.ctx, metricAppendDuration, duration, operationAppend, statusTimeout)
+	amo.es.recordTimeoutMetricsContext(amo.ctx, operationAppend)
 }
 
 // recordConcurrencyConflict records metrics for concurrency conflicts during append operations.

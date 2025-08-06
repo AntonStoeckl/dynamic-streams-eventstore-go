@@ -21,7 +21,7 @@ Unlike traditional event stores with fixed streams tied to specific entities, th
 - **🔗 Multiple Adapters**: Support for pgx/v5, database/sql, and sqlx database connections
 - **📝 Structured Logging**: Configurable SQL query logging and operational monitoring (slog, zerolog, logrus compatible)
 - **📝 OpenTelemetry Compatible Contextual Logging**: Context-aware logging with automatic trace correlation
-- **📈 OpenTelemetry Compatible Metrics**: Comprehensive observability with duration, counters, and error tracking
+- **📈 OpenTelemetry Compatible Metrics**: Comprehensive observability with duration, counters, error tracking, and context cancellation/timeout detection
 - **🔍 OpenTelemetry Compatible Tracing**: Dependency-free tracing interface for OpenTelemetry, Jaeger, and custom backends
 - **🔌 OpenTelemetry Ready-to-Use Adapters**: Official plug-and-play adapters for immediate OpenTelemetry integration
 
@@ -148,8 +148,14 @@ collector := oteladapters.NewMetricsCollector(meter)
 
 **Instrument Mapping:**
 - `RecordDuration(...)` → **Histogram** (for operation durations)
-- `IncrementCounter(...)` → **Counter** (for operation counts, errors)
+- `IncrementCounter(...)` → **Counter** (for operation counts, errors, cancellations, timeouts)
 - `RecordValue(...)` → **Gauge** (for current values, concurrent operations)
+
+**Context Error Detection:**
+- **Context Cancellation**: Automatically detects `context.Canceled` errors from user/client cancellations
+- **Context Timeout**: Automatically detects `context.DeadlineExceeded` errors from system timeouts
+- **Robust Error Handling**: Works with database driver error wrapping (`errors.Join`, custom wrappers)
+- **Separate Metrics**: Distinct tracking for cancellations vs timeouts vs regular errors
 
 #### 3. Tracing Collector
 

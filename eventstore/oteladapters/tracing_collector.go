@@ -86,7 +86,7 @@ func (s *OTelSpanContext) setSpanStatus(status string) {
 	case "error", "failed", "failure":
 		s.span.SetStatus(codes.Error, "Operation failed")
 	case "cancelled", "canceled":
-		s.span.SetStatus(codes.Error, "Operation cancelled")
+		s.span.SetStatus(codes.Error, "Operation canceled")
 	case "timeout":
 		s.span.SetStatus(codes.Error, "Operation timed out")
 	case "conflict":

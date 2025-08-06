@@ -173,7 +173,31 @@ func (h CommandHandler) recordCommandSuccess(ctx context.Context, businessOutcom
 
 // recordCommandError records failed command execution with observability.
 func (h CommandHandler) recordCommandError(ctx context.Context, err error, duration time.Duration, span shell.SpanContext) {
+	if shell.IsCancellationError(err) {
+		h.recordCommandCancelled(ctx, err, duration, span)
+		return
+	}
+
+	if shell.IsTimeoutError(err) {
+		h.recordCommandTimeout(ctx, err, duration, span)
+		return
+	}
+
 	shell.RecordCommandMetrics(ctx, h.metricsCollector, commandType, shell.StatusError, duration)
 	shell.FinishCommandSpan(h.tracingCollector, span, shell.StatusError, duration, err)
+	shell.LogCommandError(ctx, h.logger, h.contextualLogger, commandType, err)
+}
+
+// recordCommandCancelled records canceled command execution with observability.
+func (h CommandHandler) recordCommandCancelled(ctx context.Context, err error, duration time.Duration, span shell.SpanContext) {
+	shell.RecordCommandMetrics(ctx, h.metricsCollector, commandType, shell.StatusCanceled, duration)
+	shell.FinishCommandSpan(h.tracingCollector, span, shell.StatusCanceled, duration, err)
+	shell.LogCommandError(ctx, h.logger, h.contextualLogger, commandType, err)
+}
+
+// recordCommandTimeout records timeout command execution with observability.
+func (h CommandHandler) recordCommandTimeout(ctx context.Context, err error, duration time.Duration, span shell.SpanContext) {
+	shell.RecordCommandMetrics(ctx, h.metricsCollector, commandType, shell.StatusTimeout, duration)
+	shell.FinishCommandSpan(h.tracingCollector, span, shell.StatusTimeout, duration, err)
 	shell.LogCommandError(ctx, h.logger, h.contextualLogger, commandType, err)
 }

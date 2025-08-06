@@ -691,11 +691,11 @@ func Test_Append_When_Context_Is_Cancelled(t *testing.T) {
 	)
 
 	// assert
-	assert.Error(t, err, "expected an error due to cancelled context")
+	assert.Error(t, err, "expected an error due to canceled context")
 	assert.Contains(t, err.Error(), "context canceled")
 	events, _, queryErr := es.Query(context.Background(), filter)
 	assert.NoError(t, queryErr, "verification query should succeed")
-	assert.Empty(t, events, "no events should have been inserted when context was cancelled")
+	assert.Empty(t, events, "no events should have been inserted when context was canceled")
 }
 
 func Test_Append_When_Context_Times_out(t *testing.T) {
@@ -731,10 +731,10 @@ func Test_Append_When_Context_Times_out(t *testing.T) {
 	assert.Contains(t, err.Error(), "context deadline exceeded")
 	events, _, queryErr := es.Query(context.Background(), filter)
 	assert.NoError(t, queryErr, "verification query should succeed")
-	assert.Empty(t, events, "no events should have been inserted when context was cancelled")
+	assert.Empty(t, events, "no events should have been inserted when context was canceled")
 }
 
-func Test_Query_When_Context_Is_Cancelled(t *testing.T) {
+func Test_Query_When_Context_Is_Canceled(t *testing.T) {
 	// setup
 	wrapper := CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
@@ -757,10 +757,10 @@ func Test_Query_When_Context_Is_Cancelled(t *testing.T) {
 	events, maxSeq, err := es.Query(ctxWithCancel, filter)
 
 	// assert
-	assert.Error(t, err, "expected an error due to cancelled context")
+	assert.Error(t, err, "expected an error due to canceled context")
 	assert.Contains(t, err.Error(), "context canceled")
-	assert.Empty(t, events, "no events should be returned when context is cancelled")
-	assert.Equal(t, eventstore.MaxSequenceNumberUint(0), maxSeq, "max sequence should be 0 when context is cancelled")
+	assert.Empty(t, events, "no events should be returned when context is canceled")
+	assert.Equal(t, eventstore.MaxSequenceNumberUint(0), maxSeq, "max sequence should be 0 when context is canceled")
 }
 
 func Test_Query_When_Context_Times_Out(t *testing.T) {

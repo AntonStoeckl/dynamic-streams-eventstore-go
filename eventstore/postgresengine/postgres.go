@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/doug-martin/goqu/v9"
@@ -160,8 +161,17 @@ func (es *EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 
 	rows, duration, queryErr := es.executeQuery(ctx, sqlQuery)
 	if queryErr != nil {
-		metrics.recordError(errorTypeDatabaseQuery, duration)
-		tracer.finishError(errorTypeDatabaseQuery, duration)
+		switch {
+		case es.isCancellationError(queryErr):
+			metrics.recordCanceled(duration)
+			tracer.finishCancelled(duration)
+		case es.isTimeoutError(queryErr):
+			metrics.recordTimeout(duration)
+			tracer.finishTimeout(duration)
+		default:
+			metrics.recordError(errorTypeDatabaseQuery, duration)
+			tracer.finishError(errorTypeDatabaseQuery, duration)
+		}
 
 		return empty, 0, queryErr
 	}
@@ -290,7 +300,17 @@ func (es *EventStore) Append(
 
 	rowsAffected, duration, execErr := es.executeAppendQuery(ctx, sqlQuery, metrics)
 	if execErr != nil {
-		tracer.finishError(errorTypeDatabaseExec, duration)
+		switch {
+		case es.isCancellationError(execErr):
+			metrics.recordCanceled(duration)
+			tracer.finishCancelled(duration)
+		case es.isTimeoutError(execErr):
+			metrics.recordTimeout(duration)
+			tracer.finishTimeout(duration)
+		default:
+			tracer.finishError(errorTypeDatabaseExec, duration)
+		}
+
 		return execErr
 	}
 
@@ -592,4 +612,40 @@ func (es *EventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.
 	)
 
 	return selectStmt
+}
+
+// isCancellationError checks if an error is due to context cancellation.
+// Database drivers often wrap context errors improperly, so we use multiple detection strategies.
+func (es *EventStore) isCancellationError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Fast path: check for properly wrapped errors
+	if errors.Is(err, context.Canceled) {
+		return true
+	}
+
+	// Fallback: check the error message for improperly wrapped errors
+	// This handles cases where database drivers don't implement proper error wrapping
+	errStr := err.Error()
+	return strings.Contains(errStr, "context canceled") || strings.Contains(errStr, "context cancelled")
+}
+
+// isTimeoutError checks if an error is due to context deadline exceeded.
+// Database drivers often wrap context errors improperly, so we use multiple detection strategies.
+func (es *EventStore) isTimeoutError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Fast path: check for properly wrapped errors
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+
+	// Fallback: check the error message for improperly wrapped errors
+	// This handles cases where database drivers don't implement proper error wrapping
+	errStr := err.Error()
+	return strings.Contains(errStr, "context deadline exceeded")
 }
