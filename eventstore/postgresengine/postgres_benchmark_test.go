@@ -21,7 +21,7 @@ func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 	es := wrapper.GetEventStore()
 
 	// arrange
-	GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 10000)
+	GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 1000)
 	fakeClock := GetGreatestOccurredAtTimeFromDB(b, wrapper).Add(time.Second)
 
 	bookID := GivenUniqueID(b)
@@ -74,7 +74,7 @@ func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 	es := wrapper.GetEventStore()
 
 	// arrange
-	GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 10000)
+	GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 1000)
 	fakeClock := GetGreatestOccurredAtTimeFromDB(b, wrapper).Add(time.Second)
 
 	bookID := GivenUniqueID(b)
@@ -136,7 +136,7 @@ func Benchmark_Query_With_Many_Events_InTheStore(b *testing.B) {
 	es := wrapper.GetEventStore()
 
 	// arrange
-	GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 10000)
+	GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 1000)
 	bookID := GetLatestBookIDFromDB(b, wrapper)
 
 	filter := FilterAllEventTypesForOneBook(bookID)
@@ -173,7 +173,7 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) { //nol
 	assert.NoError(b, err)
 
 	// arrange
-	GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 10000)
+	GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 1000)
 	fakeClock := GetGreatestOccurredAtTimeFromDB(b, wrapper).Add(time.Second)
 	bookID := GivenUniqueID(b)
 
