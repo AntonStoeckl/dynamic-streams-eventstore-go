@@ -216,23 +216,6 @@ func (es *EventStore) recordConcurrencyConflictMetrics(operation string) {
 	}
 }
 
-// recordCancelledMetrics records canceled operation metrics if the metrics collector is configured.
-func (es *EventStore) recordCancelledMetrics(operation string) {
-	if es.metricsCollector != nil {
-		labels := map[string]string{
-			spanAttrOperation: operation,
-			"status":          statusCanceled,
-		}
-
-		switch operation {
-		case operationQuery:
-			es.metricsCollector.IncrementCounter(metricQueryCanceled, labels)
-		case operationAppend:
-			es.metricsCollector.IncrementCounter(metricAppendCanceled, labels)
-		}
-	}
-}
-
 // recordCancelledMetricsContext records canceled operation metrics with context if the collector supports it.
 func (es *EventStore) recordCancelledMetricsContext(ctx context.Context, operation string) {
 	if es.metricsCollector != nil {
@@ -255,23 +238,6 @@ func (es *EventStore) recordCancelledMetricsContext(ctx context.Context, operati
 			contextualCollector.IncrementCounterContext(ctx, metricName, labels)
 		} else {
 			es.metricsCollector.IncrementCounter(metricName, labels)
-		}
-	}
-}
-
-// recordTimeoutMetrics records timeout operation metrics if the metrics collector is configured.
-func (es *EventStore) recordTimeoutMetrics(operation string) {
-	if es.metricsCollector != nil {
-		labels := map[string]string{
-			spanAttrOperation: operation,
-			"status":          statusTimeout,
-		}
-
-		switch operation {
-		case operationQuery:
-			es.metricsCollector.IncrementCounter(metricQueryTimeout, labels)
-		case operationAppend:
-			es.metricsCollector.IncrementCounter(metricAppendTimeout, labels)
 		}
 	}
 }

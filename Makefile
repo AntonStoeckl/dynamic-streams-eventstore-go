@@ -1,6 +1,6 @@
 # Makefile for dynamic-streams-eventstore-go
 
-.PHONY: help install-tools test test-verbose test-coverage lint lint-oteladapters lint-all fmt clean
+.PHONY: help install-tools test test-verbose test-coverage lint fmt clean
 .PHONY: test-generic test-factory test-observability test-pgx test-sql test-sqlx test-all-adapters
 .PHONY: benchmark benchmark-pgx benchmark-sql benchmark-sqlx benchmark-all
 .PHONY: build-fixtures run-generate run-import fixtures-generate fixtures-import
@@ -37,9 +37,7 @@ help:
 	@echo "  fixtures-import    Alias for run-import"
 	@echo ""
 	@echo "Code Quality:"
-	@echo "  lint               Run golangci-lint on main project only"
-	@echo "  lint-oteladapters  Run golangci-lint on oteladapters submodule only"
-	@echo "  lint-all           Run golangci-lint on all code (main + submodules)"
+	@echo "  lint               Run golangci-lint on all code"
 	@echo "  fmt                Format code with go fmt"
 	@echo "  clean              Clean up generated files"
 
@@ -182,22 +180,10 @@ fixtures-import: run-import
 
 # Code quality targets
 lint:
-	@echo "Running golangci-lint..."
+	@echo "Running golangci-lint on all code..."
 	@golangci-lint run
+	@echo "✅ Linting complete"
 
-lint-oteladapters:
-	@echo "Running golangci-lint in oteladapters submodule..."
-	@cd eventstore/oteladapters && golangci-lint run
-
-lint-all:
-	@echo "Running golangci-lint on all code (main + submodules)..."
-	@echo "🔹 Linting main project:"
-	@golangci-lint run
-	@echo ""
-	@echo "🔹 Linting oteladapters submodule:"
-	@cd eventstore/oteladapters && golangci-lint run
-	@echo ""
-	@echo "✅ All linting complete"
 
 fmt:
 	@echo "Formatting code..."

@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
 
 const (
@@ -89,22 +88,6 @@ type ContextualLogger = eventstore.ContextualLogger
 
 // Logger interface for basic logging in command handlers.
 type Logger = eventstore.Logger
-
-// ClassifyBusinessOutcome analyzes domain events to determine the business outcome.
-// This function uses the IsErrorEvent() method to classify the result of command processing.
-func ClassifyBusinessOutcome(eventsToAppend core.DomainEvents) string {
-	if len(eventsToAppend) == 0 {
-		return StatusIdempotent
-	}
-
-	for _, event := range eventsToAppend {
-		if event.IsErrorEvent() {
-			return StatusError
-		}
-	}
-
-	return StatusSuccess
-}
 
 // BuildCommandLabels creates standard metric labels for command handler operations.
 func BuildCommandLabels(commandType, status string) map[string]string {
@@ -274,12 +257,7 @@ func LogCommandError(
 
 // formatDurationMS formats duration in milliseconds for span attributes.
 func formatDurationMS(duration time.Duration) string {
-	return formatFloat(ToMilliseconds(duration), 2)
-}
-
-// formatFloat formats a float64 with specified precision.
-func formatFloat(value float64, _ int) string {
-	return fmt.Sprintf("%.2f", value)
+	return fmt.Sprintf("%.2f", ToMilliseconds(duration))
 }
 
 // IsCancellationError checks if an error is due to context cancellation.
