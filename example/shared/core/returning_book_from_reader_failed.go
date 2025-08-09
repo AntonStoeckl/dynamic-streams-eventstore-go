@@ -2,6 +2,8 @@ package core
 
 import (
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // ReturningBookFromReaderFailedEventType is the event type identifier.
@@ -9,20 +11,23 @@ const ReturningBookFromReaderFailedEventType = "ReturningBookFromReaderFailed"
 
 // ReturningBookFromReaderFailed represents when returning a book copy from a reader fails due to business rule violations.
 type ReturningBookFromReaderFailed struct {
-	EntityID    string
+	BookID      BookIDString
+	ReaderID    ReaderIDString
 	FailureInfo string
 	OccurredAt  OccurredAtTS
 }
 
 // BuildReturningBookFromReaderFailed creates a new ReturningBookFromReaderFailed event.
 func BuildReturningBookFromReaderFailed(
-	entityID string,
+	bookID uuid.UUID,
+	readerID uuid.UUID,
 	failureInfo string,
 	occurredAt time.Time,
 ) ReturningBookFromReaderFailed {
 
 	event := ReturningBookFromReaderFailed{
-		EntityID:    entityID,
+		BookID:      bookID.String(),
+		ReaderID:    readerID.String(),
 		FailureInfo: failureInfo,
 		OccurredAt:  ToOccurredAt(occurredAt),
 	}

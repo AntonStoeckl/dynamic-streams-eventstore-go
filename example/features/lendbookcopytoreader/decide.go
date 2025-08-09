@@ -35,7 +35,8 @@ func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 	if s.bookIsNotInCirculation {
 		return core.ErrorDecision(
 			core.BuildLendingBookToReaderFailed(
-				command.BookID.String(),
+				command.BookID,
+				command.ReaderID,
 				"book is not in circulation",
 				command.OccurredAt))
 	}
@@ -43,7 +44,8 @@ func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 	if s.bookIsLentToAnotherReader {
 		return core.ErrorDecision(
 			core.BuildLendingBookToReaderFailed(
-				command.BookID.String(),
+				command.BookID,
+				command.ReaderID,
 				"book is already lent",
 				command.OccurredAt))
 	}
@@ -51,7 +53,8 @@ func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 	if s.readerCurrentBookCount >= 10 {
 		return core.ErrorDecision(
 			core.BuildLendingBookToReaderFailed(
-				command.ReaderID.String(),
+				command.BookID,
+				command.ReaderID,
 				"reader has too many books",
 				command.OccurredAt))
 	}

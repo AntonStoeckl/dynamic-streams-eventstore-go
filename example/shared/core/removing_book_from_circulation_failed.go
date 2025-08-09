@@ -2,6 +2,8 @@ package core
 
 import (
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // RemovingBookFromCirculationFailedEventType is the event type identifier.
@@ -9,20 +11,20 @@ const RemovingBookFromCirculationFailedEventType = "RemovingBookFromCirculationF
 
 // RemovingBookFromCirculationFailed represents when removing a book copy from circulation fails due to business rule violations.
 type RemovingBookFromCirculationFailed struct {
-	EntityID    string
+	BookID      BookIDString
 	FailureInfo string
 	OccurredAt  OccurredAtTS
 }
 
 // BuildRemovingBookFromCirculationFailed creates a new RemovingBookFromCirculationFailed event.
 func BuildRemovingBookFromCirculationFailed(
-	entityID string,
+	bookID uuid.UUID,
 	failureInfo string,
 	occurredAt time.Time,
 ) RemovingBookFromCirculationFailed {
 
 	event := RemovingBookFromCirculationFailed{
-		EntityID:    entityID,
+		BookID:      bookID.String(),
 		FailureInfo: failureInfo,
 		OccurredAt:  ToOccurredAt(occurredAt),
 	}

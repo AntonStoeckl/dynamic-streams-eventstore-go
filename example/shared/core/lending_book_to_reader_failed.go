@@ -2,6 +2,8 @@ package core
 
 import (
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // LendingBookToReaderFailedEventType is the event type identifier.
@@ -9,20 +11,23 @@ const LendingBookToReaderFailedEventType = "LendingBookToReaderFailed"
 
 // LendingBookToReaderFailed represents when lending a book copy to a reader fails due to business rule violations.
 type LendingBookToReaderFailed struct {
-	EntityID    string
+	BookID      BookIDString
+	ReaderID    ReaderIDString
 	FailureInfo string
 	OccurredAt  OccurredAtTS
 }
 
 // BuildLendingBookToReaderFailed creates a new LendingBookToReaderFailed event.
 func BuildLendingBookToReaderFailed(
-	entityID string,
+	bookID uuid.UUID,
+	readerID uuid.UUID,
 	failureInfo string,
 	occurredAt time.Time,
 ) LendingBookToReaderFailed {
 
 	event := LendingBookToReaderFailed{
-		EntityID:    entityID,
+		BookID:      bookID.String(),
+		ReaderID:    readerID.String(),
 		FailureInfo: failureInfo,
 		OccurredAt:  ToOccurredAt(occurredAt),
 	}

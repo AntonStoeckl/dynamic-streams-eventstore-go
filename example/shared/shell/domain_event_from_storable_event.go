@@ -157,7 +157,8 @@ func unmarshalLendingBookToReaderFailed(payloadJSON []byte) (core.DomainEvent, e
 	}
 
 	return core.LendingBookToReaderFailed{
-		EntityID:    payload.EntityID,
+		BookID:      payload.BookID,
+		ReaderID:    payload.ReaderID,
 		FailureInfo: payload.FailureInfo,
 		OccurredAt:  payload.OccurredAt,
 	}, nil
@@ -172,7 +173,8 @@ func unmarshalReturningBookFromReaderFailed(payloadJSON []byte) (core.DomainEven
 	}
 
 	return core.ReturningBookFromReaderFailed{
-		EntityID:    payload.EntityID,
+		BookID:      payload.BookID,
+		ReaderID:    payload.ReaderID,
 		FailureInfo: payload.FailureInfo,
 		OccurredAt:  payload.OccurredAt,
 	}, nil
@@ -187,7 +189,7 @@ func unmarshalRemovingBookFromCirculationFailed(payloadJSON []byte) (core.Domain
 	}
 
 	return core.RemovingBookFromCirculationFailed{
-		EntityID:    payload.EntityID,
+		BookID:      payload.BookID,
 		FailureInfo: payload.FailureInfo,
 		OccurredAt:  payload.OccurredAt,
 	}, nil

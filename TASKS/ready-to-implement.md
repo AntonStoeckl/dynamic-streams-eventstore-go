@@ -2,6 +2,40 @@
 
 This file tracks larger plans that are ready for implementation in the Dynamic Event Streams EventStore project.
 
+## Fix Domain Event Predicate Inconsistency in Failed Events
+- **Created**: 2025-08-09
+- **Priority**: CRITICAL - Performance and correctness issue
+- **Objective**: Fix `*_failed.go` domain events to use correct predicate fields (`BookID`/`ReaderID`) instead of generic `EntityID`
+
+### Problem Analysis
+- **Failed events**: All `*_failed.go` events use `EntityID` field in payload
+- **Success events**: Use proper business identifiers (`BookID`, `ReaderID`) 
+- **Impact**: Query filters can't match failed events, causing:
+  - Incorrect business logic decisions (failures not considered)
+  - Suboptimal query performance (missing predicate matches)
+  - Potential data consistency issues
+
+### Files to Fix
+1. **Failed Domain Events** (3 files):
+   - `example/shared/core/*_failed.go` events
+   - Change `EntityID` field to appropriate business identifier
+   - Match corresponding successful event predicate patterns
+
+2. **Command Handler Logic**:
+   - Verify decision logic considers failed events correctly
+   - Update any hardcoded field references
+
+3. **Filter Predicates**:
+   - Ensure failed events match same predicate filters as success events
+   - Validate query performance with corrected predicates
+
+### Expected Impact
+- Improved query performance through better predicate matching
+- Correct business logic including failure event consideration
+- Consistent domain event structure across success/failure cases
+
+---
+
 ## Implement Retry Logic for Command/Query Handlers
 - **Created**: 2025-08-06
 - **Priority**: Medium - Production resilience improvement
