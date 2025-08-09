@@ -1,6 +1,4 @@
 # Compiled binary
-example/demo/cmd/load-generator/*
-!example/demo/cmd/load-generator/*.go
 example/simulation/cmd/*
 !example/simulation/cmd/*.go
 
