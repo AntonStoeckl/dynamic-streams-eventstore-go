@@ -88,7 +88,6 @@ func (h QueryHandler) buildEventFilter() eventstore.Filter {
 		Matching().
 		AnyEventTypeOf(
 			core.BookCopyAddedToCirculationEventType,
-			core.BookCopyRemovedFromCirculationEventType,
 			core.BookCopyLentToReaderEventType,
 			core.BookCopyReturnedByReaderEventType,
 		).

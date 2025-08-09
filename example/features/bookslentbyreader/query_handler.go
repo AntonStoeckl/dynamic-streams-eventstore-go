@@ -91,7 +91,6 @@ func (h QueryHandler) buildEventFilter(readerID uuid.UUID) eventstore.Filter {
 		Matching().
 		AnyEventTypeOf(
 			core.BookCopyAddedToCirculationEventType,
-			core.BookCopyRemovedFromCirculationEventType,
 			core.BookCopyLentToReaderEventType,
 			core.BookCopyReturnedByReaderEventType,
 		).

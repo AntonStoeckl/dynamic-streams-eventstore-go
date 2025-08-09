@@ -8,10 +8,14 @@ import (
 
 // BookInfo represents information about a book currently lent to a reader.
 type BookInfo struct {
-	BookID    core.BookIDString
-	Title     string
-	Authors   string
-	LentAt    time.Time
+	BookID          core.BookIDString
+	Title           string
+	Authors         string
+	ISBN            string
+	Edition         string
+	Publisher       string
+	PublicationYear uint
+	LentAt          time.Time
 }
 
 // BooksCurrentlyLent represents the query result containing books currently lent to a reader.

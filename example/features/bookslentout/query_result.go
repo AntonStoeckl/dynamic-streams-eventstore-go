@@ -8,12 +8,15 @@ import (
 
 // LendingInfo represents information about a book currently lent to a reader.
 type LendingInfo struct {
-	BookID    core.BookIDString
-	ReaderID  core.ReaderIDString
-	Title     string
-	Authors   string
-	ISBN      string
-	LentAt    time.Time
+	BookID          core.BookIDString
+	ReaderID        core.ReaderIDString
+	Title           string
+	Authors         string
+	ISBN            string
+	Edition         string
+	Publisher       string
+	PublicationYear uint
+	LentAt          time.Time
 }
 
 // BooksLentOut represents the query result containing all books currently lent out to readers.

@@ -1,6 +1,9 @@
 package booksincirculation
 
 import (
+	"maps"
+	"slices"
+
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
 
@@ -19,17 +22,19 @@ import (
 func ProjectBooksInCirculation(history core.DomainEvents) BooksInCirculation {
 	// Track book circulation state and book information
 	books := make(map[string]BookInfo)
-	lentBooks := make(map[string]bool) // Track which books are currently lent
 
 	for _, event := range history {
 		switch e := event.(type) {
 		case core.BookCopyAddedToCirculation:
-			// Add book to circulation
+			// Add the book to circulation
 			books[e.BookID] = BookInfo{
 				BookID:          e.BookID,
 				Title:           e.Title,
 				Authors:         e.Authors,
 				ISBN:            e.ISBN,
+				Edition:         e.Edition,
+				Publisher:       e.Publisher,
+				PublicationYear: e.PublicationYear,
 				AddedAt:         e.OccurredAt,
 				IsCurrentlyLent: false, // Initially not lent
 			}
@@ -37,31 +42,28 @@ func ProjectBooksInCirculation(history core.DomainEvents) BooksInCirculation {
 		case core.BookCopyRemovedFromCirculation:
 			// Remove book from circulation
 			delete(books, e.BookID)
-			delete(lentBooks, e.BookID)
 
 		case core.BookCopyLentToReader:
-			// Mark book as lent if it's in circulation
+			// Mark the book as lent if it's in circulation
 			if bookInfo, exists := books[e.BookID]; exists {
 				bookInfo.IsCurrentlyLent = true
 				books[e.BookID] = bookInfo
-				lentBooks[e.BookID] = true
 			}
 
 		case core.BookCopyReturnedByReader:
-			// Mark book as not lent if it's in circulation
+			// Mark the book as not lent if it's in circulation
 			if bookInfo, exists := books[e.BookID]; exists {
 				bookInfo.IsCurrentlyLent = false
 				books[e.BookID] = bookInfo
-				delete(lentBooks, e.BookID)
 			}
 		}
 	}
 
-	// Convert map to slice for result
-	bookList := make([]BookInfo, 0, len(books))
-	for _, bookInfo := range books {
-		bookList = append(bookList, bookInfo)
-	}
+	// Convert map to slice and sort by AddedAt (oldest first)
+	bookList := slices.Collect(maps.Values(books))
+	slices.SortFunc(bookList, func(a, b BookInfo) int {
+		return a.AddedAt.Compare(b.AddedAt)
+	})
 
 	return BooksInCirculation{
 		Books: bookList,

@@ -1,6 +1,9 @@
 package bookslentbyreader
 
 import (
+	"maps"
+	"slices"
+
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
 
@@ -9,75 +12,67 @@ import (
 // and returns the projected state showing books currently lent to the specified reader.
 //
 // Query Logic:
-//   GIVEN: A reader with ReaderID
-//   WHEN: BooksLentByReader query is executed
-//   THEN: BooksCurrentlyLent struct is returned with current lending state
-//   INCLUDES: Book information (ID, title, authors, lent date)
-//   EXCLUDES: Books that have been returned or removed from circulation
+//
+//	GIVEN: A reader with ReaderID
+//	WHEN: BooksLentByReader query is executed
+//	THEN: BooksCurrentlyLent struct is returned with current lending state
+//	INCLUDES: Book information (ID, title, authors, isbn, lent date)
+//	EXCLUDES: Books that have been returned
 func ProjectBooksCurrentlyLent(history core.DomainEvents, query Query) BooksCurrentlyLent {
-	readerID := query.ReaderID.String()
-	
+	queriedReaderID := query.ReaderID.String()
+
 	// Track book lending state and book information
 	lentBooks := make(map[string]BookInfo)
-	bookDetails := make(map[string]struct {
-		title   string
-		authors string
-	})
+	bookInfos := make(map[string]BookInfo)
 
 	for _, event := range history {
 		switch e := event.(type) {
 		case core.BookCopyAddedToCirculation:
 			// Track book details for later use
-			bookDetails[e.BookID] = struct {
-				title   string
-				authors string
-			}{
-				title:   e.Title,
-				authors: e.Authors,
+			bookInfos[e.BookID] = BookInfo{
+				BookID:          e.BookID,
+				Title:           e.Title,
+				Authors:         e.Authors,
+				ISBN:            e.ISBN,
+				Edition:         e.Edition,
+				Publisher:       e.Publisher,
+				PublicationYear: e.PublicationYear,
 			}
 
 		case core.BookCopyLentToReader:
-			if e.ReaderID == readerID {
-				// Add book to lent books if we have details
-				if details, exists := bookDetails[e.BookID]; exists {
+			if e.ReaderID == queriedReaderID {
+				// Add the book to bookInfos if we have details - gracefully ignore if we don't have details
+				if details, exists := bookInfos[e.BookID]; exists {
 					lentBooks[e.BookID] = BookInfo{
-						BookID:  e.BookID,
-						Title:   details.title,
-						Authors: details.authors,
-						LentAt:  e.OccurredAt,
-					}
-				} else {
-					// Add with minimal information if details not available
-					lentBooks[e.BookID] = BookInfo{
-						BookID:  e.BookID,
-						Title:   "Unknown Title",
-						Authors: "Unknown Authors",
-						LentAt:  e.OccurredAt,
+						BookID:          e.BookID,
+						Title:           details.Title,
+						Authors:         details.Authors,
+						ISBN:            details.ISBN,
+						Edition:         details.Edition,
+						Publisher:       details.Publisher,
+						PublicationYear: details.PublicationYear,
+						LentAt:          e.OccurredAt,
 					}
 				}
 			}
 
 		case core.BookCopyReturnedByReader:
-			if e.ReaderID == readerID {
-				// Remove book from lent books
+			if e.ReaderID == queriedReaderID {
+				// Remove book from lent bookInfos
 				delete(lentBooks, e.BookID)
 			}
-
-		case core.BookCopyRemovedFromCirculation:
-			// If a book is removed from circulation, it's no longer lent
-			delete(lentBooks, e.BookID)
 		}
 	}
 
-	// Convert map to slice for result
-	books := make([]BookInfo, 0, len(lentBooks))
-	for _, bookInfo := range lentBooks {
-		books = append(books, bookInfo)
-	}
+	// Convert map to slice and sort by LentAt (oldest first)
+	books := slices.Collect(maps.Values(lentBooks))
+	slices.SortFunc(books, func(a, b BookInfo) int {
+		return a.LentAt.Compare(b.LentAt)
+	})
 
 	return BooksCurrentlyLent{
-		ReaderID: readerID,
+		ReaderID: queriedReaderID,
 		Books:    books,
-		Count:    len(books),
+		Count:    len(lentBooks),
 	}
 }

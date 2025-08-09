@@ -12,6 +12,9 @@ type BookInfo struct {
 	Title           string
 	Authors         string
 	ISBN            string
+	Edition         string
+	Publisher       string
+	PublicationYear uint
 	AddedAt         time.Time
 	IsCurrentlyLent bool
 }

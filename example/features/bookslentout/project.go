@@ -1,6 +1,9 @@
 package bookslentout
 
 import (
+	"maps"
+	"slices"
+
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
 
@@ -9,60 +12,45 @@ import (
 // and returns the projected state showing all books currently lent out with reader information.
 //
 // Query Logic:
-//   GIVEN: All events in the system
-//   WHEN: BooksLentOut query is executed
-//   THEN: BooksLentOut struct is returned with current lending state
-//   INCLUDES: All books currently lent to readers with lending details
-//   EXCLUDES: Books that have been returned or removed from circulation
-//   DETAILS: Includes reader ID, book details, and lending timestamp
+//
+//	GIVEN: All events in the system
+//	WHEN: BooksLentOut query is executed
+//	THEN: BooksLentOut struct is returned with current lending state
+//	INCLUDES: All books currently lent to readers with lending details
+//	EXCLUDES: Books that have been returned
+//	DETAILS: Includes reader ID, book details, and lending timestamp
 func ProjectBooksLentOut(history core.DomainEvents) BooksLentOut {
 	// Track book lending state and book details
 	lentBooks := make(map[string]LendingInfo) // BookID -> LendingInfo
-	bookDetails := make(map[string]struct {
-		title   string
-		authors string
-		isbn    string
-	})
+	lendingInfos := make(map[string]LendingInfo)
 
 	for _, event := range history {
 		switch e := event.(type) {
 		case core.BookCopyAddedToCirculation:
 			// Track book details for later use
-			bookDetails[e.BookID] = struct {
-				title   string
-				authors string
-				isbn    string
-			}{
-				title:   e.Title,
-				authors: e.Authors,
-				isbn:    e.ISBN,
+			lendingInfos[e.BookID] = LendingInfo{
+				BookID:          e.BookID,
+				Title:           e.Title,
+				Authors:         e.Authors,
+				ISBN:            e.ISBN,
+				Edition:         e.Edition,
+				Publisher:       e.Publisher,
+				PublicationYear: e.PublicationYear,
 			}
 
-		case core.BookCopyRemovedFromCirculation:
-			// If a book is removed from circulation, it's no longer lentable
-			delete(lentBooks, e.BookID)
-			delete(bookDetails, e.BookID)
-
 		case core.BookCopyLentToReader:
-			// Add book to lent books
-			if details, exists := bookDetails[e.BookID]; exists {
+			// Add the book to lent books
+			if details, exists := lendingInfos[e.BookID]; exists {
 				lentBooks[e.BookID] = LendingInfo{
-					BookID:   e.BookID,
-					ReaderID: e.ReaderID,
-					Title:    details.title,
-					Authors:  details.authors,
-					ISBN:     details.isbn,
-					LentAt:   e.OccurredAt,
-				}
-			} else {
-				// Add with minimal information if details not available
-				lentBooks[e.BookID] = LendingInfo{
-					BookID:   e.BookID,
-					ReaderID: e.ReaderID,
-					Title:    "Unknown Title",
-					Authors:  "Unknown Authors",
-					ISBN:     "Unknown ISBN",
-					LentAt:   e.OccurredAt,
+					BookID:          e.BookID,
+					ReaderID:        e.ReaderID,
+					Title:           details.Title,
+					Authors:         details.Authors,
+					ISBN:            details.ISBN,
+					Edition:         details.Edition,
+					Publisher:       details.Publisher,
+					PublicationYear: details.PublicationYear,
+					LentAt:          e.OccurredAt,
 				}
 			}
 
@@ -72,11 +60,11 @@ func ProjectBooksLentOut(history core.DomainEvents) BooksLentOut {
 		}
 	}
 
-	// Convert map to slice for result
-	lendings := make([]LendingInfo, 0, len(lentBooks))
-	for _, lendingInfo := range lentBooks {
-		lendings = append(lendings, lendingInfo)
-	}
+	// Convert map to slice and sort by LentAt (oldest first)
+	lendings := slices.Collect(maps.Values(lentBooks))
+	slices.SortFunc(lendings, func(a, b LendingInfo) int {
+		return a.LentAt.Compare(b.LentAt)
+	})
 
 	return BooksLentOut{
 		Lendings: lendings,
