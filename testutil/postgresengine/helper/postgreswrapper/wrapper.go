@@ -174,7 +174,7 @@ func CreateWrapperWithBenchmarkConfig(t testing.TB, options ...postgresengine.Op
 		return &SQLDBWrapper{db: db, es: es}
 
 	case typeSQLXDB:
-		db := config.PostgresSQLXBenchmarkPrimaryConfig()
+		db := config.PostgresSQLXPrimaryConfig()
 		es, err := postgresengine.NewEventStoreFromSQLX(db, options...)
 		assert.NoError(t, err, "error creating event store")
 

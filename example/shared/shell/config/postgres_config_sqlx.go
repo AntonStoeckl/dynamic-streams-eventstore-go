@@ -35,8 +35,8 @@ func PostgresSQLXSingleConfig() *sqlx.DB {
 	return db
 }
 
-// PostgresSQLXBenchmarkPrimaryConfig creates a configured *sqlx.DB for the primary node of a replicated database.
-func PostgresSQLXBenchmarkPrimaryConfig() *sqlx.DB {
+// PostgresSQLXPrimaryConfig creates a configured *sqlx.DB for the primary node of a replicated database.
+func PostgresSQLXPrimaryConfig() *sqlx.DB {
 	const defaultMaxOpenConnections = 200
 	const defaultMaxIdleConnections = 20
 	const defaultMaxConnLifetime = time.Hour
@@ -61,8 +61,8 @@ func PostgresSQLXBenchmarkPrimaryConfig() *sqlx.DB {
 	return db
 }
 
-// PostgresSQLXBenchmarkReplicaConfig creates a configured *sqlx.DB for the replica node of a replicated database.
-func PostgresSQLXBenchmarkReplicaConfig() *sqlx.DB {
+// PostgresSQLXReplicaConfig creates a configured *sqlx.DB for the replica node of a replicated database.
+func PostgresSQLXReplicaConfig() *sqlx.DB {
 	const defaultMaxOpenConnections = 200
 	const defaultMaxIdleConnections = 20
 	const defaultMaxConnLifetime = time.Hour

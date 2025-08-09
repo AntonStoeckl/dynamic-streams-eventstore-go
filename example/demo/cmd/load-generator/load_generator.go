@@ -254,7 +254,7 @@ func (lg *LoadGenerator) worker(ctx context.Context, workerID int) {
 			}
 
 			// Execute request with faster timeout (1 second vs 5 seconds)
-			err := lg.executeRequest(request)
+			err := lg.executeRequest(request) //nolint:contextcheck // the context is passed via request.ctx
 
 			// Send result back if channel is still open
 			select {
