@@ -1,14 +1,8 @@
 # Compiled binary
-testutil/postgresengine/cmd/generate/*
-!testutil/postgresengine/cmd/generate/*.go
-testutil/postgresengine/cmd/import/*
-!testutil/postgresengine/cmd/import/*.go
 example/demo/cmd/load-generator/*
 !example/demo/cmd/load-generator/*.go
-
-# Generated fixture files
-testutil/postgresengine/fixtures/*.*
-!/testutil/postgresengine/fixtures/.gitkeep
+example/simulation/cmd/*
+!example/simulation/cmd/*.go
 
 # IDE and Editor files
 .vscode/
