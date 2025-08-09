@@ -13,5 +13,25 @@ Evolution of Books and Readers:
 - Once in a while a Reader cancels their contract, the rate depends a bit on the total number of Readers
 - Readers borrow books, keep them for a while, and then return them
 - Lending and returning should happen roughly 1000 times more often than adding/removing books
-- Hm .. Readers will typically borrow 2-4 books at once (sometimes more)
+- Hm... Readers will typically borrow 2–4 books at once (sometimes more)
 - Readers will typically return all currently lent books at once, sometimes a few less (need time to finish reading)
+
+Additional ideas:
+
+- We could have something like actors: Library Managers and Readers
+- A Library Manager can add/remove books
+- A Reader can borrow/return books
+- New Readers can register
+- Readers can cancel their contracts
+- Let's only have one Library Manager
+- The Library Manager will add new Book Copies to Circulation
+- The Library Manager will remove Book Copies from Circulation (e.g., because they are damaged after many Lending/Returning)
+- Readers will most of the time just return borrowed books, but sometimes (~5%) first query: BooksLentByReader
+- Library Managers will sometimes query: BooksInCirculation to decide with books to add/remove
+- Library Managers will sometimes query: BooksLentOut
+
+The load generator, at startup, will have to do:
+
+- query BooksInCirculation to decide if the Library already has enough books and to build its state
+- query BooksLentOut to build its state
+- query RegisteredReaders to build its state → we will have to implement this query(handler) first!

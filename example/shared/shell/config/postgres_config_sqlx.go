@@ -9,14 +9,14 @@ import (
 	_ "github.com/lib/pq" // postgres driver
 )
 
-// PostgresSQLXTestConfig creates a configured *sqlx.DB for the test database.
-func PostgresSQLXTestConfig() *sqlx.DB {
+// PostgresSQLXSingleConfig creates a configured *sqlx.DB for a single database.
+func PostgresSQLXSingleConfig() *sqlx.DB {
 	const defaultMaxOpenConnections = 50
 	const defaultMaxIdleConnections = 10
 	const defaultMaxConnLifetime = time.Hour
 	const defaultMaxConnIdleTime = time.Minute * 5
 
-	db, err := sqlx.Open("postgres", PostgresTestDSN())
+	db, err := sqlx.Open("postgres", PostgresSingleDSN())
 	if err != nil {
 		log.Fatal("Failed to open database connection, error: ", err)
 	}
@@ -35,14 +35,40 @@ func PostgresSQLXTestConfig() *sqlx.DB {
 	return db
 }
 
-// PostgresSQLXBenchmarkConfig creates a configured *sqlx.DB for the benchmark database.
-func PostgresSQLXBenchmarkConfig() *sqlx.DB {
+// PostgresSQLXBenchmarkPrimaryConfig creates a configured *sqlx.DB for the primary node of a replicated database.
+func PostgresSQLXBenchmarkPrimaryConfig() *sqlx.DB {
 	const defaultMaxOpenConnections = 200
 	const defaultMaxIdleConnections = 20
 	const defaultMaxConnLifetime = time.Hour
 	const defaultMaxConnIdleTime = time.Minute * 5
 
-	db, err := sqlx.Open("postgres", PostgresBenchmarkDSN())
+	db, err := sqlx.Open("postgres", PostgresPrimaryDSN())
+	if err != nil {
+		log.Fatal("Failed to open database connection, error: ", err)
+	}
+
+	// Configure connection pool settings
+	db.SetMaxOpenConns(defaultMaxOpenConnections)
+	db.SetMaxIdleConns(defaultMaxIdleConnections)
+	db.SetConnMaxLifetime(defaultMaxConnLifetime)
+	db.SetConnMaxIdleTime(defaultMaxConnIdleTime)
+
+	// Test the connection
+	if pingErr := db.PingContext(context.Background()); pingErr != nil {
+		log.Fatal("Failed to ping database, error: ", pingErr)
+	}
+
+	return db
+}
+
+// PostgresSQLXBenchmarkReplicaConfig creates a configured *sqlx.DB for the replica node of a replicated database.
+func PostgresSQLXBenchmarkReplicaConfig() *sqlx.DB {
+	const defaultMaxOpenConnections = 200
+	const defaultMaxIdleConnections = 20
+	const defaultMaxConnLifetime = time.Hour
+	const defaultMaxConnIdleTime = time.Minute * 5
+
+	db, err := sqlx.Open("postgres", PostgresReplicaDSN())
 	if err != nil {
 		log.Fatal("Failed to open database connection, error: ", err)
 	}

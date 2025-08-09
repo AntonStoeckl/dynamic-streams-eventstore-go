@@ -35,7 +35,7 @@ func ImportCSVData() error {
 
 	// Connect using the benchmark config (port 5433)
 	fmt.Printf("🔗\tConnecting to database...")
-	connPool, err := pgxpool.NewWithConfig(ctx, config.PostgresPGXPoolBenchmarkConfig())
+	connPool, err := pgxpool.NewWithConfig(ctx, config.PostgresPGXPoolPrimaryConfig())
 	if err != nil {
 		return fmt.Errorf("failed to create connection pool: %w", err)
 	}

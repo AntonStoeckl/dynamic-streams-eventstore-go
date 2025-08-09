@@ -9,17 +9,30 @@ import (
 
 // SQLAdapter implements DBAdapter for sql.DB.
 type SQLAdapter struct {
-	db *sql.DB
+	db        *sql.DB
+	replicaDB *sql.DB // optional replica for read operations
 }
 
-// NewSQLAdapter creates a new SQL adapter.
+// NewSQLAdapter creates a new SQL adapter with a primary db connection.
 func NewSQLAdapter(db *sql.DB) *SQLAdapter {
 	return &SQLAdapter{db: db}
 }
 
-// Query executes a query using the sql.DB and returns wrapped rows.
+// NewSQLAdapterWithReplica creates a new SQL adapter with a primary
+// db connection and a replica db connection.
+func NewSQLAdapterWithReplica(db *sql.DB, replicaDB *sql.DB) *SQLAdapter {
+	return &SQLAdapter{db: db, replicaDB: replicaDB}
+}
+
+// Query executes a query using the replica database if available, otherwise the primary database.
 func (s *SQLAdapter) Query(ctx context.Context, query string) (DBRows, error) {
-	rows, err := s.db.QueryContext(ctx, query)
+	db := s.db // default to primary
+
+	if s.replicaDB != nil {
+		db = s.replicaDB // use replica for reads
+	}
+
+	rows, err := db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}

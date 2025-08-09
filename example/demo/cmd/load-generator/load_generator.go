@@ -29,8 +29,17 @@ type ObservabilityConfig struct {
 	TracingCollector eventstore.TracingCollector
 }
 
+// Request represents a single load generation request to be processed by workers.
+type Request struct {
+	ctx          context.Context
+	scenarioType string
+	bookID       uuid.UUID
+	readerID     uuid.UUID
+	resultChan   chan<- error
+}
+
 // LoadGenerator orchestrates realistic load generation against the EventStore
-// with configurable request rates and library management scenarios.
+// using a worker pool pattern to avoid goroutine explosion and connection pool starvation.
 type LoadGenerator struct {
 	eventStore *postgresengine.EventStore
 	config     Config
@@ -41,26 +50,36 @@ type LoadGenerator struct {
 	returnBookCopyHandler returnbookcopyfromreader.CommandHandler
 	removeBookCopyHandler removebookcopy.CommandHandler
 
-	// Rate limiting
-	ticker   *time.Ticker
-	stopChan chan struct{}
-	wg       sync.WaitGroup
+	// Worker pool architecture
+	requestQueue chan *Request
+	workerCount  int
+	stopChan     chan struct{}
+	wg           sync.WaitGroup
 
 	// Metrics and state
-	requestCount int64
-	errorCount   int64
-	startTime    time.Time
-	mu           sync.RWMutex
+	requestCount      int64
+	errorCount        int64
+	backpressureCount int64
+	startTime         time.Time
+	mu                sync.RWMutex
 
 	// Note: EventStore will still collect its own metrics when observability is enabled
 }
 
 // NewLoadGenerator creates a new LoadGenerator instance with the provided EventStore and configuration.
 func NewLoadGenerator(eventStore *postgresengine.EventStore, config Config, obsConfig ObservabilityConfig) *LoadGenerator {
+	// Calculate worker count based on connection pool capacity (avoid oversubscription)
+	workerCount := 50            // Aligned with typical connection pool size
+	queueSize := workerCount * 2 // Bounded queue to prevent memory leaks
+
 	return &LoadGenerator{
 		eventStore: eventStore,
 		config:     config,
 		stopChan:   make(chan struct{}),
+
+		// Worker pool configuration
+		requestQueue: make(chan *Request, queueSize),
+		workerCount:  workerCount,
 
 		// Initialize command handlers with observability
 		addBookCopyHandler:    mustCreateCommandHandler(addbookcopy.NewCommandHandler(eventStore, buildAddBookCopyOptions(obsConfig)...)),
@@ -142,27 +161,35 @@ func buildRemoveBookCopyOptions(obsConfig ObservabilityConfig) []removebookcopy.
 	return options
 }
 
-// Start begins load generation with the configured request rate.
+// Start begins load generation with the configured request rate using worker pool architecture.
 // It runs until the context is cancelled or Stop() is called.
 func (lg *LoadGenerator) Start(ctx context.Context) error {
 	lg.mu.Lock()
 	lg.startTime = time.Now()
 	lg.requestCount = 0
 	lg.errorCount = 0
+	lg.backpressureCount = 0
 	lg.mu.Unlock()
 
 	// Calculate an interval between requests based on the target rate
 	interval := time.Second / time.Duration(lg.config.Rate)
-	lg.ticker = time.NewTicker(interval)
-	defer lg.ticker.Stop()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
 
-	log.Printf("Load generator starting with %d requests/second (interval: %v), initial goroutines: %d", lg.config.Rate, interval, runtime.NumGoroutine())
+	log.Printf("Load generator starting with %d requests/second (interval: %v), %d workers, initial goroutines: %d",
+		lg.config.Rate, interval, lg.workerCount, runtime.NumGoroutine())
+
+	// Start fixed number of worker goroutines
+	for i := 0; i < lg.workerCount; i++ {
+		lg.wg.Add(1)
+		go lg.worker(ctx, i)
+	}
 
 	// Start metrics reporting goroutine
 	lg.wg.Add(1)
 	go lg.metricsReporter(ctx)
 
-	// Main load generation loop
+	// Rate-limited request generation loop (no goroutine explosion)
 	for {
 		select {
 		case <-ctx.Done():
@@ -173,9 +200,19 @@ func (lg *LoadGenerator) Start(ctx context.Context) error {
 			log.Printf("Load generator stopping due to stop signal")
 			return nil
 
-		case <-lg.ticker.C:
-			lg.wg.Add(1)
-			go lg.executeScenario(ctx)
+		case <-ticker.C:
+			// Generate request instead of spawning goroutine
+			request := lg.generateRequest(ctx)
+
+			// Non-blocking request submission (backpressure handling)
+			select {
+			case lg.requestQueue <- request:
+				// Request queued successfully
+			default:
+				// Queue full - record backpressure and fail fast
+				lg.recordBackpressure()
+				close(request.resultChan) // Signal failure
+			}
 		}
 	}
 }
@@ -183,6 +220,7 @@ func (lg *LoadGenerator) Start(ctx context.Context) error {
 // Stop gracefully shuts down the load generator.
 func (lg *LoadGenerator) Stop(ctx context.Context) error {
 	close(lg.stopChan)
+	close(lg.requestQueue) // Signal workers to stop
 
 	// Wait for all goroutines to finish with timeout
 	done := make(chan struct{})
@@ -201,33 +239,120 @@ func (lg *LoadGenerator) Stop(ctx context.Context) error {
 	}
 }
 
-// executeScenario runs a single load generation scenario based on configured weights.
-func (lg *LoadGenerator) executeScenario(ctx context.Context) {
+// worker processes requests from the queue with bounded concurrency.
+func (lg *LoadGenerator) worker(ctx context.Context, workerID int) {
 	defer lg.wg.Done()
 
-	// Select a scenario based on weights (circulation: 4%, lending: 94%, errors: 2%)
+	log.Printf("Worker %d starting", workerID)
+
+	for {
+		select {
+		case request, ok := <-lg.requestQueue:
+			if !ok {
+				log.Printf("Worker %d stopping - queue closed", workerID)
+				return
+			}
+
+			// Execute request with faster timeout (1 second vs 5 seconds)
+			err := lg.executeRequest(request)
+
+			// Send result back if channel is still open
+			select {
+			case request.resultChan <- err:
+			case <-ctx.Done():
+				return
+			}
+
+			// Update counters
+			lg.mu.Lock()
+			lg.requestCount++
+			if err != nil {
+				lg.errorCount++
+				log.Printf("Worker %d scenario error (%s): %v", workerID, request.scenarioType, err)
+			}
+			lg.mu.Unlock()
+
+		case <-ctx.Done():
+			log.Printf("Worker %d stopping due to context cancellation", workerID)
+			return
+		}
+	}
+}
+
+// generateRequest creates a request structure for the worker pool.
+func (lg *LoadGenerator) generateRequest(ctx context.Context) *Request {
 	scenarioType := lg.selectScenario()
+	bookID := lg.generateRandomBookID()
+	readerID := lg.generateRandomReaderID()
 
-	var err error
-	switch scenarioType {
+	return &Request{
+		ctx:          ctx,
+		scenarioType: scenarioType,
+		bookID:       bookID,
+		readerID:     readerID,
+		resultChan:   make(chan error, 1),
+	}
+}
+
+// executeRequest executes a single request based on scenario type.
+func (lg *LoadGenerator) executeRequest(request *Request) error {
+	// Create timeout context for this operation (reduced from 5s to 1s)
+	opCtx, cancel := context.WithTimeout(request.ctx, 1*time.Second)
+	defer cancel()
+
+	switch request.scenarioType {
 	case "circulation":
-		err = lg.runCirculationScenario(ctx)
+		return lg.runCirculationScenarioWithRequest(opCtx, request)
 	case "lending":
-		err = lg.runLendingScenario(ctx)
+		return lg.runLendingScenarioWithRequest(opCtx, request)
 	default:
-		err = fmt.Errorf("unknown scenario type: %s", scenarioType)
+		return fmt.Errorf("unknown scenario type: %s", request.scenarioType)
 	}
+}
 
-	// Note: EventStore operations are automatically instrumented when observability is enabled
-
-	// Update internal counters
+// recordBackpressure records backpressure events when queue is full.
+func (lg *LoadGenerator) recordBackpressure() {
 	lg.mu.Lock()
-	lg.requestCount++
-	if err != nil {
-		lg.errorCount++
-		log.Printf("Scenario error (%s): %v", scenarioType, err)
-	}
+	lg.backpressureCount++
 	lg.mu.Unlock()
+}
+
+// runCirculationScenarioWithRequest executes book circulation operations using the request data.
+func (lg *LoadGenerator) runCirculationScenarioWithRequest(ctx context.Context, request *Request) error {
+	// Randomly choose between add and remove operations
+	if rand.Intn(2) == 0 { //nolint:gosec // Test code - weak random is acceptable
+		// Add a book to circulation
+		command := addbookcopy.BuildCommand(
+			request.bookID,
+			"978-0000000000", // placeholder ISBN
+			"Load Test Book",
+			"Test Author",
+			"1st Edition",
+			"Test Publisher",
+			2024,
+			time.Now(),
+		)
+
+		return lg.addBookCopyHandler.Handle(ctx, command)
+	}
+
+	// Remove a book from circulation
+	command := removebookcopy.BuildCommand(request.bookID, time.Now())
+	return lg.removeBookCopyHandler.Handle(ctx, command)
+}
+
+// runLendingScenarioWithRequest executes book lending operations using the request data.
+func (lg *LoadGenerator) runLendingScenarioWithRequest(ctx context.Context, request *Request) error {
+	// Randomly choose between lend and return operations
+	if rand.Intn(2) == 0 { //nolint:gosec // Test code - weak random is acceptable
+		// Lend a book to a reader
+		command := lendbookcopytoreader.BuildCommand(request.bookID, request.readerID, time.Now())
+		return lg.lendBookCopyHandler.Handle(ctx, command)
+	}
+
+	// Return a book from a reader
+	command := returnbookcopyfromreader.BuildCommand(request.bookID, request.readerID, time.Now())
+	return lg.returnBookCopyHandler.Handle(ctx, command)
 }
 
 // selectScenario chooses a scenario type based on configured weights.
@@ -242,57 +367,6 @@ func (lg *LoadGenerator) selectScenario() string {
 	}
 
 	return "lending"
-}
-
-// runCirculationScenario executes book circulation management operations using proper command handlers.
-func (lg *LoadGenerator) runCirculationScenario(ctx context.Context) error {
-	// Create timeout context for this operation (like benchmark tests)
-	opCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	bookID := lg.generateRandomBookID()
-
-	// Randomly choose between add and remove operations
-	if rand.Intn(2) == 0 { //nolint:gosec // Test code - weak random is acceptable
-		// to Add a book to circulation
-		command := addbookcopy.BuildCommand(
-			bookID,
-			"978-0000000000", // placeholder ISBN
-			"Load Test Book",
-			"Test Author",
-			"1st Edition",
-			"Test Publisher",
-			2024,
-			time.Now(),
-		)
-
-		return lg.addBookCopyHandler.Handle(opCtx, command)
-	}
-
-	// Remove a book from circulation
-	command := removebookcopy.BuildCommand(bookID, time.Now())
-	return lg.removeBookCopyHandler.Handle(opCtx, command)
-}
-
-// runLendingScenario executes book lending and return operations using proper command handlers.
-func (lg *LoadGenerator) runLendingScenario(ctx context.Context) error {
-	// Create timeout context for this operation (like benchmark tests)
-	opCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	bookID := lg.generateRandomBookID()
-	readerID := lg.generateRandomReaderID()
-
-	// Randomly choose between lend and return operations
-	if rand.Intn(2) == 0 { //nolint:gosec // Test code - weak random is acceptable
-		// to Lend a book to a reader
-		command := lendbookcopytoreader.BuildCommand(bookID, readerID, time.Now())
-
-		return lg.lendBookCopyHandler.Handle(opCtx, command)
-	}
-	// Return a book from a reader
-	command := returnbookcopyfromreader.BuildCommand(bookID, readerID, time.Now())
-	return lg.returnBookCopyHandler.Handle(opCtx, command)
 }
 
 // generateRandomBookID creates a random book ID for testing.
@@ -333,15 +407,18 @@ func (lg *LoadGenerator) logCurrentStats() {
 	duration := time.Since(lg.startTime)
 	requests := lg.requestCount
 	errors := lg.errorCount
+	backpressure := lg.backpressureCount
 	lg.mu.RUnlock()
 
 	goroutineCount := runtime.NumGoroutine()
+	queueLength := len(lg.requestQueue)
 
 	if duration > 0 {
 		rps := float64(requests) / duration.Seconds()
 		errorRate := float64(errors) / float64(requests) * 100
-		log.Printf("Stats: %d requests in %v (%.1f req/s), %d errors (%.1f%%), %d goroutines",
-			requests, duration.Truncate(time.Second), rps, errors, errorRate, goroutineCount)
+		backpressureRate := float64(backpressure) / float64(requests+backpressure) * 100
+		log.Printf("Stats: %d requests in %v (%.1f req/s), %d errors (%.1f%%), %d backpressure (%.1f%%), queue: %d, %d goroutines",
+			requests, duration.Truncate(time.Second), rps, errors, errorRate, backpressure, backpressureRate, queueLength, goroutineCount)
 	}
 }
 
@@ -351,15 +428,18 @@ func (lg *LoadGenerator) logFinalStats() {
 	duration := time.Since(lg.startTime)
 	requests := lg.requestCount
 	errors := lg.errorCount
+	backpressure := lg.backpressureCount
 	lg.mu.RUnlock()
 
 	goroutineCount := runtime.NumGoroutine()
+	queueLength := len(lg.requestQueue)
 
 	if duration > 0 {
 		rps := float64(requests) / duration.Seconds()
 		errorRate := float64(errors) / float64(requests) * 100
-		log.Printf("Final Stats: %d requests in %v (%.1f req/s), %d errors (%.1f%%), %d goroutines",
-			requests, duration.Truncate(time.Second), rps, errors, errorRate, goroutineCount)
+		backpressureRate := float64(backpressure) / float64(requests+backpressure) * 100
+		log.Printf("Final Stats: %d requests in %v (%.1f req/s), %d errors (%.1f%%), %d backpressure (%.1f%%), queue: %d, %d goroutines",
+			requests, duration.Truncate(time.Second), rps, errors, errorRate, backpressure, backpressureRate, queueLength, goroutineCount)
 	}
 }
 

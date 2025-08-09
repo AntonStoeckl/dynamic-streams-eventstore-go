@@ -140,7 +140,7 @@ func Test_FactoryFunctions_FactoryFunctions_ShouldFail_WithEmptyTableName(t *tes
 		{
 			name: "NewEventStoreFromPGXPool with empty table name",
 			factoryFunc: func(_ *testing.T) (*postgresengine.EventStore, error) {
-				connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolTestConfig())
+				connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolSingleConfig())
 				assert.NoError(t, err, "error connecting to DB pool in test setup")
 				defer connPool.Close()
 
@@ -150,7 +150,7 @@ func Test_FactoryFunctions_FactoryFunctions_ShouldFail_WithEmptyTableName(t *tes
 		{
 			name: "NewEventStoreFromSQLDB with empty table name",
 			factoryFunc: func(_ *testing.T) (*postgresengine.EventStore, error) {
-				db := config.PostgresSQLDBTestConfig()
+				db := config.PostgresSQLDBSingleConfig()
 				defer func() { _ = db.Close() }()
 
 				return postgresengine.NewEventStoreFromSQLDB(db, postgresengine.WithTableName(""))
@@ -159,7 +159,7 @@ func Test_FactoryFunctions_FactoryFunctions_ShouldFail_WithEmptyTableName(t *tes
 		{
 			name: "NewEventStoreFromSQLX with empty table name",
 			factoryFunc: func(_ *testing.T) (*postgresengine.EventStore, error) {
-				db := config.PostgresSQLXTestConfig()
+				db := config.PostgresSQLXSingleConfig()
 				defer func() { _ = db.Close() }()
 
 				return postgresengine.NewEventStoreFromSQLX(db, postgresengine.WithTableName(""))

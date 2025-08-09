@@ -7,8 +7,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// PostgresPGXPoolTestConfig creates a pgxpool.Config for the test database.
-func PostgresPGXPoolTestConfig() *pgxpool.Config {
+// PostgresPGXPoolSingleConfig creates a pgxpool.Config for a single database.
+func PostgresPGXPoolSingleConfig() *pgxpool.Config {
 	const defaultMaxConnections = int32(50)
 	const defaultMinConnections = int32(10)
 	const defaultMaxConnLifetime = time.Hour
@@ -16,7 +16,7 @@ func PostgresPGXPoolTestConfig() *pgxpool.Config {
 	const defaultHealthCheckPeriod = time.Minute
 	const defaultConnectTimeout = time.Second * 5
 
-	dbConfig, err := pgxpool.ParseConfig(PostgresTestDSN())
+	dbConfig, err := pgxpool.ParseConfig(PostgresSingleDSN())
 	if err != nil {
 		log.Fatal("Failed to create a config, error: ", err)
 	}
@@ -31,8 +31,8 @@ func PostgresPGXPoolTestConfig() *pgxpool.Config {
 	return dbConfig
 }
 
-// PostgresPGXPoolBenchmarkConfig creates a pgxpool.Config for the benchmark database.
-func PostgresPGXPoolBenchmarkConfig() *pgxpool.Config {
+// PostgresPGXPoolPrimaryConfig creates a pgxpool.Config for the primary node of a replicated database.
+func PostgresPGXPoolPrimaryConfig() *pgxpool.Config {
 	const defaultMaxConnections = int32(200)
 	const defaultMinConnections = int32(20)
 	const defaultMaxConnLifetime = time.Hour
@@ -40,7 +40,31 @@ func PostgresPGXPoolBenchmarkConfig() *pgxpool.Config {
 	const defaultHealthCheckPeriod = time.Minute
 	const defaultConnectTimeout = time.Second * 5
 
-	dbConfig, err := pgxpool.ParseConfig(PostgresBenchmarkDSN())
+	dbConfig, err := pgxpool.ParseConfig(PostgresPrimaryDSN())
+	if err != nil {
+		log.Fatal("Failed to create a config, error: ", err)
+	}
+
+	dbConfig.MaxConns = defaultMaxConnections
+	dbConfig.MinConns = defaultMinConnections
+	dbConfig.MaxConnLifetime = defaultMaxConnLifetime
+	dbConfig.MaxConnIdleTime = defaultMaxConnIdleTime
+	dbConfig.HealthCheckPeriod = defaultHealthCheckPeriod
+	dbConfig.ConnConfig.ConnectTimeout = defaultConnectTimeout
+
+	return dbConfig
+}
+
+// PostgresPGXPoolReplicaConfig creates a pgxpool.Config for the replica node of a replicated database.
+func PostgresPGXPoolReplicaConfig() *pgxpool.Config {
+	const defaultMaxConnections = int32(200)
+	const defaultMinConnections = int32(20)
+	const defaultMaxConnLifetime = time.Hour
+	const defaultMaxConnIdleTime = time.Minute * 5
+	const defaultHealthCheckPeriod = time.Minute
+	const defaultConnectTimeout = time.Second * 5
+
+	dbConfig, err := pgxpool.ParseConfig(PostgresReplicaDSN())
 	if err != nil {
 		log.Fatal("Failed to create a config, error: ", err)
 	}

@@ -64,7 +64,7 @@ type queryResultRow struct {
 	maxSequenceNumber eventstore.MaxSequenceNumberUint
 }
 
-// NewEventStoreFromPGXPool creates a new EventStore using a pgx Pool with optional configuration.
+// NewEventStoreFromPGXPool creates a new EventStore using a pgx.Pool with optional configuration.
 func NewEventStoreFromPGXPool(db *pgxpool.Pool, options ...Option) (*EventStore, error) {
 	if db == nil {
 		return nil, eventstore.ErrNilDatabaseConnection
@@ -72,6 +72,27 @@ func NewEventStoreFromPGXPool(db *pgxpool.Pool, options ...Option) (*EventStore,
 
 	es := &EventStore{
 		db:             adapters.NewPGXAdapter(db),
+		eventTableName: defaultEventTableName,
+	}
+
+	for _, option := range options {
+		if err := option(es); err != nil {
+			return nil, err
+		}
+	}
+
+	return es, nil
+}
+
+// NewEventStoreFromPGXPoolAndReplica creates a new EventStore using a primary pgx.Pool
+// and a replica pgx.Pool with optional configuration.
+func NewEventStoreFromPGXPoolAndReplica(db *pgxpool.Pool, replica *pgxpool.Pool, options ...Option) (*EventStore, error) {
+	if db == nil {
+		return nil, eventstore.ErrNilDatabaseConnection
+	}
+
+	es := &EventStore{
+		db:             adapters.NewPGXAdapterWithReplica(db, replica),
 		eventTableName: defaultEventTableName,
 	}
 
@@ -104,6 +125,27 @@ func NewEventStoreFromSQLDB(db *sql.DB, options ...Option) (*EventStore, error) 
 	return es, nil
 }
 
+// NewEventStoreFromSQLDBAndReplica creates a new EventStore using a primary sql.DB
+// and a replica sql.DB with optional configuration.
+func NewEventStoreFromSQLDBAndReplica(db *sql.DB, replica *sql.DB, options ...Option) (*EventStore, error) {
+	if db == nil {
+		return nil, eventstore.ErrNilDatabaseConnection
+	}
+
+	es := &EventStore{
+		db:             adapters.NewSQLAdapterWithReplica(db, replica),
+		eventTableName: defaultEventTableName,
+	}
+
+	for _, option := range options {
+		if err := option(es); err != nil {
+			return nil, err
+		}
+	}
+
+	return es, nil
+}
+
 // NewEventStoreFromSQLX creates a new EventStore using a sqlx.DB with optional configuration.
 func NewEventStoreFromSQLX(db *sqlx.DB, options ...Option) (*EventStore, error) {
 	if db == nil {
@@ -112,6 +154,27 @@ func NewEventStoreFromSQLX(db *sqlx.DB, options ...Option) (*EventStore, error) 
 
 	es := &EventStore{
 		db:             adapters.NewSQLXAdapter(db),
+		eventTableName: defaultEventTableName,
+	}
+
+	for _, option := range options {
+		if err := option(es); err != nil {
+			return nil, err
+		}
+	}
+
+	return es, nil
+}
+
+// NewEventStoreFromSQLXAndReplica creates a new EventStore using a primary sqlx.DB
+// and a replica sqlx.DB with optional configuration.
+func NewEventStoreFromSQLXAndReplica(db *sqlx.DB, replica *sqlx.DB, options ...Option) (*EventStore, error) {
+	if db == nil {
+		return nil, eventstore.ErrNilDatabaseConnection
+	}
+
+	es := &EventStore{
+		db:             adapters.NewSQLXAdapterWithReplica(db, replica),
 		eventTableName: defaultEventTableName,
 	}
 

@@ -39,7 +39,7 @@ services:
         reservations:
           memory: 1024M
 
-  # Benchmark Master Database - Write Optimized for Replication (7GB allocation)
+  # Benchmark Master Database - Write Optimized for Replication (4GB allocation)
   postgres_benchmark_master:
     image: postgres:17.5-alpine
     container_name: postgres_benchmark_master
@@ -71,11 +71,11 @@ services:
     deploy:
       resources:
         limits:
-          memory: 7168M
+          memory: 4096M
         reservations:
-          memory: 3584M
+          memory: 2048M
 
-  # Benchmark Replica - Query Optimized (3GB allocation)
+  # Benchmark Replica - Query Optimized (6GB allocation)
   postgres_benchmark_replica:
     image: postgres:17.5-alpine
     container_name: postgres_benchmark_replica
@@ -111,6 +111,6 @@ services:
     deploy:
       resources:
         limits:
-          memory: 3072M
+          memory: 6144M
         reservations:
-          memory: 1536M
+          memory: 3072M

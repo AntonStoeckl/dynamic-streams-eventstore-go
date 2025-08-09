@@ -10,20 +10,33 @@ import (
 
 // PGXAdapter implements DBAdapter for pgxpool.Pool.
 type PGXAdapter struct {
-	pool *pgxpool.Pool
+	pool        *pgxpool.Pool
+	replicaPool *pgxpool.Pool // optional replica for read operations
 }
 
-// NewPGXAdapter creates a new PGX adapter.
+// NewPGXAdapter creates a new PGX adapter with a primary pool.
 func NewPGXAdapter(pool *pgxpool.Pool) *PGXAdapter {
 	return &PGXAdapter{pool: pool}
 }
 
-// Query executes a query using the pgx pool and returns wrapped rows.
+// NewPGXAdapterWithReplica creates a new PGX adapter with a primary pool and a replica pool.
+func NewPGXAdapterWithReplica(pool *pgxpool.Pool, replica *pgxpool.Pool) *PGXAdapter {
+	return &PGXAdapter{pool: pool, replicaPool: replica}
+}
+
+// Query executes a query using the replica pool if available, otherwise the primary pool.
 func (p *PGXAdapter) Query(ctx context.Context, query string) (DBRows, error) {
-	rows, err := p.pool.Query(ctx, query)
+	pool := p.pool // default to primary
+
+	if p.replicaPool != nil {
+		pool = p.replicaPool // use replica for reads
+	}
+
+	rows, err := pool.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
+
 	return &pgxRows{rows: rows}, nil
 }
 
@@ -33,6 +46,7 @@ func (p *PGXAdapter) Exec(ctx context.Context, query string) (DBResult, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return &pgxResult{tag: tag}, nil
 }
 

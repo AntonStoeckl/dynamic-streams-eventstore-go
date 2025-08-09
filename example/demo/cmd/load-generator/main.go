@@ -44,18 +44,32 @@ func main() { //nolint:funlen // Main function requires setup and configuration 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// Initialize database connection using benchmark config (port 5433)
-	pgxPool, err := pgxpool.NewWithConfig(ctx, config.PostgresPGXPoolBenchmarkConfig())
-	if err != nil {
-		cancel()                                         // Clean up context before exiting
-		log.Fatalf("Failed to create pgx pool: %v", err) //nolint:gocritic // Manual cleanup before fatal exit
+	// Initialize database connection using primary node config (port 5433)
+	pgxPoolPrimary, primaryErr := pgxpool.NewWithConfig(ctx, config.PostgresPGXPoolPrimaryConfig())
+	if primaryErr != nil {
+		cancel()                                                            // Clean up context before exiting
+		log.Fatalf("Failed to create pgx pool for primary: %v", primaryErr) //nolint:gocritic
 	}
-	defer pgxPool.Close()
+	defer pgxPoolPrimary.Close()
 
 	// Test database connection
-	if err := pgxPool.Ping(ctx); err != nil {
-		cancel()                                             // Clean up context before exiting
-		log.Fatalf("Failed to connect to database: %v", err) //nolint:gocritic // Manual cleanup before fatal exit
+	if pingPrimaryErr := pgxPoolPrimary.Ping(ctx); pingPrimaryErr != nil {
+		cancel()                                                                // Clean up context before exiting
+		log.Fatalf("Failed to connect to primary database: %v", pingPrimaryErr) //nolint:gocritic
+	}
+
+	// Initialize database connection using replica node config (port 5433)
+	pgxPoolReplica, replicaErr := pgxpool.NewWithConfig(ctx, config.PostgresPGXPoolReplicaConfig())
+	if replicaErr != nil {
+		cancel()                                                            // Clean up context before exiting
+		log.Fatalf("Failed to create pgx pool for replica: %v", replicaErr) //nolint:gocritic
+	}
+	defer pgxPoolReplica.Close()
+
+	// Test database connection
+	if pingReplicaErr := pgxPoolReplica.Ping(ctx); pingReplicaErr != nil {
+		cancel()                                                                // Clean up context before exiting
+		log.Fatalf("Failed to connect to replica database: %v", pingReplicaErr) //nolint:gocritic
 	}
 
 	// Initialize observability (if enabled)
@@ -81,9 +95,9 @@ func main() { //nolint:funlen // Main function requires setup and configuration 
 	}
 
 	// Initialize EventStore
-	eventStore, err := postgresengine.NewEventStoreFromPGXPool(pgxPool, eventStoreOptions...)
-	if err != nil {
-		log.Fatalf("Failed to create EventStore: %v", err)
+	eventStore, primaryErr := postgresengine.NewEventStoreFromPGXPoolAndReplica(pgxPoolPrimary, pgxPoolReplica, eventStoreOptions...)
+	if primaryErr != nil {
+		log.Fatalf("Failed to create EventStore: %v", primaryErr)
 	}
 
 	// Get observability config for command handlers

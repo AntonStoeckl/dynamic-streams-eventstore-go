@@ -1,11 +1,16 @@
 package config
 
-// PostgresTestDSN returns the DSN for the test database.
-func PostgresTestDSN() string {
+// PostgresSingleDSN returns the DSN for the test database.
+func PostgresSingleDSN() string {
 	return "postgres://test:test@localhost:5432/eventstore?sslmode=disable"
 }
 
-// PostgresBenchmarkDSN returns the DSN for the benchmark database.
-func PostgresBenchmarkDSN() string {
+// PostgresPrimaryDSN returns the DSN for the primary benchmark database.
+func PostgresPrimaryDSN() string {
 	return "postgres://test:test@localhost:5433/eventstore?sslmode=disable"
+}
+
+// PostgresReplicaDSN returns the DSN for the replica benchmark database.
+func PostgresReplicaDSN() string {
+	return "postgres://test:test@localhost:5434/eventstore?sslmode=disable"
 }

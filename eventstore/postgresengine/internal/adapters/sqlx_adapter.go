@@ -11,17 +11,30 @@ import (
 
 // SQLXAdapter implements DBAdapter for sqlx.DB.
 type SQLXAdapter struct {
-	db *sqlx.DB
+	db        *sqlx.DB
+	replicaDB *sqlx.DB // optional replica for read operations
 }
 
-// NewSQLXAdapter creates a new SQLX adapter.
+// NewSQLXAdapter creates a new SQLX adapter with a primary db connection.
 func NewSQLXAdapter(db *sqlx.DB) *SQLXAdapter {
 	return &SQLXAdapter{db: db}
 }
 
-// Query executes a query using the sqlx.DB and returns wrapped rows.
+// NewSQLXAdapterWithReplica creates a new SQLX adapter with a primary
+// db connection and a replica db connection.
+func NewSQLXAdapterWithReplica(db *sqlx.DB, replicaDB *sqlx.DB) *SQLXAdapter {
+	return &SQLXAdapter{db: db, replicaDB: replicaDB}
+}
+
+// Query executes a query using the replica database if available, otherwise the primary database.
 func (s *SQLXAdapter) Query(ctx context.Context, query string) (DBRows, error) {
-	rows, err := s.db.QueryContext(ctx, query)
+	db := s.db // default to primary
+
+	if s.replicaDB != nil {
+		db = s.replicaDB // use replica for reads
+	}
+
+	rows, err := db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
 	}
