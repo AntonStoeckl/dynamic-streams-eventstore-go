@@ -1,0 +1,28 @@
+## Scale Simulation to Realistic München Branch Numbers
+- **Started**: 2025-08-09
+- **Priority**: High - Fix unrealistic book/reader ratios causing artificial lending conflicts
+- **Objective**: Update simulation to match realistic München Stadtbibliothek branch scale
+
+### Problem Analysis
+- **Current Scale**: ~960 books, ~9,000 users (0.1 books per user) → Artificial scarcity
+- **Realistic Scale**: Based on München Stadtbibliothek research
+- **München Data**: 1.5M items across 24 branches = ~62,500 items per branch
+- **Active Borrowers**: ~14,000 per branch (calculated from population ratios)
+
+### Implementation Status: COMPLETE ✅
+- ✅ **Config Updated**: Changed default values in config.go
+  - MinBooks: 950 → 60,000
+  - MaxBooks: 1,000 → 65,000  
+  - MinReaders: 9,000 → 14,000
+  - MaxReaders: 10,000 → 15,000
+- ✅ **Build Verification**: Code compiles successfully
+- ✅ **Realistic Ratio**: 4.5 books per active borrower (eliminates artificial conflicts)
+
+### Expected Results
+- **No more unrealistic lending conflicts** (99.9% utilization → realistic availability)
+- **Proper library dynamics** with occasional competition for popular titles
+- **München branch scale**: Representative of real public library operations
+
+### Future Enhancement Noted
+- Multi-book borrowing patterns (borrow multiple, return in batches)
+- Realistic 2-week lending periods (postponed for simplicity)

@@ -1,0 +1,30 @@
+## Grafana Dashboard File Provisioning Complete Solution
+- **Completed**: 2025-08-05
+- **Description**: Successfully resolved all Grafana dashboard file provisioning issues and achieved 100% persistent dashboards across Docker restarts
+- **Problem Solved**: Grafana dashboards were not persisting across Docker restarts and panels were not displaying EventStore metrics
+- **Root Cause**: File provisioning requires different JSON format than API creation (raw dashboard JSON vs wrapped structure)
+- **Resolution Achieved**:
+  - ✅ **100% Persistent Grafana Dashboards**: Survives all Docker operations (down/up/restart/rebuild)
+  - ✅ **File-Based Dashboard Management**: Version-controlled dashboard configuration
+  - ✅ **All 12 Panels Displaying Live Metrics**: Real-time EventStore performance monitoring
+  - ✅ **Root Folder Location**: Dashboard properly located without unwanted subfolders
+  - ✅ **Load Generator Performance**: Running at target 300 req/sec with observability enabled
+  - ✅ **PostgreSQL Performance**: Confirmed optimal performance with GIN index usage
+- **Technical Solution**:
+  - **Correct JSON Format**: Converted from API wrapper format to raw dashboard JSON with required uid/version fields
+  - **File Provisioning Setup**: Configured proper Grafana provisioning with empty folder string for root location
+  - **Persistent Storage**: Added grafana-storage volume for data retention across Docker operations
+  - **Metrics Pipeline**: EventStore → OTEL Collector → Prometheus → Grafana integration working correctly
+- **Key Components Delivered**:
+  - `testutil/observability/grafana/dashboards/eventstore-dashboard.json` (persistent dashboard - fully functional)
+  - `testutil/postgresengine/postgresql-performance.conf` (performance tuning configuration)
+  - `testutil/postgresengine/restart-postgres-benchmark.sh` (restart script for performance settings)
+  - `example/demo/cmd/load-generator/` (simplified load generator with clean observability integration)
+- **Dashboard Access**: http://localhost:3000/d/eventstore-main-dashboard/eventstore-dashboard
+- **Benefits Achieved**:
+  - **Production-Ready Monitoring**: Persistent, version-controlled EventStore performance dashboards
+  - **Complete Observability Visibility**: Real-time monitoring of operations, success rates, performance metrics
+  - **Reliable Load Testing**: Consistent performance testing with accurate metrics collection
+  - **Maintenance Simplicity**: File-based configuration eliminates manual dashboard recreation
+
+---

@@ -1,0 +1,32 @@
+## Implement Cancelled Operations Tracking System
+- **Completed**: 2025-08-06
+- **Description**: Implemented comprehensive context cancellation tracking across all levels of the EventStore operations and Command/Query handlers with complete Grafana dashboard integration
+- **Problem Solved**: Missing observability gap preventing distinction between real errors and context cancellations in production monitoring
+- **Technical Achievement**:
+  - **EventStore Level Cancellation Detection**: Added `errors.Is(err, context.Canceled)` detection in EventStore operations with dedicated cancellation metrics
+  - **Handler Level Cancellation Tracking**: Implemented `StatusCancelled` support in all 6 command handlers and 3 query handlers
+  - **Comprehensive Metrics Coverage**: Added `eventstore_query_canceled_total`, `eventstore_append_canceled_total`, and `commandhandler_canceled_operations_total` metrics
+  - **Grafana Dashboard Integration**: Added 2 new cancellation tracking panels to complete the observability story
+- **Implementation Completed**:
+  - ✅ **Context Cancellation Detection**: Added `isCancellationError()` helper and detection in `eventstore/postgresengine/postgres.go`
+  - ✅ **Observability Infrastructure**: Added canceled metrics constants, observer methods, and recording in `observability.go`
+  - ✅ **Handler Support**: Added `StatusCanceled` constant and `IsCancellationError()` helper in `command_handler_observability.go`
+  - ✅ **Command Handler Updates**: Updated all 6 command handlers with cancellation detection and `recordCommandCanceled()` methods
+  - ✅ **Query Handler Updates**: Updated all 3 query handlers with cancellation detection and `recordQueryCanceled()` methods  
+  - ✅ **Dashboard Panels**: Added "Canceled EventStore Operations/sec" and "Canceled Command/Query Operations/sec" panels
+- **Files Modified**:
+  - `eventstore/postgresengine/postgres.go` - Context cancellation detection in Query/Append operations
+  - `eventstore/postgresengine/observability.go` - Cancellation metrics infrastructure with observer pattern support
+  - `example/shared/shell/command_handler_observability.go` - StatusCanceled constant and helper functions
+  - 6 command handler files - Cancellation detection and dedicated cancellation recording
+  - 3 query handler files - Cancellation detection and dedicated cancellation recording
+  - `testutil/observability/grafana/dashboards/eventstore-dashboard.json` - 2 new cancellation tracking panels (14 total panels)
+  - `testutil/observability/grafana/dashboards/README.md` - Updated documentation with cancellation tracking explanation
+- **Production Benefits**:
+  - **Operational Visibility**: Distinguish context timeouts from real errors in monitoring dashboards
+  - **Performance Insights**: Cancellation rates indicate system stress, client timeout issues, or capacity limits
+  - **Debug Capabilities**: Identify applications with aggressive timeout settings or infrastructure-level cancellations
+  - **Complete Status Classification**: Success/Error/Cancelled/Idempotent operation tracking for comprehensive observability
+- **Backward Compatibility**: All changes maintain existing error handling patterns while adding cancellation detection
+
+---

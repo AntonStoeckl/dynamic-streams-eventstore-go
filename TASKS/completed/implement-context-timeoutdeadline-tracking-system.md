@@ -1,0 +1,37 @@
+## Implement Context Timeout/Deadline Tracking System
+- **Completed**: 2025-08-06
+- **Description**: Implemented comprehensive context timeout tracking system to complement existing cancellation tracking by detecting `context.DeadlineExceeded` errors separately from `context.Canceled`
+- **Problem Solved**: Load generator showing "context deadline exceeded" errors required separate instrumentation from cancellation tracking to distinguish user cancellations vs system timeouts
+- **Technical Achievement**:
+  - **EventStore Level Timeout Detection**: Added `errors.Is(err, context.DeadlineExceeded)` detection with `isTimeoutError()` helper function parallel to cancellation detection
+  - **Handler Level Timeout Tracking**: Implemented `StatusTimeout` support in all 6 command handlers and 3 query handlers with dedicated timeout recording methods
+  - **Comprehensive Metrics Coverage**: Added `eventstore_query_timeout_total`, `eventstore_append_timeout_total`, and `commandhandler_timeout_operations_total` metrics
+  - **Grafana Dashboard Integration**: Added 2 new timeout tracking panels (15-16) completing 16-panel comprehensive observability dashboard
+- **Implementation Completed**:
+  - ✅ **Context Timeout Detection**: Added `isTimeoutError()` helper and detection in `eventstore/postgresengine/postgres.go`
+  - ✅ **Observability Infrastructure**: Added timeout metrics constants, observer methods, and recording in `observability.go` 
+  - ✅ **Handler Support**: Added `StatusTimeout` constant and `IsTimeoutError()` helper in `command_handler_observability.go`
+  - ✅ **Command Handler Updates**: Updated all 6 command handlers with timeout detection and `recordCommandTimeout()` methods
+  - ✅ **Query Handler Updates**: Updated all 3 query handlers with timeout detection and `recordQueryTimeout()` methods
+  - ✅ **Dashboard Panels**: Added "Timeout EventStore Operations/sec" and "Timeout Command/Query Operations/sec" panels (15-16)
+  - ✅ **Documentation Updates**: Enhanced README.md with context error distinction explanation and complete 16-panel coverage
+- **Files Modified**:
+  - `eventstore/postgresengine/postgres.go` - Context timeout detection in Query/Append operations
+  - `eventstore/postgresengine/observability.go` - Timeout metrics infrastructure with observer pattern support
+  - `example/shared/shell/command_handler_observability.go` - StatusTimeout constant and helper functions
+  - 6 command handler files - Timeout detection and dedicated timeout recording methods
+  - 3 query handler files - Timeout detection and dedicated timeout recording methods
+  - `testutil/observability/grafana/dashboards/eventstore-dashboard.json` - 2 new timeout tracking panels (16 total panels)
+  - `testutil/observability/grafana/dashboards/README.md` - Complete documentation with context error distinction
+- **Production Benefits**:
+  - **Complete Context Error Classification**: Success/Error/Canceled/Timeout/Idempotent operation tracking for comprehensive observability
+  - **Separate Timeout Monitoring**: Distinguish `context.DeadlineExceeded` (system timeouts) from `context.Canceled` (user cancellations)
+  - **Load Testing Insights**: Timeout tracking enables performance analysis under high load conditions
+  - **Production Debugging**: Separate metrics help identify system performance issues vs client behavior problems
+- **Context Error Types Tracked**:
+  - **Context.Canceled**: User cancellations, system shutdown, network issues, client actions
+  - **Context.DeadlineExceeded**: Context timeouts, database timeouts, load balancer timeouts, performance bottlenecks
+- **Backward Compatibility**: All changes maintain existing error handling patterns while adding timeout detection
+- **Documentation Updated**: README.md updated with context error detection features and comprehensive observability capabilities
+
+---

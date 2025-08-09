@@ -1,0 +1,38 @@
+## Read/Write Database Splitting Implementation
+- **Completed**: 2025-08-07
+- **Description**: Successfully implemented read/write database splitting across all database adapters to enable query routing to read replicas while maintaining write operations on primary database
+- **Problem Solved**: EventStore lacked ability to scale read operations independently from write operations, limiting performance under high query loads
+- **Technical Achievement**:
+  - **Multi-Adapter Support**: Implemented replica functionality in all three adapters (pgx.Pool, sql.DB, sqlx.DB) with consistent patterns
+  - **Query Routing Logic**: SELECT queries automatically route to replica when available, INSERT/UPDATE operations always use primary database
+  - **Clean Constructor Pattern**: Added `NewEventStoreFromPGXPoolAndReplica()`, `NewEventStoreFromSQLDBAndReplica()`, `NewEventStoreFromSQLXAndReplica()` constructors
+  - **Adapter-Level Implementation**: Each adapter handles routing internally, maintaining clean separation of concerns
+  - **Production Deployment**: Implementation already in use with load generator for real-world testing
+- **Implementation Completed**:
+  - ✅ **PGX Adapter**: Added `replicaPool *pgxpool.Pool` field and Query() routing logic in `eventstore/postgresengine/internal/adapters/pgx_adapter.go`
+  - ✅ **SQL Adapter**: Added `replicaDB *sql.DB` field and Query() routing logic in `eventstore/postgresengine/internal/adapters/sql_adapter.go`
+  - ✅ **SQLX Adapter**: Added `replicaDB *sqlx.DB` field and Query() routing logic in `eventstore/postgresengine/internal/adapters/sqlx_adapter.go`
+  - ✅ **EventStore Constructors**: Added replica constructors in `eventstore/postgresengine/postgres.go` with functional options support
+  - ✅ **Benchmark Test Fix**: Fixed NULL scan error in `testutil/postgresengine/helper/postgreswrapper/wrapper.go` using COALESCE
+  - ✅ **Production Usage**: Load generator successfully using read/write splitting with `NewEventStoreFromPGXPoolAndReplica()`
+- **Files Modified**:
+  - `eventstore/postgresengine/internal/adapters/pgx_adapter.go` - Added replica pool field and Query() routing logic
+  - `eventstore/postgresengine/internal/adapters/sql_adapter.go` - Added replica DB field and Query() routing logic  
+  - `eventstore/postgresengine/internal/adapters/sqlx_adapter.go` - Added replica DB field and Query() routing logic
+  - `eventstore/postgresengine/postgres.go` - Added `NewEventStoreFromPGXPoolAndReplica()`, `NewEventStoreFromSQLDBAndReplica()`, `NewEventStoreFromSQLXAndReplica()` constructors
+  - `testutil/postgresengine/helper/postgreswrapper/wrapper.go` - Fixed NULL scan error with COALESCE for empty events table
+- **Important Architectural Considerations**:
+  - **Replica Lag Impact**: Read replica has inherent replication lag which could affect Query() operations timing
+  - **Potential Concurrency Conflicts**: Splitting Query()/Append() routing may increase concurrency conflicts due to stale reads from lagged replica
+  - **Business Decision Risk**: Stale reads from replica might theoretically impact command handling business decisions (low probability but requires monitoring)  
+  - **Retry Strategy**: Increased concurrency conflicts might be acceptable with proper retry logic implementation (see ready-to-implement tasks)
+  - **Production Monitoring**: Requires careful monitoring of replication lag, conflict rates, and business logic correctness
+- **Production Benefits**:
+  - **Read Scaling**: Query operations can scale independently from write operations using dedicated replica
+  - **Load Distribution**: Separates read and write workloads across different database instances
+  - **Performance Isolation**: Heavy query workloads don't impact write performance on primary database
+  - **Future Foundation**: Architecture ready for multiple read replicas and advanced scaling patterns
+- **Architecture**: EventStore automatically routes Query() to replica (port 5434) and Append() to primary (port 5433) when replica is available
+- **Load Generator**: Successfully implemented and tested with realistic workloads, though throughput improvements not yet observed
+
+---
