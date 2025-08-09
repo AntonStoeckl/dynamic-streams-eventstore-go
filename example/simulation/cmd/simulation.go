@@ -515,6 +515,16 @@ func (ls *LibrarySimulation) executeRequest(request *Request) error {
 
 	scenario := request.scenario
 
+	// For return operations, try to reserve the book first
+	if scenario.Type == ScenarioReturnBook {
+		if !ls.state.ReserveReturn(scenario.BookID) {
+			// Book is already being returned by another worker
+			// This is not an error, just skip this operation
+			return nil
+		}
+		// Reservation successful - it will be released in updateCountersAndState
+	}
+
 	switch scenario.Type {
 	case ScenarioAddBook:
 		return ls.executeAddBook(opCtx, scenario.BookID)
@@ -537,6 +547,12 @@ func (ls *LibrarySimulation) executeRequest(request *Request) error {
 
 // updateCountersAndState updates metrics and simulation state after request execution.
 func (ls *LibrarySimulation) updateCountersAndState(workerID int, scenario Scenario, err error) {
+	// Always release return reservation if this was a return scenario
+	// This must happen regardless of success/failure to prevent deadlocks
+	if scenario.Type == ScenarioReturnBook {
+		ls.state.ReleaseReturn(scenario.BookID)
+	}
+
 	ls.mu.Lock()
 	ls.requestCount++
 	if err != nil {

@@ -20,6 +20,10 @@ type SimulationState struct {
 	// lending tracks current book-to-reader lending relationships (BookID -> ReaderID)
 	lending map[string]string
 
+	// pendingReturns tracks book returns that are currently in-flight (BookID -> true)
+	// This prevents multiple workers from trying to return the same book simultaneously
+	pendingReturns map[string]bool
+
 	// Stats for monitoring
 	totalBooks        int
 	totalReaders      int
@@ -30,9 +34,10 @@ type SimulationState struct {
 // NewSimulationState creates a new empty simulation state.
 func NewSimulationState() *SimulationState {
 	return &SimulationState{
-		books:   make(map[string]bool),
-		readers: make(map[string]bool),
-		lending: make(map[string]string),
+		books:          make(map[string]bool),
+		readers:        make(map[string]bool),
+		lending:        make(map[string]string),
+		pendingReturns: make(map[string]bool),
 	}
 }
 
@@ -261,4 +266,63 @@ func (s *SimulationState) IsBookLent(bookID uuid.UUID) bool {
 
 	_, isLent := s.lending[bookID.String()]
 	return isLent
+}
+
+// ReserveReturn attempts to reserve a book for return operation.
+// Returns true if the reservation was successful (book not already being returned).
+func (s *SimulationState) ReserveReturn(bookID uuid.UUID) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	bookIDStr := bookID.String()
+
+	// Check if already pending
+	if s.pendingReturns[bookIDStr] {
+		return false // Another worker is already returning this book
+	}
+
+	// Check if book is actually lent
+	if _, isLent := s.lending[bookIDStr]; !isLent {
+		return false // Book is not currently lent
+	}
+
+	// Reserve it
+	s.pendingReturns[bookIDStr] = true
+	return true
+}
+
+// ReleaseReturn releases the reservation on a book return operation.
+// Should be called after the return operation completes (success or failure).
+func (s *SimulationState) ReleaseReturn(bookID uuid.UUID) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	delete(s.pendingReturns, bookID.String())
+}
+
+// IsReturnPending checks if a book return is currently in-flight.
+func (s *SimulationState) IsReturnPending(bookID uuid.UUID) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return s.pendingReturns[bookID.String()]
+}
+
+// GetAvailableBooksForReturn returns books that are lent but not currently being returned.
+// This is used by the scenario selector to avoid selecting books with pending returns.
+func (s *SimulationState) GetAvailableBooksForReturn(readerID uuid.UUID) []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	readerIDStr := readerID.String()
+	var availableForReturn []string
+
+	for bookID, lentToReader := range s.lending {
+		// Check if this book is lent to this specific reader AND not currently being returned
+		if lentToReader == readerIDStr && !s.pendingReturns[bookID] {
+			availableForReturn = append(availableForReturn, bookID)
+		}
+	}
+
+	return availableForReturn
 }

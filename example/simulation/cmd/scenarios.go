@@ -346,24 +346,38 @@ func (s *ScenarioSelector) createReturnBookScenario() Scenario {
 		return s.createLendBookScenario()
 	}
 
-	// Step 2: Select a reader who can realistically return a book
-	readerID := uuid.MustParse(readersWithBooks[rand.Intn(len(readersWithBooks))]) //nolint:gosec // Simulation code - weak random is acceptable
-
-	// Step 3: Get books that THIS specific reader has borrowed
-	readerBooks := s.state.GetBooksLentByReader(readerID)
-	if len(readerBooks) == 0 {
-		// Race condition - reader returned books between steps, create lending instead
-		return s.createLendBookScenario()
+	// Step 2: Try multiple readers to find one with available books to return
+	// (books not already being returned by another worker)
+	maxAttempts := len(readersWithBooks)
+	if maxAttempts > 10 {
+		maxAttempts = 10 // Limit attempts to avoid excessive searching
 	}
 
-	// Step 4: Select one of their books to return
-	bookID := uuid.MustParse(readerBooks[rand.Intn(len(readerBooks))]) //nolint:gosec // Simulation code - weak random is acceptable
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		// Select a random reader who has books
+		readerID := uuid.MustParse(readersWithBooks[rand.Intn(len(readersWithBooks))]) //nolint:gosec // Simulation code - weak random is acceptable
 
-	return Scenario{
-		Type:     ScenarioReturnBook,
-		BookID:   bookID,
-		ReaderID: readerID, // Now guaranteed to be the correct reader who borrowed this book
+		// Step 3: Get books that THIS specific reader has borrowed AND are not being returned
+		availableBooks := s.state.GetAvailableBooksForReturn(readerID)
+		if len(availableBooks) == 0 {
+			// This reader's books are all being returned or were just returned, try another reader
+			continue
+		}
+
+		// Step 4: Select one of their available books to return
+		bookID := uuid.MustParse(availableBooks[rand.Intn(len(availableBooks))]) //nolint:gosec // Simulation code - weak random is acceptable
+
+		// Successfully found an available book - return this scenario
+		// Note: Reservation happens in executeRequest to be closer to actual execution
+		return Scenario{
+			Type:     ScenarioReturnBook,
+			BookID:   bookID,
+			ReaderID: readerID, // Guaranteed to be the correct reader who borrowed this book
+		}
 	}
+
+	// All attempts failed - all books are being returned, create lending instead
+	return s.createLendBookScenario()
 }
 
 // createQueryBooksScenario creates a scenario to query books lent by a reader.
