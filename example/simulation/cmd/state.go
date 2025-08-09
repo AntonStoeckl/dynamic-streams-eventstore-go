@@ -204,6 +204,40 @@ func (s *SimulationState) GetRegisteredReaders() []string {
 	return registered
 }
 
+// GetReadersWithLentBooks returns a slice of reader IDs who currently have borrowed books.
+func (s *SimulationState) GetReadersWithLentBooks() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	readersWithBooks := make(map[string]bool)
+	for _, readerID := range s.lending {
+		readersWithBooks[readerID] = true
+	}
+
+	var readers []string
+	for readerID := range readersWithBooks {
+		readers = append(readers, readerID)
+	}
+
+	return readers
+}
+
+// GetBooksLentByReader returns a slice of book IDs that are currently lent to a specific reader.
+func (s *SimulationState) GetBooksLentByReader(readerID uuid.UUID) []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	readerIDStr := readerID.String()
+	var books []string
+	for bookID, lentToReader := range s.lending {
+		if lentToReader == readerIDStr {
+			books = append(books, bookID)
+		}
+	}
+
+	return books
+}
+
 // IsBookInCirculation checks if a book is currently in circulation.
 func (s *SimulationState) IsBookInCirculation(bookID uuid.UUID) bool {
 	s.mu.RLock()

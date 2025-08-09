@@ -335,21 +335,34 @@ func (s *ScenarioSelector) createLendBookScenario() Scenario {
 	}
 }
 
-// createReturnBookScenario creates a scenario to return a book from a reader.
+// createReturnBookScenario creates a scenario to return a book from a reader using actor-aware logic.
+// This ensures that only readers who actually have borrowed books can return them, eliminating
+// unrealistic concurrency conflicts where multiple workers try to return the same book.
 func (s *ScenarioSelector) createReturnBookScenario() Scenario {
-	lentBooks := s.state.GetLentBooks()
-	if len(lentBooks) == 0 {
-		// No books to return, create lending instead
+	// Step 1: Find readers who have books to return (actor-aware approach)
+	readersWithBooks := s.state.GetReadersWithLentBooks()
+	if len(readersWithBooks) == 0 {
+		// No readers have books to return, create lending instead
 		return s.createLendBookScenario()
 	}
 
-	bookID := uuid.MustParse(lentBooks[rand.Intn(len(lentBooks))]) //nolint:gosec // Simulation code - weak random is acceptable
-	readerID := s.getReaderForBook(bookID)
+	// Step 2: Select a reader who can realistically return a book
+	readerID := uuid.MustParse(readersWithBooks[rand.Intn(len(readersWithBooks))]) //nolint:gosec // Simulation code - weak random is acceptable
+
+	// Step 3: Get books that THIS specific reader has borrowed
+	readerBooks := s.state.GetBooksLentByReader(readerID)
+	if len(readerBooks) == 0 {
+		// Race condition - reader returned books between steps, create lending instead
+		return s.createLendBookScenario()
+	}
+
+	// Step 4: Select one of their books to return
+	bookID := uuid.MustParse(readerBooks[rand.Intn(len(readerBooks))]) //nolint:gosec // Simulation code - weak random is acceptable
 
 	return Scenario{
 		Type:     ScenarioReturnBook,
 		BookID:   bookID,
-		ReaderID: readerID,
+		ReaderID: readerID, // Now guaranteed to be the correct reader who borrowed this book
 	}
 }
 

@@ -191,8 +191,10 @@ func (ls *LibrarySimulation) Start(ctx context.Context) error {
 
 // Stop gracefully shuts down the simulation.
 func (ls *LibrarySimulation) Stop(ctx context.Context) error {
-	close(ls.stopChan)
-	close(ls.requestQueue) // Signal workers to stop
+	close(ls.stopChan) // Signal main simulation loop to stop
+
+	// Main simulation loop will handle closing requestQueue and waiting for workers
+	// We just wait for everything to finish with a timeout
 
 	// Wait for all goroutines to finish with timeout
 	done := make(chan struct{})
@@ -418,11 +420,15 @@ func (ls *LibrarySimulation) runMainSimulation(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("Main simulation stopping due to context cancellation")
+			log.Printf("Main simulation stopping due to context cancellation - initiating graceful shutdown")
+			close(ls.requestQueue) // Signal workers to stop accepting new requests
+			ls.wg.Wait()           // Wait for all workers to finish current requests
 			return ctx.Err()
 
 		case <-ls.stopChan:
-			log.Printf("Main simulation stopping due to stop signal")
+			log.Printf("Main simulation stopping due to stop signal - initiating graceful shutdown")
+			close(ls.requestQueue) // Signal workers to stop accepting new requests
+			ls.wg.Wait()           // Wait for all workers to finish current requests
 			return nil
 
 		case <-ticker.C:
@@ -479,11 +485,16 @@ func (ls *LibrarySimulation) worker(ctx context.Context, workerID int) {
 			// Execute request with faster timeout (1 second)
 			err := ls.executeRequest(request)
 
-			// Send result back if channel is still open
+			// Send result back safely - protect against closed channels and context cancellation
 			select {
 			case request.resultChan <- err:
+				// Successfully sent result
 			case <-ctx.Done():
+				// Context cancelled during result sending
 				return
+			default:
+				// Channel closed or blocked - don't panic, just log
+				log.Printf("Worker %d: could not send result for %s (channel closed/blocked)", workerID, request.scenario.Type)
 			}
 
 			// Update counters and state
