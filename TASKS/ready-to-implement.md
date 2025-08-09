@@ -2,37 +2,95 @@
 
 This file tracks larger plans that are ready for implementation in the Dynamic Event Streams EventStore project.
 
-## Fix Domain Event Predicate Inconsistency in Failed Events
-- **Created**: 2025-08-09
-- **Priority**: CRITICAL - Performance and correctness issue
-- **Objective**: Fix `*_failed.go` domain events to use correct predicate fields (`BookID`/`ReaderID`) instead of generic `EntityID`
+## Build Realistic Load Generator with Proper Failure Rates
+- **Created**: 2025-08-09  
+- **Priority**: HIGH - Critical for realistic performance testing and benchmarking
+- **Objective**: Create a production-grade load generator that produces realistic business failure rates (~0.5-2%) instead of the current 95% artificial failure rate
 
-### Problem Analysis
-- **Failed events**: All `*_failed.go` events use `EntityID` field in payload
-- **Success events**: Use proper business identifiers (`BookID`, `ReaderID`) 
-- **Impact**: Query filters can't match failed events, causing:
-  - Incorrect business logic decisions (failures not considered)
-  - Suboptimal query performance (missing predicate matches)
-  - Potential data consistency issues
+### Current Problem Analysis  
+- **Current Failure Rate**: 95% of events were failure events due to incorrect domain event predicate structure (now fixed)
+- **Performance Impact**: Load generator was processing mostly failure scenarios, creating unrealistic performance testing conditions
+- **Business Logic Impact**: Command handlers were making decisions based on artificially high failure rates
+- **Testing Limitation**: Couldn't properly validate EventStore performance under realistic business scenarios
 
-### Files to Fix
-1. **Failed Domain Events** (3 files):
-   - `example/shared/core/*_failed.go` events
-   - Change `EntityID` field to appropriate business identifier
-   - Match corresponding successful event predicate patterns
+### Implementation Plan for Next Session
 
-2. **Command Handler Logic**:
-   - Verify decision logic considers failed events correctly
-   - Update any hardcoded field references
+#### 1. **Realistic Business Scenarios Design**
+- **Library Workflow Analysis**: Study actual library management patterns
+  - Morning rush: Book returns, new registrations
+  - Midday: Book lending, circulation additions  
+  - Evening: Peak lending hours, reader activity
+- **Failure Rate Targets**: 
+  - Business rule violations: ~0.5% (circulation not available, reader limits exceeded)
+  - Concurrency conflicts: ~0.1% (multiple users accessing same resources)
+  - System errors: ~0.2% (temporary database issues, timeouts)
+- **Success Rate Target**: 98-99% successful operations for realistic load testing
 
-3. **Filter Predicates**:
-   - Ensure failed events match same predicate filters as success events
-   - Validate query performance with corrected predicates
+#### 2. **State-Aware Scenario Selection**
+- **Query Current State**: Use the 3 enhanced query handlers to understand system state
+  - `BooksInCirculation`: Find available books for realistic lending scenarios  
+  - `BooksLentOut`: Identify books available for return scenarios
+  - `BooksLentByReader`: Track reader-specific lending patterns
+- **Intelligent Selection**: Choose scenarios based on actual system state to minimize artificial idempotency
+- **Business Logic Alignment**: Ensure scenarios align with actual business constraints
 
-### Expected Impact
-- Improved query performance through better predicate matching
-- Correct business logic including failure event consideration
-- Consistent domain event structure across success/failure cases
+#### 3. **Temporal Realism and Workflow Patterns** 
+- **Sequential User Journeys**: Implement realistic multi-step scenarios
+  - Reader registration → Book lending → Book return → New lending
+  - Book circulation → Lending → Return → Removal patterns
+- **Time-Based Distribution**: Simulate realistic usage patterns throughout the day
+- **Weighted Scenario Selection**: Replace current unrealistic weights with production-like distributions
+
+#### 4. **Advanced Load Generation Features**
+- **Concurrent User Simulation**: Multiple readers with realistic behavior patterns
+- **Geographic Distribution**: Simulate different library branches with varying load patterns  
+- **Seasonal Patterns**: Different scenarios for academic periods, summer reading, etc.
+- **Error Injection**: Controlled introduction of realistic failure scenarios
+
+#### 5. **Observability and Monitoring Integration**
+- **Business Metrics**: Track realistic library domain metrics (books/reader, circulation rates, peak hours)
+- **Performance Validation**: Use corrected predicate structure for accurate EventStore performance measurement
+- **Failure Analysis**: Monitor and report on the ~0.5-2% realistic failure rates vs previous 95%
+- **Load Testing Accuracy**: Validate EventStore performance under realistic business loads
+
+### Files/Packages to Create or Enhance
+
+#### Core Load Generator Files:
+- `example/demo/cmd/realistic-load-generator/main.go` - New realistic load generator binary
+- `example/demo/cmd/realistic-load-generator/business_scenarios.go` - State-aware scenario definitions  
+- `example/demo/cmd/realistic-load-generator/temporal_patterns.go` - Time-based usage simulation
+- `example/demo/cmd/realistic-load-generator/user_simulation.go` - Multi-user concurrent behavior
+
+#### State Management:
+- `example/demo/cmd/realistic-load-generator/library_state.go` - Query-based state tracking
+- `example/demo/cmd/realistic-load-generator/scenario_selector.go` - Intelligent scenario selection logic
+
+#### Configuration:
+- `example/demo/cmd/realistic-load-generator/config.go` - Realistic failure rates, temporal patterns, user counts
+- `realistic-load-generator.yaml` - Configuration file for different testing scenarios
+
+### Technical Requirements
+- **Failure Rate Configuration**: Environment variables for controlling realistic failure percentages  
+- **State Query Integration**: Leverage all 3 query handlers for state-aware decision making
+- **Proper Event Predicate Usage**: Use corrected `BookID`/`ReaderID` predicates from recent fixes
+- **Performance Measurement**: Accurate benchmarking with realistic business scenario distributions
+- **Concurrent Safety**: Thread-safe state management and scenario selection
+- **Graceful Scaling**: Support for different load levels (100 req/s to 1000+ req/s)
+
+### Success Criteria
+- **Realistic Failure Rates**: Achieve ~0.5-2% failure rate instead of previous 95%
+- **Performance Accuracy**: EventStore performance testing under realistic business loads
+- **State-Aware Operations**: Scenarios chosen based on actual system state, reducing artificial idempotency  
+- **Business Realism**: Load patterns that reflect actual library management usage
+- **Observability Integration**: Rich metrics for both business logic and EventStore performance
+- **Configuration Flexibility**: Easy adjustment of failure rates, scenario weights, and temporal patterns
+
+### Expected Benefits
+- **Accurate Performance Testing**: EventStore benchmarking under realistic conditions
+- **Production Simulation**: Load patterns similar to actual library management systems
+- **Debugging Capability**: Identify performance bottlenecks under realistic business scenarios
+- **Scalability Validation**: Test EventStore scaling with proper business logic distribution
+- **Future Foundation**: Extensible architecture for additional business domains and scenarios
 
 ---
 
