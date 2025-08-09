@@ -1,4 +1,4 @@
-package readercontractcanceled
+package cancelreadercontract
 
 import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"

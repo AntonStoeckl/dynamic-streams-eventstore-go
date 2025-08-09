@@ -9,4 +9,4 @@
 //
 // In a real application there should be a unit test for this business logic, unless coarse-grained
 // feature tests are preferred. Complex business logic typically benefits from dedicated pure unit tests.
-package readercontractcanceled
+package cancelreadercontract

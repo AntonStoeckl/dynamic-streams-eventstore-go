@@ -1,4 +1,4 @@
-package readercontractcanceled
+package cancelreadercontract
 
 import (
 	"time"
