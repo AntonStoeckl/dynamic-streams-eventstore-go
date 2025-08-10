@@ -1,4 +1,4 @@
-// Package readercontractcanceled implements the Reader Contract Canceled use case.
+// Package cancelreadercontract implements the Reader Contract Canceled use case.
 //
 // This feature allows canceling a reader's contract in the library system.
 // It follows the Command-Query-Decide-Append pattern with proper separation between

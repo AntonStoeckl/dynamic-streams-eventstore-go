@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -17,43 +18,23 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"
 )
 
+//nolint:funlen
 func main() {
 	cfg := parseFlags()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
 
 	// Setup signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// Initialize database connection using primary node config (port 5433)
-	pgxPoolPrimary, primaryErr := pgxpool.NewWithConfig(ctx, config.PostgresPGXPoolPrimaryConfig())
-	if primaryErr != nil {
-		cancel()
-		log.Fatalf("Failed to create pgx pool for primary: %v", primaryErr)
-	}
-	defer pgxPoolPrimary.Close()
-
-	// Test database connection
-	if pingPrimaryErr := pgxPoolPrimary.Ping(ctx); pingPrimaryErr != nil {
-		cancel()
-		log.Fatalf("Failed to connect to primary database: %v", pingPrimaryErr)
+	// Get database adapter type from environment variable (default: pgx)
+	adapterType := strings.ToLower(os.Getenv("DB_ADAPTER"))
+	if adapterType == "" {
+		adapterType = "pgx"
 	}
 
-	// Initialize database connection using replica node config (port 5434)
-	pgxPoolReplica, replicaErr := pgxpool.NewWithConfig(ctx, config.PostgresPGXPoolReplicaConfig())
-	if replicaErr != nil {
-		cancel()
-		log.Fatalf("Failed to create pgx pool for replica: %v", replicaErr)
-	}
-	defer pgxPoolReplica.Close()
-
-	// Test database connection
-	if pingReplicaErr := pgxPoolReplica.Ping(ctx); pingReplicaErr != nil {
-		cancel()
-		log.Fatalf("Failed to connect to replica database: %v", pingReplicaErr)
-	}
+	log.Printf("🔧 USING DATABASE ADAPTER: %s", strings.ToUpper(adapterType))
 
 	// Initialize observability (if enabled)
 	var eventStoreOptions []postgresengine.Option
@@ -77,9 +58,24 @@ func main() {
 			obsConfig.Logger != nil || obsConfig.ContextualLogger != nil)
 	}
 
-	// Initialize EventStore
-	eventStore, err := postgresengine.NewEventStoreFromPGXPoolAndReplica(pgxPoolPrimary, pgxPoolReplica, eventStoreOptions...)
+	// Initialize EventStore based on the adapter type
+	var eventStore *postgresengine.EventStore
+	var err error
+
+	switch adapterType {
+	case "pgx":
+		eventStore, err = initializePGXEventStore(ctx, eventStoreOptions...)
+	case "sql", "sql.db":
+		eventStore, err = initializeSQLDBEventStore(eventStoreOptions...)
+	case "sqlx":
+		eventStore, err = initializeSQLXEventStore(eventStoreOptions...)
+	default:
+		cancel()
+		log.Fatalf("Unknown database adapter: %s (supported: pgx, sql, sqlx)", adapterType)
+	}
+
 	if err != nil {
+		cancel()
 		log.Fatalf("Failed to create EventStore: %v", err)
 	}
 
@@ -89,6 +85,7 @@ func main() {
 	// Initialize library simulation
 	simulation, err := NewLibrarySimulation(eventStore, cfg, obsConfig)
 	if err != nil {
+		cancel()
 		log.Fatalf("Failed to create LibrarySimulation: %v", err)
 	}
 
@@ -125,6 +122,7 @@ func main() {
 		log.Printf("Error during shutdown: %v", err)
 	}
 
+	cancel()
 	log.Printf("Library Simulation stopped")
 }
 
@@ -155,4 +153,58 @@ func (c Config) NewObservabilityConfig() ObservabilityConfig {
 		MetricsCollector: metricsCollector,
 		TracingCollector: tracingCollector,
 	}
+}
+
+// initializePGXEventStore creates EventStore using pgx.Pool adapters.
+func initializePGXEventStore(ctx context.Context, options ...postgresengine.Option) (*postgresengine.EventStore, error) {
+	log.Printf("🔧 Initializing PGX adapter with connection pools")
+	// Initialize primary connection
+	pgxPoolPrimary, primaryErr := pgxpool.NewWithConfig(ctx, config.PostgresPGXPoolPrimaryConfig())
+	if primaryErr != nil {
+		return nil, fmt.Errorf("failed to create pgx pool for primary: %w", primaryErr)
+	}
+
+	// Test primary connection
+	if pingPrimaryErr := pgxPoolPrimary.Ping(ctx); pingPrimaryErr != nil {
+		pgxPoolPrimary.Close()
+		return nil, fmt.Errorf("failed to connect to primary database: %w", pingPrimaryErr)
+	}
+
+	// Initialize replica connection
+	pgxPoolReplica, replicaErr := pgxpool.NewWithConfig(ctx, config.PostgresPGXPoolReplicaConfig())
+	if replicaErr != nil {
+		pgxPoolPrimary.Close()
+		return nil, fmt.Errorf("failed to create pgx pool for replica: %w", replicaErr)
+	}
+
+	// Test replica connection
+	if pingReplicaErr := pgxPoolReplica.Ping(ctx); pingReplicaErr != nil {
+		pgxPoolPrimary.Close()
+		pgxPoolReplica.Close()
+		return nil, fmt.Errorf("failed to connect to replica database: %w", pingReplicaErr)
+	}
+
+	return postgresengine.NewEventStoreFromPGXPoolAndReplica(pgxPoolPrimary, pgxPoolReplica, options...)
+}
+
+// initializeSQLDBEventStore creates EventStore using sql.DB adapters.
+func initializeSQLDBEventStore(options ...postgresengine.Option) (*postgresengine.EventStore, error) {
+	log.Printf("🔧 Initializing SQL.DB adapter with proper lib/pq driver")
+
+	// Use the proper config functions (these use lib/pq driver, not pgx)
+	primaryDB := config.PostgresSQLDBPrimaryConfig()
+	replicaDB := config.PostgresSQLDBReplicaConfig()
+
+	return postgresengine.NewEventStoreFromSQLDBAndReplica(primaryDB, replicaDB, options...)
+}
+
+// initializeSQLXEventStore creates EventStore using sqlx adapters.
+func initializeSQLXEventStore(options ...postgresengine.Option) (*postgresengine.EventStore, error) {
+	log.Printf("🔧 Initializing SQLX adapter with proper lib/pq driver")
+
+	// Use the proper config functions (these use lib/pq driver, not pgx)
+	primaryDB := config.PostgresSQLXPrimaryConfig()
+	replicaDB := config.PostgresSQLXReplicaConfig()
+
+	return postgresengine.NewEventStoreFromSQLXAndReplica(primaryDB, replicaDB, options...)
 }

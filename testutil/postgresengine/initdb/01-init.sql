@@ -9,8 +9,8 @@ CREATE TABLE if not exists events (
 -- Optimized indexes for querying
 CREATE INDEX if not exists idx_events_event_type ON events(event_type);
 CREATE INDEX if not exists idx_events_occurred_at ON events(occurred_at);
-CREATE INDEX if not exists idx_events_payload_gin ON events USING gin(payload jsonb_path_ops) WITH (fastupdate = off);
-CREATE INDEX if not exists idx_events_metadata_gin ON events USING gin(metadata jsonb_path_ops) WITH (fastupdate = off);
+CREATE INDEX if not exists idx_events_payload_gin ON events USING gin(payload jsonb_path_ops);
+CREATE INDEX if not exists idx_events_metadata_gin ON events USING gin(metadata jsonb_path_ops);
 
 -- Set aggressive statistics targets for all indexed columns
 ALTER TABLE events ALTER COLUMN event_type SET STATISTICS 5000;      -- High cardinality

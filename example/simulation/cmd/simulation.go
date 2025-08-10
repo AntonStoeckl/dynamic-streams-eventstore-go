@@ -84,6 +84,60 @@ func NewLibrarySimulation(eventStore *postgresengine.EventStore, config Config, 
 	state := NewSimulationState()
 	selector := NewScenarioSelector(state, config)
 
+	// Create all handlers using helper methods
+	handlers, err := createHandlers(eventStore, obsConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return &LibrarySimulation{
+		eventStore: eventStore,
+		config:     config,
+		state:      state,
+		selector:   selector,
+		stopChan:   make(chan struct{}),
+
+		// Worker pool configuration
+		requestQueue: make(chan *Request, queueSize),
+		workerCount:  workerCount,
+
+		// Initialize command handlers
+		addBookCopyHandler:    handlers.addBookCopyHandler,
+		removeBookCopyHandler: handlers.removeBookCopyHandler,
+		registerReaderHandler: handlers.registerReaderHandler,
+		cancelReaderHandler:   handlers.cancelReaderHandler,
+		lendBookCopyHandler:   handlers.lendBookCopyHandler,
+		returnBookCopyHandler: handlers.returnBookCopyHandler,
+
+		// Initialize query handlers
+		booksInCirculationHandler: handlers.booksInCirculationHandler,
+		booksLentOutHandler:       handlers.booksLentOutHandler,
+		booksLentByReaderHandler:  handlers.booksLentByReaderHandler,
+		registeredReadersHandler:  handlers.registeredReadersHandler,
+	}, nil
+}
+
+// handlerBundle holds all command and query handlers for the simulation.
+type handlerBundle struct {
+	// Command handlers
+	addBookCopyHandler    addbookcopy.CommandHandler
+	removeBookCopyHandler removebookcopy.CommandHandler
+	registerReaderHandler registerreader.CommandHandler
+	cancelReaderHandler   cancelreadercontract.CommandHandler
+	lendBookCopyHandler   lendbookcopytoreader.CommandHandler
+	returnBookCopyHandler returnbookcopyfromreader.CommandHandler
+
+	// Query handlers
+	booksInCirculationHandler booksincirculation.QueryHandler
+	booksLentOutHandler       bookslentout.QueryHandler
+	booksLentByReaderHandler  bookslentbyreader.QueryHandler
+	registeredReadersHandler  registeredreaders.QueryHandler
+}
+
+// createHandlers creates all command and query handlers with observability options.
+//
+//nolint:funlen // Repetitive handler creation with consistent error handling
+func createHandlers(eventStore *postgresengine.EventStore, obsConfig ObservabilityConfig) (*handlerBundle, error) {
 	// Create command handlers
 	addBookCopyHandler, err := addbookcopy.NewCommandHandler(eventStore, buildAddBookCopyOptions(obsConfig)...)
 	if err != nil {
@@ -136,26 +190,13 @@ func NewLibrarySimulation(eventStore *postgresengine.EventStore, config Config, 
 		return nil, fmt.Errorf("failed to create RegisteredReaders handler: %w", err)
 	}
 
-	return &LibrarySimulation{
-		eventStore: eventStore,
-		config:     config,
-		state:      state,
-		selector:   selector,
-		stopChan:   make(chan struct{}),
-
-		// Worker pool configuration
-		requestQueue: make(chan *Request, queueSize),
-		workerCount:  workerCount,
-
-		// Initialize command handlers
-		addBookCopyHandler:    addBookCopyHandler,
-		removeBookCopyHandler: removeBookCopyHandler,
-		registerReaderHandler: registerReaderHandler,
-		cancelReaderHandler:   cancelReaderHandler,
-		lendBookCopyHandler:   lendBookCopyHandler,
-		returnBookCopyHandler: returnBookCopyHandler,
-
-		// Initialize query handlers
+	return &handlerBundle{
+		addBookCopyHandler:        addBookCopyHandler,
+		removeBookCopyHandler:     removeBookCopyHandler,
+		registerReaderHandler:     registerReaderHandler,
+		cancelReaderHandler:       cancelReaderHandler,
+		lendBookCopyHandler:       lendBookCopyHandler,
+		returnBookCopyHandler:     returnBookCopyHandler,
 		booksInCirculationHandler: booksInCirculationHandler,
 		booksLentOutHandler:       booksLentOutHandler,
 		booksLentByReaderHandler:  booksLentByReaderHandler,
@@ -483,7 +524,7 @@ func (ls *LibrarySimulation) worker(ctx context.Context, workerID int) {
 			}
 
 			// Execute request with faster timeout (1 second)
-			err := ls.executeRequest(request)
+			err := ls.executeRequest(request) //nolint:contextcheck
 
 			// Send result back safely - protect against closed channels and context cancellation
 			select {

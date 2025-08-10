@@ -33,7 +33,7 @@ func PostgresPGXPoolSingleConfig() *pgxpool.Config {
 
 // PostgresPGXPoolPrimaryConfig creates a pgxpool.Config for the primary node of a replicated database.
 func PostgresPGXPoolPrimaryConfig() *pgxpool.Config {
-	const defaultMaxConnections = int32(200)
+	const defaultMaxConnections = int32(60)
 	const defaultMinConnections = int32(20)
 	const defaultMaxConnLifetime = time.Hour
 	const defaultMaxConnIdleTime = time.Minute * 5
@@ -57,7 +57,7 @@ func PostgresPGXPoolPrimaryConfig() *pgxpool.Config {
 
 // PostgresPGXPoolReplicaConfig creates a pgxpool.Config for the replica node of a replicated database.
 func PostgresPGXPoolReplicaConfig() *pgxpool.Config {
-	const defaultMaxConnections = int32(200)
+	const defaultMaxConnections = int32(60)
 	const defaultMinConnections = int32(20)
 	const defaultMaxConnLifetime = time.Hour
 	const defaultMaxConnIdleTime = time.Minute * 5

@@ -37,7 +37,7 @@ func PostgresSQLDBSingleConfig() *sql.DB {
 
 // PostgresSQLDBPrimaryConfig creates a configured *sql.DB for the primary node of a replicated database.
 func PostgresSQLDBPrimaryConfig() *sql.DB {
-	const defaultMaxOpenConnections = 200
+	const defaultMaxOpenConnections = 60
 	const defaultMaxIdleConnections = 20
 	const defaultMaxConnLifetime = time.Hour
 	const defaultMaxConnIdleTime = time.Minute * 5
@@ -63,7 +63,7 @@ func PostgresSQLDBPrimaryConfig() *sql.DB {
 
 // PostgresSQLDBReplicaConfig creates a configured *sql.DB for the replica node of a replicated database.
 func PostgresSQLDBReplicaConfig() *sql.DB {
-	const defaultMaxOpenConnections = 200
+	const defaultMaxOpenConnections = 60
 	const defaultMaxIdleConnections = 20
 	const defaultMaxConnLifetime = time.Hour
 	const defaultMaxConnIdleTime = time.Minute * 5

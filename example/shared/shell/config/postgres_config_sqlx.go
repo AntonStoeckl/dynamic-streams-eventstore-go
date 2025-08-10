@@ -37,7 +37,7 @@ func PostgresSQLXSingleConfig() *sqlx.DB {
 
 // PostgresSQLXPrimaryConfig creates a configured *sqlx.DB for the primary node of a replicated database.
 func PostgresSQLXPrimaryConfig() *sqlx.DB {
-	const defaultMaxOpenConnections = 200
+	const defaultMaxOpenConnections = 60
 	const defaultMaxIdleConnections = 20
 	const defaultMaxConnLifetime = time.Hour
 	const defaultMaxConnIdleTime = time.Minute * 5
@@ -63,7 +63,7 @@ func PostgresSQLXPrimaryConfig() *sqlx.DB {
 
 // PostgresSQLXReplicaConfig creates a configured *sqlx.DB for the replica node of a replicated database.
 func PostgresSQLXReplicaConfig() *sqlx.DB {
-	const defaultMaxOpenConnections = 200
+	const defaultMaxOpenConnections = 60
 	const defaultMaxIdleConnections = 20
 	const defaultMaxConnLifetime = time.Hour
 	const defaultMaxConnIdleTime = time.Minute * 5

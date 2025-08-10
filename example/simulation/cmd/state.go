@@ -188,7 +188,7 @@ func (s *SimulationState) GetLentBooks() []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var lent []string
+	lent := make([]string, 0, len(s.lending))
 	for bookID := range s.lending {
 		lent = append(lent, bookID)
 	}
@@ -201,7 +201,7 @@ func (s *SimulationState) GetRegisteredReaders() []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	var registered []string
+	registered := make([]string, 0, len(s.readers))
 	for readerID := range s.readers {
 		registered = append(registered, readerID)
 	}
@@ -219,7 +219,7 @@ func (s *SimulationState) GetReadersWithLentBooks() []string {
 		readersWithBooks[readerID] = true
 	}
 
-	var readers []string
+	readers := make([]string, 0, len(readersWithBooks))
 	for readerID := range readersWithBooks {
 		readers = append(readers, readerID)
 	}

@@ -91,26 +91,28 @@ func (s *ScenarioSelector) calculateScenarioWeights(books, readers, _ int) map[S
 	weights := make(map[ScenarioType]int)
 
 	// Book management weights (library manager actions) - VERY RARE
-	if books > s.config.MaxBooks {
+	switch {
+	case books > s.config.MaxBooks:
 		weights[ScenarioRemoveBook] = 3 // Priority to remove excess books
 		weights[ScenarioAddBook] = 0    // No adding when over max
-	} else if books < s.config.MinBooks {
+	case books < s.config.MinBooks:
 		weights[ScenarioAddBook] = 3    // Priority to reach minimum
 		weights[ScenarioRemoveBook] = 0 // No removing when under min
-	} else {
+	default:
 		weights[ScenarioAddBook] = 1    // Very rare in normal operations
 		weights[ScenarioRemoveBook] = 1 // Very rare in normal operations
 	}
 
 	// Reader management weights - VERY RARE
-	if readers < s.config.MinReaders {
+	switch {
+	case readers < s.config.MinReaders:
 		weights[ScenarioRegisterReader] = 5 // Priority to reach minimum readers
 		weights[ScenarioCancelReader] = 0   // Don't cancel when below minimum
-	} else if readers < s.config.MaxReaders {
+	case readers < s.config.MaxReaders:
 		// Normal growth phase: favor registrations over cancellations
 		weights[ScenarioRegisterReader] = 3 // Steady growth toward max
 		weights[ScenarioCancelReader] = 1   // Minimal natural churn
-	} else {
+	default:
 		// At max readers, allow cancellations but no new registrations
 		weights[ScenarioRegisterReader] = 0 // No new registrations at max
 		weights[ScenarioCancelReader] = 3   // Higher to bring count down
@@ -397,17 +399,4 @@ func (s *ScenarioSelector) getRandomReaderID() uuid.UUID {
 	}
 
 	return uuid.MustParse(readers[rand.Intn(len(readers))]) //nolint:gosec // Simulation code - weak random is acceptable
-}
-
-// getReaderForBook returns the reader ID who has borrowed the given book.
-func (s *ScenarioSelector) getReaderForBook(bookID uuid.UUID) uuid.UUID {
-	s.state.mu.RLock()
-	defer s.state.mu.RUnlock()
-
-	if readerIDStr, exists := s.state.lending[bookID.String()]; exists {
-		return uuid.MustParse(readerIDStr)
-	}
-
-	// Fallback to random reader (shouldn't happen in normal scenarios)
-	return s.getRandomReaderID()
 }
