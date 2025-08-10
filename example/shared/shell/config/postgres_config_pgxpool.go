@@ -34,11 +34,11 @@ func PostgresPGXPoolSingleConfig() *pgxpool.Config {
 // PostgresPGXPoolPrimaryConfig creates a pgxpool.Config for the primary node of a replicated database.
 func PostgresPGXPoolPrimaryConfig() *pgxpool.Config {
 	const defaultMaxConnections = int32(60)
-	const defaultMinConnections = int32(20)
-	const defaultMaxConnLifetime = time.Hour
-	const defaultMaxConnIdleTime = time.Minute * 5
-	const defaultHealthCheckPeriod = time.Minute
-	const defaultConnectTimeout = time.Second * 5
+	const defaultMinConnections = int32(2)         // OPTIMIZED: Reduced from 20 to 2 based on empirical testing
+	const defaultMaxConnLifetime = time.Hour       // Adequate for the current workload, no optimization needed
+	const defaultMaxConnIdleTime = time.Minute * 5 // Adequate for the current workload, no optimization needed
+	const defaultHealthCheckPeriod = time.Minute   // Adequate for the current workload, no optimization needed
+	const defaultConnectTimeout = time.Second * 5  // Adequate for the current workload, no optimization needed
 
 	dbConfig, err := pgxpool.ParseConfig(PostgresPrimaryDSN())
 	if err != nil {
@@ -58,11 +58,11 @@ func PostgresPGXPoolPrimaryConfig() *pgxpool.Config {
 // PostgresPGXPoolReplicaConfig creates a pgxpool.Config for the replica node of a replicated database.
 func PostgresPGXPoolReplicaConfig() *pgxpool.Config {
 	const defaultMaxConnections = int32(60)
-	const defaultMinConnections = int32(20)
-	const defaultMaxConnLifetime = time.Hour
-	const defaultMaxConnIdleTime = time.Minute * 5
-	const defaultHealthCheckPeriod = time.Minute
-	const defaultConnectTimeout = time.Second * 5
+	const defaultMinConnections = int32(2)         // OPTIMIZED: Reduced from 20 to 2 based on empirical testing
+	const defaultMaxConnLifetime = time.Hour       // Adequate for the current workload, no optimization needed
+	const defaultMaxConnIdleTime = time.Minute * 5 // Adequate for the current workload, no optimization needed
+	const defaultHealthCheckPeriod = time.Minute   // Adequate for the current workload, no optimization needed
+	const defaultConnectTimeout = time.Second * 5  // Adequate for the current workload, no optimization needed
 
 	dbConfig, err := pgxpool.ParseConfig(PostgresReplicaDSN())
 	if err != nil {

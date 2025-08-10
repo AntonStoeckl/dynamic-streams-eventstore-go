@@ -12,7 +12,7 @@ import (
 // PostgresSQLDBSingleConfig creates a configured *sql.DB for a single database.
 func PostgresSQLDBSingleConfig() *sql.DB {
 	const defaultMaxOpenConnections = 50
-	const defaultMaxIdleConnections = 10
+	const defaultMaxIdleConnections = 2 // OPTIMIZED: Reduced from 10 to 2 (consistent with pgx.Pool optimization)
 	const defaultMaxConnLifetime = time.Hour
 	const defaultMaxConnIdleTime = time.Minute * 5
 
@@ -38,7 +38,7 @@ func PostgresSQLDBSingleConfig() *sql.DB {
 // PostgresSQLDBPrimaryConfig creates a configured *sql.DB for the primary node of a replicated database.
 func PostgresSQLDBPrimaryConfig() *sql.DB {
 	const defaultMaxOpenConnections = 60
-	const defaultMaxIdleConnections = 20
+	const defaultMaxIdleConnections = 2 // OPTIMIZED: Reduced from 20 to 2 (equivalent to pgx.Pool MinConnections)
 	const defaultMaxConnLifetime = time.Hour
 	const defaultMaxConnIdleTime = time.Minute * 5
 
@@ -64,7 +64,7 @@ func PostgresSQLDBPrimaryConfig() *sql.DB {
 // PostgresSQLDBReplicaConfig creates a configured *sql.DB for the replica node of a replicated database.
 func PostgresSQLDBReplicaConfig() *sql.DB {
 	const defaultMaxOpenConnections = 60
-	const defaultMaxIdleConnections = 20
+	const defaultMaxIdleConnections = 2 // OPTIMIZED: Reduced from 20 to 2 (equivalent to pgx.Pool MinConnections)
 	const defaultMaxConnLifetime = time.Hour
 	const defaultMaxConnIdleTime = time.Minute * 5
 
