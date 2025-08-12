@@ -31,7 +31,6 @@ func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
 
 	// arrange
 	CleanUp(t, wrapper)
-	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock) //nolint:gosec
 	bookID := GivenUniqueID(t)
 	filter := FilterAllEventTypesForOneBook(bookID)
 	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
@@ -62,7 +61,6 @@ func Test_Append_When_SomeEvents_MatchTheQuery_BeforeAppend(t *testing.T) {
 
 	// arrange
 	CleanUp(t, wrapper)
-	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock) //nolint:gosec
 	bookID := GivenUniqueID(t)
 	fakeClock = fakeClock.Add(time.Second)
 	GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
@@ -95,7 +93,6 @@ func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 
 	// arrange
 	CleanUp(t, wrapper)
-	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock) //nolint:gosec
 	bookID := GivenUniqueID(t)
 	readerID := GivenUniqueID(t)
 	fakeClock = fakeClock.Add(time.Second)
@@ -131,7 +128,6 @@ func Test_AppendMultiple(t *testing.T) {
 
 	// arrange
 	CleanUp(t, wrapper)
-	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock) //nolint:gosec
 	bookID := GivenUniqueID(t)
 	readerID := GivenUniqueID(t)
 	fakeClock = fakeClock.Add(time.Second)
@@ -169,7 +165,6 @@ func Test_AppendMultiple_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 
 	// arrange
 	CleanUp(t, wrapper)
-	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, rand.IntN(5)+1, 0, fakeClock) //nolint:gosec
 	bookID := GivenUniqueID(t)
 	readerID := GivenUniqueID(t)
 	fakeClock = fakeClock.Add(time.Second)
@@ -355,8 +350,6 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 
 	// arrange
 	CleanUp(t, wrapper)
-	numOtherEvents := 10
-	fakeClock = GivenSomeOtherEventsWereAppended(t, ctxWithTimeout, es, numOtherEvents, 0, fakeClock)
 
 	bookID1 := GivenUniqueID(t)
 	bookID2 := GivenUniqueID(t)
@@ -394,7 +387,7 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 		{
 			description:       "empty filter",
 			filter:            eventstore.BuildEventFilter().MatchingAnyEvent(),
-			expectedNumEvents: numOtherEvents + 9,
+			expectedNumEvents: 9,
 			expectedEvents:    core.DomainEvents{}, // we don't want to assert the concrete events here
 		},
 		{
@@ -410,7 +403,7 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			filter: eventstore.BuildEventFilter().
 				OccurredUntil(bookCopy1AddedToCirculationBook.HasOccurredAt()).
 				Finalize(),
-			expectedNumEvents: numOtherEvents + 1,
+			expectedNumEvents: 1,
 			expectedEvents:    core.DomainEvents{}, // we don't want to assert the concrete events here
 		},
 		{
@@ -691,8 +684,7 @@ func Test_Append_When_Context_Is_Cancelled(t *testing.T) {
 	)
 
 	// assert
-	assert.Error(t, err, "expected an error due to canceled context")
-	assert.Contains(t, err.Error(), "context canceled")
+	assert.ErrorContains(t, err, "context canceled")
 	events, _, queryErr := es.Query(context.Background(), filter)
 	assert.NoError(t, queryErr, "verification query should succeed")
 	assert.Empty(t, events, "no events should have been inserted when context was canceled")
@@ -727,8 +719,7 @@ func Test_Append_When_Context_Times_out(t *testing.T) {
 	)
 
 	// assert
-	assert.Error(t, err, "expected an error due to context timeout")
-	assert.Contains(t, err.Error(), "context deadline exceeded")
+	assert.ErrorContains(t, err, "context deadline exceeded")
 	events, _, queryErr := es.Query(context.Background(), filter)
 	assert.NoError(t, queryErr, "verification query should succeed")
 	assert.Empty(t, events, "no events should have been inserted when context was canceled")
@@ -757,8 +748,7 @@ func Test_Query_When_Context_Is_Canceled(t *testing.T) {
 	events, maxSeq, err := es.Query(ctxWithCancel, filter)
 
 	// assert
-	assert.Error(t, err, "expected an error due to canceled context")
-	assert.Contains(t, err.Error(), "context canceled")
+	assert.ErrorContains(t, err, "context canceled")
 	assert.Empty(t, events, "no events should be returned when context is canceled")
 	assert.Equal(t, eventstore.MaxSequenceNumberUint(0), maxSeq, "max sequence should be 0 when context is canceled")
 }
@@ -788,8 +778,7 @@ func Test_Query_When_Context_Times_Out(t *testing.T) {
 	events, maxSeq, err := es.Query(ctxWithTimeout, filter)
 
 	// assert
-	assert.Error(t, err, "expected an error due to context timeout")
-	assert.Contains(t, err.Error(), "context deadline exceeded")
+	assert.ErrorContains(t, err, "context deadline exceeded")
 	assert.Empty(t, events, "no events should be returned when context times out")
 	assert.Equal(t, eventstore.MaxSequenceNumberUint(0), maxSeq, "max sequence should be 0 when context times out")
 }

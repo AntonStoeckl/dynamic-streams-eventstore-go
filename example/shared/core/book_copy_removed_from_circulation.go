@@ -11,6 +11,7 @@ const BookCopyRemovedFromCirculationEventType = "BookCopyRemovedFromCirculation"
 
 // BookCopyRemovedFromCirculation represents when a book copy is removed from library circulation.
 type BookCopyRemovedFromCirculation struct {
+	EventType  EventTypeString
 	BookID     BookIDString
 	OccurredAt OccurredAtTS
 }
@@ -18,6 +19,7 @@ type BookCopyRemovedFromCirculation struct {
 // BuildBookCopyRemovedFromCirculation creates a new BookCopyRemovedFromCirculation event.
 func BuildBookCopyRemovedFromCirculation(bookID uuid.UUID, occurredAt time.Time) BookCopyRemovedFromCirculation {
 	event := BookCopyRemovedFromCirculation{
+		EventType:  BookCopyRemovedFromCirculationEventType,
 		BookID:     bookID.String(),
 		OccurredAt: ToOccurredAt(occurredAt),
 	}
@@ -25,8 +27,8 @@ func BuildBookCopyRemovedFromCirculation(bookID uuid.UUID, occurredAt time.Time)
 	return event
 }
 
-// EventType returns the event type identifier.
-func (e BookCopyRemovedFromCirculation) EventType() string {
+// IsEventType returns the event type identifier.
+func (e BookCopyRemovedFromCirculation) IsEventType() string {
 	return BookCopyRemovedFromCirculationEventType
 }
 

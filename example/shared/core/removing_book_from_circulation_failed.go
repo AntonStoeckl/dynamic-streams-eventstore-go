@@ -11,6 +11,7 @@ const RemovingBookFromCirculationFailedEventType = "RemovingBookFromCirculationF
 
 // RemovingBookFromCirculationFailed represents when removing a book copy from circulation fails due to business rule violations.
 type RemovingBookFromCirculationFailed struct {
+	EventType   EventTypeString
 	BookID      BookIDString
 	FailureInfo string
 	OccurredAt  OccurredAtTS
@@ -24,6 +25,7 @@ func BuildRemovingBookFromCirculationFailed(
 ) RemovingBookFromCirculationFailed {
 
 	event := RemovingBookFromCirculationFailed{
+		EventType:   RemovingBookFromCirculationFailedEventType,
 		BookID:      bookID.String(),
 		FailureInfo: failureInfo,
 		OccurredAt:  ToOccurredAt(occurredAt),
@@ -32,8 +34,8 @@ func BuildRemovingBookFromCirculationFailed(
 	return event
 }
 
-// EventType returns the event type identifier.
-func (e RemovingBookFromCirculationFailed) EventType() string {
+// IsEventType returns the event type identifier.
+func (e RemovingBookFromCirculationFailed) IsEventType() string {
 	return RemovingBookFromCirculationFailedEventType
 }
 

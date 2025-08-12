@@ -2,8 +2,6 @@ package helper
 
 import (
 	"context"
-	"math/rand/v2"
-	"strconv"
 	"testing"
 	"time"
 
@@ -218,70 +216,4 @@ func GivenBookCopyReturnedByReaderWasAppended(
 	assert.NoError(t, err, "error in arranging test data")
 
 	return event
-}
-
-// GivenSomeOtherEventsWereAppended appends random test events to create background data.
-func GivenSomeOtherEventsWereAppended(
-	t testing.TB,
-	ctx context.Context, //nolint:revive
-	es *postgresengine.EventStore,
-	numEvents int,
-	startFrom eventstore.MaxSequenceNumberUint,
-	fakeClock time.Time,
-) time.Time {
-
-	maxSequenceNumber := startFrom
-	totalEvent := 0
-	eventPostfix := 0
-
-	for {
-		id, err := uuid.NewV7()
-		assert.NoError(t, err, "error in arranging test data")
-
-		fakeClock = fakeClock.Add(time.Second)
-		event := core.BuildSomethingHasHappened(
-			id.String(),
-			"lorem ipsum dolor sit amet: "+id.String(),
-			fakeClock,
-			core.SomethingHasHappenedEventTypePrefix+strconv.Itoa(eventPostfix),
-		)
-
-		amountOfSameEvents := rand.IntN(3) + 1 //nolint:gosec
-
-		for j := 0; j < amountOfSameEvents; j++ {
-			filter := eventstore.BuildEventFilter().
-				Matching().
-				AnyEventTypeOf(core.SomethingHasHappenedEventTypePrefix + strconv.Itoa(eventPostfix)).
-				AndAnyPredicateOf(eventstore.P("ID", id.String())).
-				Finalize()
-
-			maxSequenceNumberForThisEventType := maxSequenceNumber
-			if j == 0 {
-				maxSequenceNumberForThisEventType = 0
-			}
-
-			err = es.Append(
-				ctx,
-				filter,
-				maxSequenceNumberForThisEventType,
-				ToStorable(t, event),
-			)
-			assert.NoError(t, err, "error in arranging test data")
-
-			totalEvent++
-			maxSequenceNumber++
-
-			if totalEvent == numEvents {
-				break
-			}
-		}
-
-		eventPostfix++
-
-		if totalEvent == numEvents {
-			break
-		}
-	}
-
-	return fakeClock
 }

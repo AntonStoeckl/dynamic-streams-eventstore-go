@@ -11,6 +11,7 @@ const ReaderRegisteredEventType = "ReaderRegistered"
 
 // ReaderRegistered represents when a new reader is registered in the library system.
 type ReaderRegistered struct {
+	EventType  EventTypeString
 	ReaderID   ReaderIDString
 	Name       string
 	OccurredAt OccurredAtTS
@@ -24,6 +25,7 @@ func BuildReaderRegistered(
 ) ReaderRegistered {
 
 	event := ReaderRegistered{
+		EventType:  ReaderRegisteredEventType,
 		ReaderID:   readerID.String(),
 		Name:       name,
 		OccurredAt: ToOccurredAt(occurredAt),
@@ -32,8 +34,8 @@ func BuildReaderRegistered(
 	return event
 }
 
-// EventType returns the event type identifier.
-func (e ReaderRegistered) EventType() string {
+// IsEventType returns the event type identifier.
+func (e ReaderRegistered) IsEventType() string {
 	return ReaderRegisteredEventType
 }
 

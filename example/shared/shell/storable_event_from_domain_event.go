@@ -28,7 +28,7 @@ func StorableEventFrom(event core.DomainEvent, metadata EventMetadata) (eventsto
 	}
 
 	storableEvent, err := eventstore.BuildStorableEvent(
-		event.EventType(),
+		event.IsEventType(),
 		event.HasOccurredAt(),
 		payloadJSON,
 		metadataJSON,
@@ -49,7 +49,7 @@ func StorableEventWithEmptyMetadataFrom(event core.DomainEvent) (eventstore.Stor
 	}
 
 	storableEvent, err := eventstore.BuildStorableEventWithEmptyMetadata(
-		event.EventType(),
+		event.IsEventType(),
 		event.HasOccurredAt(),
 		payloadJSON,
 	)

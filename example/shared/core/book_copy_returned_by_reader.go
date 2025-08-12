@@ -11,6 +11,7 @@ const BookCopyReturnedByReaderEventType = "BookCopyReturnedByReader"
 
 // BookCopyReturnedByReader represents when a book copy is returned by a reader.
 type BookCopyReturnedByReader struct {
+	EventType  EventTypeString
 	BookID     BookIDString
 	ReaderID   ReaderIDString
 	OccurredAt OccurredAtTS
@@ -19,6 +20,7 @@ type BookCopyReturnedByReader struct {
 // BuildBookCopyReturnedFromReader creates a new BookCopyReturnedByReader event.
 func BuildBookCopyReturnedFromReader(bookID uuid.UUID, readerID uuid.UUID, occurredAt time.Time) BookCopyReturnedByReader {
 	event := BookCopyReturnedByReader{
+		EventType:  BookCopyReturnedByReaderEventType,
 		BookID:     bookID.String(),
 		ReaderID:   readerID.String(),
 		OccurredAt: ToOccurredAt(occurredAt),
@@ -27,8 +29,8 @@ func BuildBookCopyReturnedFromReader(bookID uuid.UUID, readerID uuid.UUID, occur
 	return event
 }
 
-// EventType returns the event type identifier.
-func (e BookCopyReturnedByReader) EventType() string {
+// IsEventType returns the event type identifier.
+func (e BookCopyReturnedByReader) IsEventType() string {
 	return BookCopyReturnedByReaderEventType
 }
 

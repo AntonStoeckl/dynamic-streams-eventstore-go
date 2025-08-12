@@ -7,6 +7,9 @@ import (
 // Instead of implementing full value objects, I'm using some alias types and helper methods here ...
 
 type (
+	// EventTypeString represents an event type identifier.
+	EventTypeString = string
+
 	// BookIDString represents a book identifier.
 	BookIDString = string
 

@@ -11,6 +11,7 @@ const ReturningBookFromReaderFailedEventType = "ReturningBookFromReaderFailed"
 
 // ReturningBookFromReaderFailed represents when returning a book copy from a reader fails due to business rule violations.
 type ReturningBookFromReaderFailed struct {
+	EventType   EventTypeString
 	BookID      BookIDString
 	ReaderID    ReaderIDString
 	FailureInfo string
@@ -26,6 +27,7 @@ func BuildReturningBookFromReaderFailed(
 ) ReturningBookFromReaderFailed {
 
 	event := ReturningBookFromReaderFailed{
+		EventType:   ReturningBookFromReaderFailedEventType,
 		BookID:      bookID.String(),
 		ReaderID:    readerID.String(),
 		FailureInfo: failureInfo,
@@ -35,8 +37,8 @@ func BuildReturningBookFromReaderFailed(
 	return event
 }
 
-// EventType returns the event type identifier.
-func (e ReturningBookFromReaderFailed) EventType() string {
+// IsEventType returns the event type identifier.
+func (e ReturningBookFromReaderFailed) IsEventType() string {
 	return ReturningBookFromReaderFailedEventType
 }
 

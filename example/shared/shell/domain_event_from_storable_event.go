@@ -2,7 +2,6 @@ package shell
 
 import (
 	"errors"
-	"strings"
 
 	jsoniter "github.com/json-iterator/go"
 
@@ -65,12 +64,8 @@ func DomainEventFrom(storableEvent eventstore.StorableEvent) (core.DomainEvent, 
 		return unmarshalReaderContractCanceled(storableEvent.PayloadJSON)
 
 	default:
-		if strings.Contains(storableEvent.EventType, core.SomethingHasHappenedEventTypePrefix) {
-			return unmarshalSomethingHasHappened(storableEvent.PayloadJSON)
-		}
+		return nil, errors.Join(ErrMappingToDomainEventFailed, ErrMappingToDomainEventUnknownEventType)
 	}
-
-	return nil, errors.Join(ErrMappingToDomainEventFailed, ErrMappingToDomainEventUnknownEventType)
 }
 
 func unmarshalBookCopyAddedToCirculation(payloadJSON []byte) (core.DomainEvent, error) {
@@ -82,6 +77,7 @@ func unmarshalBookCopyAddedToCirculation(payloadJSON []byte) (core.DomainEvent, 
 	}
 
 	return core.BookCopyAddedToCirculation{
+		EventType:       payload.EventType,
 		BookID:          payload.BookID,
 		ISBN:            payload.ISBN,
 		Title:           payload.Title,
@@ -102,6 +98,7 @@ func unmarshalBookCopyRemovedFromCirculation(payloadJSON []byte) (core.DomainEve
 	}
 
 	return core.BookCopyRemovedFromCirculation{
+		EventType:  payload.EventType,
 		BookID:     payload.BookID,
 		OccurredAt: payload.OccurredAt,
 	}, nil
@@ -116,6 +113,7 @@ func unmarshalBookCopyLentToReader(payloadJSON []byte) (core.DomainEvent, error)
 	}
 
 	return core.BookCopyLentToReader{
+		EventType:  payload.EventType,
 		BookID:     payload.BookID,
 		ReaderID:   payload.ReaderID,
 		OccurredAt: payload.OccurredAt,
@@ -131,21 +129,11 @@ func unmarshalBookCopyReturnedByReader(payloadJSON []byte) (core.DomainEvent, er
 	}
 
 	return core.BookCopyReturnedByReader{
+		EventType:  payload.EventType,
 		BookID:     payload.BookID,
 		ReaderID:   payload.ReaderID,
 		OccurredAt: payload.OccurredAt,
 	}, nil
-}
-
-func unmarshalSomethingHasHappened(payloadJSON []byte) (core.DomainEvent, error) {
-	payload := new(core.SomethingHasHappened)
-
-	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &payload)
-	if err != nil {
-		return core.BookCopyReturnedByReader{}, errors.Join(ErrMappingToDomainEventFailed, err)
-	}
-
-	return core.BuildSomethingHasHappened(payload.ID, payload.SomeInformation, payload.OccurredAt, payload.DynamicEventType), nil
 }
 
 func unmarshalLendingBookToReaderFailed(payloadJSON []byte) (core.DomainEvent, error) {
@@ -157,6 +145,7 @@ func unmarshalLendingBookToReaderFailed(payloadJSON []byte) (core.DomainEvent, e
 	}
 
 	return core.LendingBookToReaderFailed{
+		EventType:   payload.EventType,
 		BookID:      payload.BookID,
 		ReaderID:    payload.ReaderID,
 		FailureInfo: payload.FailureInfo,
@@ -173,6 +162,7 @@ func unmarshalReturningBookFromReaderFailed(payloadJSON []byte) (core.DomainEven
 	}
 
 	return core.ReturningBookFromReaderFailed{
+		EventType:   payload.EventType,
 		BookID:      payload.BookID,
 		ReaderID:    payload.ReaderID,
 		FailureInfo: payload.FailureInfo,
@@ -189,6 +179,7 @@ func unmarshalRemovingBookFromCirculationFailed(payloadJSON []byte) (core.Domain
 	}
 
 	return core.RemovingBookFromCirculationFailed{
+		EventType:   payload.EventType,
 		BookID:      payload.BookID,
 		FailureInfo: payload.FailureInfo,
 		OccurredAt:  payload.OccurredAt,
@@ -204,6 +195,7 @@ func unmarshalReaderRegistered(payloadJSON []byte) (core.DomainEvent, error) {
 	}
 
 	return core.ReaderRegistered{
+		EventType:  payload.EventType,
 		ReaderID:   payload.ReaderID,
 		Name:       payload.Name,
 		OccurredAt: payload.OccurredAt,
@@ -219,6 +211,7 @@ func unmarshalReaderContractCanceled(payloadJSON []byte) (core.DomainEvent, erro
 	}
 
 	return core.ReaderContractCanceled{
+		EventType:  payload.EventType,
 		ReaderID:   payload.ReaderID,
 		OccurredAt: payload.OccurredAt,
 	}, nil

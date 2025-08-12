@@ -11,6 +11,7 @@ const BookCopyLentToReaderEventType = "BookCopyLentToReader"
 
 // BookCopyLentToReader represents when a book copy is lent to a reader.
 type BookCopyLentToReader struct {
+	EventType  EventTypeString
 	BookID     BookIDString
 	ReaderID   ReaderIDString
 	OccurredAt OccurredAtTS
@@ -19,6 +20,7 @@ type BookCopyLentToReader struct {
 // BuildBookCopyLentToReader creates a new BookCopyLentToReader event.
 func BuildBookCopyLentToReader(bookID uuid.UUID, readerID uuid.UUID, occurredAt time.Time) BookCopyLentToReader {
 	event := BookCopyLentToReader{
+		EventType:  BookCopyLentToReaderEventType,
 		BookID:     bookID.String(),
 		ReaderID:   readerID.String(),
 		OccurredAt: ToOccurredAt(occurredAt),
@@ -27,8 +29,8 @@ func BuildBookCopyLentToReader(bookID uuid.UUID, readerID uuid.UUID, occurredAt 
 	return event
 }
 
-// EventType returns the event type identifier.
-func (e BookCopyLentToReader) EventType() string {
+// IsEventType returns the event type identifier.
+func (e BookCopyLentToReader) IsEventType() string {
 	return BookCopyLentToReaderEventType
 }
 

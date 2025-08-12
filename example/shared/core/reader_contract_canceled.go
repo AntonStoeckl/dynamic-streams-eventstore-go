@@ -11,6 +11,7 @@ const ReaderContractCanceledEventType = "ReaderContractCanceled"
 
 // ReaderContractCanceled represents when a reader's contract is canceled in the library system.
 type ReaderContractCanceled struct {
+	EventType  EventTypeString
 	ReaderID   ReaderIDString
 	OccurredAt OccurredAtTS
 }
@@ -22,6 +23,7 @@ func BuildReaderContractCanceled(
 ) ReaderContractCanceled {
 
 	event := ReaderContractCanceled{
+		EventType:  ReaderContractCanceledEventType,
 		ReaderID:   readerID.String(),
 		OccurredAt: ToOccurredAt(occurredAt),
 	}
@@ -29,8 +31,8 @@ func BuildReaderContractCanceled(
 	return event
 }
 
-// EventType returns the event type identifier.
-func (e ReaderContractCanceled) EventType() string {
+// IsEventType returns the event type identifier.
+func (e ReaderContractCanceled) IsEventType() string {
 	return ReaderContractCanceledEventType
 }
 

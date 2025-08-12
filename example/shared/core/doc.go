@@ -6,8 +6,8 @@
 // like BookCopyAddedToCirculation and BookCopyLentToReader rather than generic
 // create/update operations.
 //
-// All domain events implement the DomainEvent interface with EventType() and
-// HasOccurredAt() methods for event sourcing integration.
+// All domain events implement the DomainEvent interface with IsEventType(),
+// HasOccurredAt(), and IsErrorEvent() methods for event sourcing integration.
 //
 // In Domain-Driven Design or Hexagonal Architecture terminology, this would be
 // called the 'domain' layer.

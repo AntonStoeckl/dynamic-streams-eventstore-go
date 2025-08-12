@@ -272,8 +272,7 @@ func Test_FactoryFunctions_EventStore_WithTableName_ShouldFail_WithNonExistentTa
 	_, _, err := es.Query(ctxWithTimeout, filter)
 
 	// assert
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "does not exist")
+	assert.ErrorContains(t, err, "does not exist")
 }
 
 func Test_FactoryFunctions_SingleConnectionMethods_ShouldWorkCorrectly(t *testing.T) {

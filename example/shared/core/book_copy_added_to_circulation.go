@@ -11,6 +11,7 @@ const BookCopyAddedToCirculationEventType = "BookCopyAddedToCirculation"
 
 // BookCopyAddedToCirculation represents when a book copy is added to library circulation.
 type BookCopyAddedToCirculation struct {
+	EventType       EventTypeString
 	BookID          BookIDString
 	ISBN            ISBNString
 	Title           string
@@ -34,6 +35,7 @@ func BuildBookCopyAddedToCirculation(
 ) BookCopyAddedToCirculation {
 
 	event := BookCopyAddedToCirculation{
+		EventType:       BookCopyAddedToCirculationEventType,
 		BookID:          bookID.String(),
 		ISBN:            isbn,
 		Title:           title,
@@ -47,8 +49,8 @@ func BuildBookCopyAddedToCirculation(
 	return event
 }
 
-// EventType returns the event type identifier.
-func (e BookCopyAddedToCirculation) EventType() string {
+// IsEventType returns the event type identifier.
+func (e BookCopyAddedToCirculation) IsEventType() string {
 	return BookCopyAddedToCirculationEventType
 }
 
