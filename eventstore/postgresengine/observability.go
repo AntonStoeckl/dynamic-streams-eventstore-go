@@ -9,6 +9,26 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 )
 
+// ===== INSTRUMENTATION CONTEXT TYPES =====
+// Encapsulate all instrumentation context for managing observability across operation phases
+
+// queryInstrumentation encapsulates all instrumentation context for query operations.
+type queryInstrumentation struct {
+	tracer      *queryTracingObserver
+	metrics     *queryMetricsObserver
+	methodStart time.Time
+}
+
+// appendInstrumentation encapsulates all instrumentation context for append operations.
+type appendInstrumentation struct {
+	tracer      *appendTracingObserver
+	metrics     *appendMetricsObserver
+	methodStart time.Time
+}
+
+// ===== OBSERVABILITY CONSTANTS =====
+// Constants for structured logging, metrics, tracing, and error classification
+
 const (
 	// Structured logging messages.
 	logMsgBuildSelectQueryFailed   = "failed to build select query"
@@ -110,6 +130,9 @@ const (
 	spanAttrExpectedSeq  = "expected_seq"
 )
 
+// ===== BASIC LOGGING UTILITIES =====
+// Low-level logging functions that don't require context awareness
+
 // logQueryWithDuration logs SQL queries with execution time at debug level if the logger is configured.
 func (es *EventStore) logQueryWithDuration(
 	sqlQuery string,
@@ -145,6 +168,45 @@ func (es *EventStore) logError(
 func (es *EventStore) toMilliseconds(d time.Duration) float64 {
 	return math.Round(float64(d.Nanoseconds())/1e6*1000) / 1000
 }
+
+// ===== CONTEXTUAL LOGGING PATTERN =====
+// Context-aware logging with automatic trace correlation when available
+
+// logQueryWithDurationContext logs SQL queries with execution time and context correlation.
+func (es *EventStore) logQueryWithDurationContext(
+	ctx context.Context,
+	sqlQuery string,
+	action string,
+	duration time.Duration,
+) {
+	if es.contextualLogger != nil {
+		es.contextualLogger.DebugContext(ctx, logMsgSQLExecuted+action, logAttrDurationMS, es.toMilliseconds(duration), logAttrQuery, sqlQuery)
+	}
+}
+
+// logOperationContext logs operational information with context correlation.
+func (es *EventStore) logOperationContext(ctx context.Context, action string, args ...any) {
+	if es.contextualLogger != nil {
+		es.contextualLogger.InfoContext(ctx, logMsgOperation+action, args...)
+	}
+}
+
+// logErrorContext logs error information with context correlation.
+func (es *EventStore) logErrorContext(
+	ctx context.Context,
+	message string,
+	err error,
+	args ...any,
+) {
+	if es.contextualLogger != nil {
+		allArgs := []any{logAttrError, err.Error()}
+		allArgs = append(allArgs, args...)
+		es.contextualLogger.ErrorContext(ctx, message, allArgs...)
+	}
+}
+
+// ===== BASIC METRICS UTILITIES =====
+// Low-level metrics recording functions for different metric types
 
 // recordErrorMetrics records error metricsCollector if the metricsCollector collector is configured.
 func (es *EventStore) recordErrorMetrics(operation, errorType string) {
@@ -284,6 +346,9 @@ func (es *EventStore) recordTimeoutMetricsContext(ctx context.Context, operation
 	}
 }
 
+// ===== BASIC TRACING UTILITIES =====
+// Low-level tracing span management functions
+
 // startTraceSpan starts a tracing span if the tracing collector is configured.
 func (es *EventStore) startTraceSpan(
 	ctx context.Context,
@@ -420,8 +485,8 @@ func (es *EventStore) finishAppendSpanError(
 	es.finishTraceSpan(span, statusError, attrs)
 }
 
-// === Tracing Observer Pattern ===
-// These observers simplify tracing span management by encapsulating lifecycle complexity.
+// ===== TRACING OBSERVER PATTERN =====
+// These observers simplify tracing span management by encapsulating lifecycle complexity
 
 // queryTracingObserver encapsulates tracing span lifecycle management for query operations.
 type queryTracingObserver struct {
@@ -572,8 +637,8 @@ func (ato *appendTracingObserver) formatDuration(duration time.Duration) string 
 	return fmt.Sprintf("%.2f", ato.es.toMilliseconds(duration))
 }
 
-// === Metrics Observer Pattern ===
-// These observers simplify the metrics collection by encapsulating recording complexity.
+// ===== METRICS OBSERVER PATTERN =====
+// These observers simplify the metrics collection by encapsulating recording complexity
 
 // queryMetricsObserver encapsulates the metrics collection for query operations.
 type queryMetricsObserver struct {
@@ -724,38 +789,105 @@ func (amo *appendMetricsObserver) recordConcurrencyConflict() {
 	amo.es.recordConcurrencyConflictMetrics(operationAppend)
 }
 
-// === Contextual Logging Pattern ===
-// These methods provide context-aware logging with automatic trace correlation when available.
+// ===== INSTRUMENTATION SETUP & COMPLETION =====
+// High-level instrumentation functions that set up and complete observability context
 
-// logQueryWithDurationContext logs SQL queries with execution time and context correlation.
-func (es *EventStore) logQueryWithDurationContext(
-	ctx context.Context,
-	sqlQuery string,
-	action string,
-	duration time.Duration,
-) {
-	if es.contextualLogger != nil {
-		es.contextualLogger.DebugContext(ctx, logMsgSQLExecuted+action, logAttrDurationMS, es.toMilliseconds(duration), logAttrQuery, sqlQuery)
+// setupQueryInstrumentation initializes timing, tracing, and metrics for query operations.
+func (es *EventStore) setupQueryInstrumentation(ctx context.Context) (queryInstrumentation, context.Context) {
+	// Method-level timing
+	methodStart := time.Now()
+
+	tracer, ctx := es.startQueryTracing(ctx)
+	metrics := es.startQueryMetrics(ctx)
+
+	// Record method call counter (separate from SQL operation metrics)
+	if es.metricsCollector != nil {
+		labels := map[string]string{
+			spanAttrOperation: operationQuery,
+		}
+		if contextualCollector, ok := es.metricsCollector.(eventstore.ContextualMetricsCollector); ok {
+			contextualCollector.IncrementCounterContext(ctx, metricQueryMethodCalls, labels)
+		} else {
+			es.metricsCollector.IncrementCounter(metricQueryMethodCalls, labels)
+		}
 	}
+
+	return queryInstrumentation{
+		tracer:      tracer,
+		metrics:     metrics,
+		methodStart: methodStart,
+	}, ctx
 }
 
-// logOperationContext logs operational information with context correlation.
-func (es *EventStore) logOperationContext(ctx context.Context, action string, args ...any) {
-	if es.contextualLogger != nil {
-		es.contextualLogger.InfoContext(ctx, logMsgOperation+action, args...)
+// setupAppendInstrumentation initializes timing, tracing, and metrics for append operations.
+func (es *EventStore) setupAppendInstrumentation(
+	ctx context.Context,
+	storableEvents eventstore.StorableEvents,
+	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
+) (appendInstrumentation, context.Context) {
+	// Method-level timing
+	methodStart := time.Now()
+
+	tracer, ctx := es.startAppendTracing(ctx, storableEvents, expectedMaxSequenceNumber)
+	metrics := es.startAppendMetrics(ctx)
+
+	// Record method call counter (separate from SQL operation metrics)
+	if es.metricsCollector != nil {
+		labels := map[string]string{
+			spanAttrOperation: operationAppend,
+		}
+		if contextualCollector, ok := es.metricsCollector.(eventstore.ContextualMetricsCollector); ok {
+			contextualCollector.IncrementCounterContext(ctx, metricAppendMethodCalls, labels)
+		} else {
+			es.metricsCollector.IncrementCounter(metricAppendMethodCalls, labels)
+		}
 	}
+
+	return appendInstrumentation{
+		tracer:      tracer,
+		metrics:     metrics,
+		methodStart: methodStart,
+	}, ctx
 }
 
-// logErrorContext logs error information with context correlation.
-func (es *EventStore) logErrorContext(
+// completeQuerySuccess handles final logging, metrics, and tracing for successful query operations.
+func (es *EventStore) completeQuerySuccess(
 	ctx context.Context,
-	message string,
-	err error,
-	args ...any,
+	eventStream eventstore.StorableEvents,
+	maxSequenceNumber eventstore.MaxSequenceNumberUint,
+	sqlDuration time.Duration,
+	inst queryInstrumentation,
 ) {
-	if es.contextualLogger != nil {
-		allArgs := []any{logAttrError, err.Error()}
-		allArgs = append(allArgs, args...)
-		es.contextualLogger.ErrorContext(ctx, message, allArgs...)
-	}
+	// Method completion timing
+	methodDuration := time.Since(inst.methodStart)
+
+	es.logOperation(logMsgQueryCompleted, logAttrEventCount, len(eventStream), logAttrDurationMS, es.toMilliseconds(methodDuration))
+	es.logOperationContext(ctx, logMsgQueryCompleted, logAttrEventCount, len(eventStream), logAttrDurationMS, es.toMilliseconds(methodDuration))
+
+	// Record both SQL-level (existing) and method-level (new) timing
+	inst.metrics.recordSuccess(eventStream, sqlDuration)
+	inst.metrics.recordMethodSuccess(eventStream, methodDuration)
+
+	inst.tracer.finishSuccess(eventStream, maxSequenceNumber, methodDuration)
+}
+
+// completeAppendSuccess handles final logging, metrics, and tracing for successful append operations.
+func (es *EventStore) completeAppendSuccess(
+	ctx context.Context,
+	eventCount int,
+	rowsAffected int64,
+	sqlDuration time.Duration,
+	inst appendInstrumentation,
+) {
+	// Method completion timing
+	methodDuration := time.Since(inst.methodStart)
+
+	es.logOperation(logMsgEventsAppended, logAttrEventCount, eventCount, logAttrDurationMS, es.toMilliseconds(methodDuration))
+	es.logOperationContext(ctx, logMsgEventsAppended, logAttrEventCount, eventCount, logAttrDurationMS, es.toMilliseconds(methodDuration))
+
+	// Record both SQL-level (existing) and method-level (new) timing
+	inst.metrics.recordSuccess(eventCount, sqlDuration)
+	inst.metrics.recordMethodSuccess(eventCount, methodDuration)
+
+	inst.tracer.finishSuccess(rowsAffected, methodDuration)
 }

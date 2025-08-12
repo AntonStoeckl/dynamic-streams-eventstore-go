@@ -46,7 +46,7 @@ type (
 	queryDuration     = time.Duration
 )
 
-// EventStore represents a storage mechanism for handling and querying events in an event sourcing implementation.
+// EventStore represents a storage mechanism for appending and querying events in an event sourcing implementation.
 // It leverages a database adapter and supports customizable logging, metricsCollector collection, tracing, and event table configuration.
 type EventStore struct {
 	db               adapters.DBAdapter
@@ -235,92 +235,131 @@ func (es *EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 ) {
 	var empty eventstore.StorableEvents
 
-	// Method-level timing (Phase 1)
-	methodStart := time.Now()
+	// Setup instrumentation
+	inst, ctx := es.setupQueryInstrumentation(ctx)
 
-	tracer, ctx := es.startQueryTracing(ctx)
-	metrics := es.startQueryMetrics(ctx)
-
-	// Record method call counter (separate from SQL operation metrics)
-	if es.metricsCollector != nil {
-		labels := map[string]string{
-			spanAttrOperation: operationQuery,
-		}
-		if contextualCollector, ok := es.metricsCollector.(eventstore.ContextualMetricsCollector); ok {
-			contextualCollector.IncrementCounterContext(ctx, metricQueryMethodCalls, labels)
-		} else {
-			es.metricsCollector.IncrementCounter(metricQueryMethodCalls, labels)
-		}
+	// Core business logic with component timing
+	sqlQuery, err := es.executeQueryBuildPhase(ctx, filter, inst)
+	if err != nil {
+		return empty, 0, err
 	}
 
+	rows, sqlDuration, err := es.executeQueryExecutionPhase(ctx, sqlQuery, inst)
+	if err != nil {
+		return empty, 0, err
+	}
+	defer es.closeRows(rows)
+
+	eventStream, maxSeq, err := es.executeQueryProcessingPhase(rows, inst)
+	if err != nil {
+		return empty, 0, err
+	}
+
+	// Success completion
+	es.completeQuerySuccess(ctx, eventStream, maxSeq, sqlDuration, inst)
+
+	return eventStream, maxSeq, nil
+}
+
+// executeQueryBuildPhase builds the SQL query with component timing and error handling.
+func (es *EventStore) executeQueryBuildPhase(
+	ctx context.Context,
+	filter eventstore.Filter,
+	inst queryInstrumentation,
+) (string, error) {
 	// Phase 2: Component-level timing - Query Building
 	queryBuildStart := time.Now()
 	sqlQuery, buildQueryErr := es.buildSelectQuery(filter)
 	queryBuildDuration := time.Since(queryBuildStart)
 
 	if buildQueryErr != nil {
-		methodDuration := time.Since(methodStart)
+		methodDuration := time.Since(inst.methodStart)
 		es.logError(logMsgBuildSelectQueryFailed, buildQueryErr)
 		es.logErrorContext(ctx, logMsgBuildSelectQueryFailed, buildQueryErr)
-		metrics.recordError(errorTypeBuildQuery, methodDuration)
-		tracer.finishError(errorTypeBuildQuery, methodDuration)
+		inst.metrics.recordError(errorTypeBuildQuery, methodDuration)
+		inst.tracer.finishError(errorTypeBuildQuery, methodDuration)
 
-		return empty, 0, buildQueryErr
+		return "", buildQueryErr
 	}
 
 	// Record query build component timing
-	metrics.recordComponentSuccess(componentQueryBuild, queryBuildDuration)
+	inst.metrics.recordComponentSuccess(componentQueryBuild, queryBuildDuration)
 
+	return sqlQuery, nil
+}
+
+// executeQueryExecutionPhase executes the SQL query with timing and error handling.
+func (es *EventStore) executeQueryExecutionPhase(
+	ctx context.Context,
+	sqlQuery string,
+	inst queryInstrumentation,
+) (adapters.DBRows, time.Duration, error) {
 	// Phase 2: Component-level timing - SQL Execution
 	rows, sqlDuration, queryErr := es.executeQuery(ctx, sqlQuery)
 	if queryErr != nil {
-		methodDuration := time.Since(methodStart)
+		methodDuration := time.Since(inst.methodStart)
 		switch {
 		case es.isCancellationError(queryErr):
-			metrics.recordCanceled(methodDuration)
-			tracer.finishCancelled(methodDuration)
+			inst.metrics.recordCanceled(methodDuration)
+			inst.tracer.finishCancelled(methodDuration)
 		case es.isTimeoutError(queryErr):
-			metrics.recordTimeout(methodDuration)
-			tracer.finishTimeout(methodDuration)
+			inst.metrics.recordTimeout(methodDuration)
+			inst.tracer.finishTimeout(methodDuration)
 		default:
-			metrics.recordError(errorTypeDatabaseQuery, methodDuration)
-			tracer.finishError(errorTypeDatabaseQuery, methodDuration)
+			inst.metrics.recordError(errorTypeDatabaseQuery, methodDuration)
+			inst.tracer.finishError(errorTypeDatabaseQuery, methodDuration)
 		}
 
-		return empty, 0, queryErr
+		return nil, sqlDuration, queryErr
 	}
-	defer es.closeRows(rows)
 
 	// Record SQL execution component timing
-	metrics.recordComponentSuccess(componentSQLExecution, sqlDuration)
+	inst.metrics.recordComponentSuccess(componentSQLExecution, sqlDuration)
+
+	return rows, sqlDuration, nil
+}
+
+// executeQueryProcessingPhase processes query results with timing and error handling.
+func (es *EventStore) executeQueryProcessingPhase(
+	rows adapters.DBRows,
+	inst queryInstrumentation,
+) (eventstore.StorableEvents, eventstore.MaxSequenceNumberUint, error) {
+	var empty eventstore.StorableEvents
 
 	// Phase 2: Component-level timing - Result Processing
 	resultProcessStart := time.Now()
-	eventStream, maxSequenceNumber, scanErr := es.processQueryResults(rows, metrics)
+	eventStream, maxSequenceNumber, scanErr := es.processQueryResults(rows, inst.metrics)
 	resultProcessDuration := time.Since(resultProcessStart)
 
 	if scanErr != nil {
-		methodDuration := time.Since(methodStart)
-		tracer.finishError(errorTypeScanResults, methodDuration)
+		methodDuration := time.Since(inst.methodStart)
+		inst.tracer.finishError(errorTypeScanResults, methodDuration)
 		return empty, 0, scanErr
 	}
 
 	// Record result processing component timing
-	metrics.recordComponentSuccess(componentResultProcessing, resultProcessDuration)
-
-	// Method completion timing
-	methodDuration := time.Since(methodStart)
-
-	es.logOperation(logMsgQueryCompleted, logAttrEventCount, len(eventStream), logAttrDurationMS, es.toMilliseconds(methodDuration))
-	es.logOperationContext(ctx, logMsgQueryCompleted, logAttrEventCount, len(eventStream), logAttrDurationMS, es.toMilliseconds(methodDuration))
-
-	// Record both SQL-level (existing) and method-level (new) timing
-	metrics.recordSuccess(eventStream, sqlDuration)          // SQL-level timing (backward compatibility)
-	metrics.recordMethodSuccess(eventStream, methodDuration) // Method-level timing (Phase 1)
-
-	tracer.finishSuccess(eventStream, maxSequenceNumber, methodDuration)
+	inst.metrics.recordComponentSuccess(componentResultProcessing, resultProcessDuration)
 
 	return eventStream, maxSequenceNumber, nil
+}
+
+func (es *EventStore) buildSelectQuery(filter eventstore.Filter) (sqlQueryString, error) {
+	builder := es.getBuilder()
+	defer es.putBuilder(builder)
+
+	selectStmt := builder.
+		From(es.eventTableName).
+		Select(colEventType, colOccurredAt, colPayload, colMetadata, colSequenceNumber).
+		Order(goqu.I(colSequenceNumber).Asc())
+
+	selectStmt = es.addWhereClause(filter, selectStmt)
+
+	sqlQuery, _, toSQLErr := selectStmt.ToSQL()
+	if toSQLErr != nil {
+		return "", errors.Join(eventstore.ErrBuildingQueryFailed, toSQLErr)
+	}
+
+	return sqlQuery, nil
 }
 
 // executeQuery executes the SQL query and returns rows with timing information.
@@ -404,90 +443,112 @@ func (es *EventStore) Append(
 	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
 	storableEvents ...eventstore.StorableEvent,
 ) error {
-
 	if len(storableEvents) == 0 {
 		return nil // nothing to do
 	}
 
-	// Method-level timing (Phase 1)
-	methodStart := time.Now()
+	// Setup instrumentation
+	inst, ctx := es.setupAppendInstrumentation(ctx, storableEvents, expectedMaxSequenceNumber)
 
-	tracer, ctx := es.startAppendTracing(ctx, storableEvents, expectedMaxSequenceNumber)
-	metrics := es.startAppendMetrics(ctx)
-
-	// Record method call counter (separate from SQL operation metrics)
-	if es.metricsCollector != nil {
-		labels := map[string]string{
-			spanAttrOperation: operationAppend,
-		}
-		if contextualCollector, ok := es.metricsCollector.(eventstore.ContextualMetricsCollector); ok {
-			contextualCollector.IncrementCounterContext(ctx, metricAppendMethodCalls, labels)
-		} else {
-			es.metricsCollector.IncrementCounter(metricAppendMethodCalls, labels)
-		}
+	// Core business logic with component timing
+	sqlQuery, err := es.executeAppendBuildPhase(ctx, storableEvents, filter, expectedMaxSequenceNumber, inst)
+	if err != nil {
+		return err
 	}
 
+	rowsAffected, sqlDuration, err := es.executeAppendExecutionPhase(ctx, sqlQuery, inst)
+	if err != nil {
+		return err
+	}
+
+	err = es.executeAppendValidationPhase(ctx, rowsAffected, len(storableEvents), expectedMaxSequenceNumber, inst)
+	if err != nil {
+		return err
+	}
+
+	// Success completion
+	es.completeAppendSuccess(ctx, len(storableEvents), rowsAffected, sqlDuration, inst)
+
+	return nil
+}
+
+// executeAppendBuildPhase builds the SQL query for append with component timing and error handling.
+func (es *EventStore) executeAppendBuildPhase(
+	ctx context.Context,
+	storableEvents eventstore.StorableEvents,
+	filter eventstore.Filter,
+	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
+	inst appendInstrumentation,
+) (string, error) {
 	// Phase 2: Component-level timing - Query Building
 	queryBuildStart := time.Now()
-	sqlQuery, buildQueryErr := es.buildAppendQuery(ctx, storableEvents, filter, expectedMaxSequenceNumber, metrics)
+	sqlQuery, buildQueryErr := es.buildAppendQuery(ctx, storableEvents, filter, expectedMaxSequenceNumber, inst.metrics)
 	queryBuildDuration := time.Since(queryBuildStart)
 
 	if buildQueryErr != nil {
-		methodDuration := time.Since(methodStart)
-		tracer.finishErrorWithAttrs(errorTypeBuildQuery, map[string]string{
+		methodDuration := time.Since(inst.methodStart)
+		inst.tracer.finishErrorWithAttrs(errorTypeBuildQuery, map[string]string{
 			spanAttrDurationMS: fmt.Sprintf("%.2f", es.toMilliseconds(methodDuration)),
 		})
-		return buildQueryErr
+		return "", buildQueryErr
 	}
 
 	// Record query build component timing
-	metrics.recordComponentSuccess(componentQueryBuild, queryBuildDuration)
+	inst.metrics.recordComponentSuccess(componentQueryBuild, queryBuildDuration)
 
+	return sqlQuery, nil
+}
+
+// executeAppendExecutionPhase executes the SQL query for append with timing and error handling.
+func (es *EventStore) executeAppendExecutionPhase(
+	ctx context.Context,
+	sqlQuery string,
+	inst appendInstrumentation,
+) (int64, time.Duration, error) {
 	// Phase 2: Component-level timing - SQL Execution
-	rowsAffected, sqlDuration, execErr := es.executeAppendQuery(ctx, sqlQuery, metrics)
+	rowsAffected, sqlDuration, execErr := es.executeAppendQuery(ctx, sqlQuery, inst.metrics)
 	if execErr != nil {
-		methodDuration := time.Since(methodStart)
+		methodDuration := time.Since(inst.methodStart)
 		switch {
 		case es.isCancellationError(execErr):
-			metrics.recordCanceled(methodDuration)
-			tracer.finishCancelled(methodDuration)
+			inst.metrics.recordCanceled(methodDuration)
+			inst.tracer.finishCancelled(methodDuration)
 		case es.isTimeoutError(execErr):
-			metrics.recordTimeout(methodDuration)
-			tracer.finishTimeout(methodDuration)
+			inst.metrics.recordTimeout(methodDuration)
+			inst.tracer.finishTimeout(methodDuration)
 		default:
-			tracer.finishError(errorTypeDatabaseExec, methodDuration)
+			inst.tracer.finishError(errorTypeDatabaseExec, methodDuration)
 		}
 
-		return execErr
+		return 0, sqlDuration, execErr
 	}
 
 	// Record SQL execution component timing
-	metrics.recordComponentSuccess(componentSQLExecution, sqlDuration)
+	inst.metrics.recordComponentSuccess(componentSQLExecution, sqlDuration)
 
+	return rowsAffected, sqlDuration, nil
+}
+
+// executeAppendValidationPhase validates the append operation results with error handling.
+func (es *EventStore) executeAppendValidationPhase(
+	ctx context.Context,
+	rowsAffected int64,
+	eventCount int,
+	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
+	inst appendInstrumentation,
+) error {
 	// Validate the result from the append operation (no timing needed - this is instant)
-	validationErr := es.validateAppendResult(ctx, rowsAffected, len(storableEvents), expectedMaxSequenceNumber, metrics)
+	validationErr := es.validateAppendResult(ctx, rowsAffected, eventCount, expectedMaxSequenceNumber, inst.metrics)
 	if validationErr != nil {
-		methodDuration := time.Since(methodStart)
+		methodDuration := time.Since(inst.methodStart)
 		attrs := map[string]string{
 			spanAttrRowsAffected: fmt.Sprintf("%d", rowsAffected),
 			spanAttrDurationMS:   fmt.Sprintf("%.2f", es.toMilliseconds(methodDuration)),
 		}
-		tracer.finishErrorWithAttrs(errorTypeConcurrencyConflict, attrs)
+		inst.tracer.finishErrorWithAttrs(errorTypeConcurrencyConflict, attrs)
 
 		return validationErr
 	}
-
-	// Method completion timing
-	methodDuration := time.Since(methodStart)
-
-	es.logOperation(logMsgEventsAppended, logAttrEventCount, len(storableEvents), logAttrDurationMS, es.toMilliseconds(methodDuration))
-	es.logOperationContext(ctx, logMsgEventsAppended, logAttrEventCount, len(storableEvents), logAttrDurationMS, es.toMilliseconds(methodDuration))
-
-	// Record both SQL-level (existing) and method-level (new) timing
-	metrics.recordSuccess(len(storableEvents), sqlDuration)          // SQL-level timing (backward compatibility)
-	metrics.recordMethodSuccess(len(storableEvents), methodDuration) // Method-level timing (Phase 1)
-
-	tracer.finishSuccess(rowsAffected, methodDuration)
 
 	return nil
 }
@@ -529,96 +590,6 @@ func (es *EventStore) buildAppendQuery(
 		metrics.recordError(errorTypeBuildQuery, 0)
 
 		return "", buildQueryErr
-	}
-
-	return sqlQuery, nil
-}
-
-// executeAppendQuery executes the SQL append query and returns rows affected and duration.
-func (es *EventStore) executeAppendQuery(ctx context.Context, sqlQuery string, metrics *appendMetricsObserver) (
-	rowsAffectedInt64,
-	queryDuration,
-	error,
-) {
-
-	start := time.Now()
-	tag, execErr := es.db.Exec(ctx, sqlQuery)
-	duration := time.Since(start)
-	es.logQueryWithDuration(sqlQuery, logActionAppend, duration)
-	es.logQueryWithDurationContext(ctx, sqlQuery, logActionAppend, duration)
-
-	if execErr != nil {
-		es.logError(logMsgDBExecFailed, execErr, logAttrQuery, sqlQuery)
-		es.logErrorContext(ctx, logMsgDBExecFailed, execErr, logAttrQuery, sqlQuery)
-		metrics.recordError(errorTypeDatabaseExec, duration)
-
-		return 0, duration, errors.Join(eventstore.ErrAppendingEventFailed, execErr)
-	}
-
-	rowsAffected, rowsAffectedErr := tag.RowsAffected()
-	if rowsAffectedErr != nil {
-		es.logError(logMsgRowsAffectedFailed, rowsAffectedErr)
-		es.logErrorContext(ctx, logMsgRowsAffectedFailed, rowsAffectedErr)
-		metrics.recordError(errorTypeRowsAffected, 0)
-
-		return 0, duration, errors.Join(eventstore.ErrGettingRowsAffectedFailed, rowsAffectedErr)
-	}
-
-	return rowsAffected, duration, nil
-}
-
-// validateAppendResult checks if the append operation was successful and detects concurrency conflicts.
-func (es *EventStore) validateAppendResult(
-	ctx context.Context,
-	rowsAffected int64,
-	expectedEventCount int,
-	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
-	metrics *appendMetricsObserver,
-) error {
-
-	if rowsAffected < int64(expectedEventCount) {
-		es.logOperation(
-			logMsgConcurrencyConflict,
-			logAttrExpectedEvents, expectedEventCount,
-			logAttrRowsAffected, rowsAffected,
-			logAttrExpectedSequence, expectedMaxSequenceNumber,
-		)
-		es.logOperationContext(ctx, logMsgConcurrencyConflict,
-			logAttrExpectedEvents, expectedEventCount,
-			logAttrRowsAffected, rowsAffected,
-			logAttrExpectedSequence, expectedMaxSequenceNumber,
-		)
-
-		metrics.recordConcurrencyConflict()
-
-		return eventstore.ErrConcurrencyConflict
-	}
-
-	return nil
-}
-
-func (es *EventStore) getBuilder() *goqu.DialectWrapper {
-	return es.builderPool.Get().(*goqu.DialectWrapper)
-}
-
-func (es *EventStore) putBuilder(builder *goqu.DialectWrapper) {
-	es.builderPool.Put(builder)
-}
-
-func (es *EventStore) buildSelectQuery(filter eventstore.Filter) (sqlQueryString, error) {
-	builder := es.getBuilder()
-	defer es.putBuilder(builder)
-
-	selectStmt := builder.
-		From(es.eventTableName).
-		Select(colEventType, colOccurredAt, colPayload, colMetadata, colSequenceNumber).
-		Order(goqu.I(colSequenceNumber).Asc())
-
-	selectStmt = es.addWhereClause(filter, selectStmt)
-
-	sqlQuery, _, toSQLErr := selectStmt.ToSQL()
-	if toSQLErr != nil {
-		return "", errors.Join(eventstore.ErrBuildingQueryFailed, toSQLErr)
 	}
 
 	return sqlQuery, nil
@@ -726,6 +697,69 @@ func (es *EventStore) buildInsertQueryForMultipleEvents(
 	return sqlQuery, nil
 }
 
+// executeAppendQuery executes the SQL append query and returns rows affected and duration.
+func (es *EventStore) executeAppendQuery(ctx context.Context, sqlQuery string, metrics *appendMetricsObserver) (
+	rowsAffectedInt64,
+	queryDuration,
+	error,
+) {
+
+	start := time.Now()
+	tag, execErr := es.db.Exec(ctx, sqlQuery)
+	duration := time.Since(start)
+	es.logQueryWithDuration(sqlQuery, logActionAppend, duration)
+	es.logQueryWithDurationContext(ctx, sqlQuery, logActionAppend, duration)
+
+	if execErr != nil {
+		es.logError(logMsgDBExecFailed, execErr, logAttrQuery, sqlQuery)
+		es.logErrorContext(ctx, logMsgDBExecFailed, execErr, logAttrQuery, sqlQuery)
+		metrics.recordError(errorTypeDatabaseExec, duration)
+
+		return 0, duration, errors.Join(eventstore.ErrAppendingEventFailed, execErr)
+	}
+
+	rowsAffected, rowsAffectedErr := tag.RowsAffected()
+	if rowsAffectedErr != nil {
+		es.logError(logMsgRowsAffectedFailed, rowsAffectedErr)
+		es.logErrorContext(ctx, logMsgRowsAffectedFailed, rowsAffectedErr)
+		metrics.recordError(errorTypeRowsAffected, 0)
+
+		return 0, duration, errors.Join(eventstore.ErrGettingRowsAffectedFailed, rowsAffectedErr)
+	}
+
+	return rowsAffected, duration, nil
+}
+
+// validateAppendResult checks if the append operation was successful and detects concurrency conflicts.
+func (es *EventStore) validateAppendResult(
+	ctx context.Context,
+	rowsAffected int64,
+	expectedEventCount int,
+	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
+	metrics *appendMetricsObserver,
+) error {
+
+	if rowsAffected < int64(expectedEventCount) {
+		es.logOperation(
+			logMsgConcurrencyConflict,
+			logAttrExpectedEvents, expectedEventCount,
+			logAttrRowsAffected, rowsAffected,
+			logAttrExpectedSequence, expectedMaxSequenceNumber,
+		)
+		es.logOperationContext(ctx, logMsgConcurrencyConflict,
+			logAttrExpectedEvents, expectedEventCount,
+			logAttrRowsAffected, rowsAffected,
+			logAttrExpectedSequence, expectedMaxSequenceNumber,
+		)
+
+		metrics.recordConcurrencyConflict()
+
+		return eventstore.ErrConcurrencyConflict
+	}
+
+	return nil
+}
+
 func (es *EventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.SelectDataset) *goqu.SelectDataset {
 	itemsExpressions := make([]goqu.Expression, 0)
 
@@ -790,6 +824,14 @@ func (es *EventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.
 	return selectStmt
 }
 
+func (es *EventStore) getBuilder() *goqu.DialectWrapper {
+	return es.builderPool.Get().(*goqu.DialectWrapper)
+}
+
+func (es *EventStore) putBuilder(builder *goqu.DialectWrapper) {
+	es.builderPool.Put(builder)
+}
+
 // isCancellationError checks if an error is due to context cancellation.
 // Database drivers often wrap context errors improperly, so we use multiple detection strategies.
 func (es *EventStore) isCancellationError(err error) bool {
@@ -805,6 +847,7 @@ func (es *EventStore) isCancellationError(err error) bool {
 	// Fallback: check the error message for improperly wrapped errors
 	// This handles cases where database drivers don't implement proper error wrapping
 	errStr := err.Error()
+
 	return strings.Contains(errStr, "context canceled") || strings.Contains(errStr, "context cancelled")
 }
 
@@ -823,5 +866,6 @@ func (es *EventStore) isTimeoutError(err error) bool {
 	// Fallback: check the error message for improperly wrapped errors
 	// This handles cases where database drivers don't implement proper error wrapping
 	errStr := err.Error()
+
 	return strings.Contains(errStr, "context deadline exceeded")
 }
