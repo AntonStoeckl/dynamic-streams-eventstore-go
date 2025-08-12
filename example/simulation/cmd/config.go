@@ -27,6 +27,8 @@ type Config struct {
 	MaxReaders           int
 	SetupSleepSeconds    int
 	ErrorProbabilities   ErrorConfig
+	CPUProfile           string
+	MemProfile           string
 }
 
 // ErrorConfig holds probabilities for different error scenarios (as percentages 0-100).
@@ -47,6 +49,8 @@ func parseFlags() Config {
 		maxReaders         = flag.Int("max-readers", defaultMaxReaders, "Maximum number of registered readers")
 		setupSleepSeconds  = flag.Int("setup-sleep", defaultSetupSleepSeconds, "Sleep seconds between setup and main simulation")
 		errorProbabilities = flag.String("error-rates", "0.5,2.0,0.5", "Comma-separated error probabilities: idempotent,manager-conflict,reader-removed-book")
+		cpuProfile         = flag.String("cpuprofile", "", "write cpu profile to file")
+		memProfile         = flag.String("memprofile", "", "write memory profile to file")
 	)
 
 	flag.Parse()
@@ -75,6 +79,8 @@ func parseFlags() Config {
 		MaxReaders:           *maxReaders,
 		SetupSleepSeconds:    *setupSleepSeconds,
 		ErrorProbabilities:   errorConfig,
+		CPUProfile:           *cpuProfile,
+		MemProfile:           *memProfile,
 	}
 }
 

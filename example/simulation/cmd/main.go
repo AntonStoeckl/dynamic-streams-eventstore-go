@@ -6,6 +6,8 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"runtime"
+	"runtime/pprof"
 	"strings"
 	"syscall"
 	"time"
@@ -21,6 +23,36 @@ import (
 //nolint:funlen
 func main() {
 	cfg := parseFlags()
+
+	// CPU profiling setup (will be started after setup phase)
+	var cpuProfileFile *os.File
+	if cfg.CPUProfile != "" {
+		var err error
+		cpuProfileFile, err = os.Create(cfg.CPUProfile)
+		if err != nil {
+			log.Fatal("could not create CPU profile: ", err)
+		}
+		defer cpuProfileFile.Close()
+		defer pprof.StopCPUProfile() // Will stop if started
+		log.Printf("CPU profiling enabled, will start after setup phase, writing to %s", cfg.CPUProfile)
+	}
+
+	// Memory profiling setup (deferred until end)
+	if cfg.MemProfile != "" {
+		defer func() {
+			f, err := os.Create(cfg.MemProfile)
+			if err != nil {
+				log.Fatal("could not create memory profile: ", err)
+			}
+			defer f.Close()
+			runtime.GC() // get up-to-date statistics
+			if err := pprof.WriteHeapProfile(f); err != nil {
+				log.Fatal("could not write memory profile: ", err)
+			}
+			log.Printf("Memory profile written to %s", cfg.MemProfile)
+		}()
+		log.Printf("Memory profiling enabled, will write to %s on exit", cfg.MemProfile)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -87,6 +119,16 @@ func main() {
 	if err != nil {
 		cancel()
 		log.Fatalf("Failed to create LibrarySimulation: %v", err)
+	}
+
+	// Set profiling callback to start after setup phase
+	if cpuProfileFile != nil {
+		simulation.SetProfilingCallback(func() {
+			log.Printf("Starting CPU profiling after setup phase...")
+			if err := pprof.StartCPUProfile(cpuProfileFile); err != nil {
+				log.Printf("Warning: could not start CPU profile: %v", err)
+			}
+		})
 	}
 
 	// Start simulation in a goroutine

@@ -73,6 +73,9 @@ type LibrarySimulation struct {
 	backpressureCount int64
 	startTime         time.Time
 	mu                sync.RWMutex
+
+	// Profiling callback (called after setup phase)
+	profilingCallback func()
 }
 
 // NewLibrarySimulation creates a new LibrarySimulation instance with the provided EventStore and configuration.
@@ -115,6 +118,12 @@ func NewLibrarySimulation(eventStore *postgresengine.EventStore, config Config, 
 		booksLentByReaderHandler:  handlers.booksLentByReaderHandler,
 		registeredReadersHandler:  handlers.registeredReadersHandler,
 	}, nil
+}
+
+// SetProfilingCallback sets a callback function to be called after the setup phase
+// to enable delayed profiling start.
+func (ls *LibrarySimulation) SetProfilingCallback(callback func()) {
+	ls.profilingCallback = callback
 }
 
 // handlerBundle holds all command and query handlers for the simulation.
@@ -225,7 +234,12 @@ func (ls *LibrarySimulation) Start(ctx context.Context) error {
 		time.Sleep(time.Duration(ls.config.SetupSleepSeconds) * time.Second)
 	}
 
-	// Phase 4: Start main simulation
+	// Phase 4: Start profiling if callback is set (after setup phase)
+	if ls.profilingCallback != nil {
+		ls.profilingCallback()
+	}
+
+	// Phase 5: Start main simulation
 	log.Printf("Starting main simulation phase...")
 	return ls.runMainSimulation(ctx)
 }
