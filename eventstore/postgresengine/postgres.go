@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/doug-martin/goqu/v9"
@@ -54,6 +55,7 @@ type EventStore struct {
 	metricsCollector MetricsCollector
 	tracingCollector TracingCollector
 	contextualLogger ContextualLogger
+	builderPool      *sync.Pool
 }
 
 type queryResultRow struct {
@@ -73,6 +75,12 @@ func NewEventStoreFromPGXPool(db *pgxpool.Pool, options ...Option) (*EventStore,
 	es := &EventStore{
 		db:             adapters.NewPGXAdapter(db),
 		eventTableName: defaultEventTableName,
+		builderPool: &sync.Pool{
+			New: func() interface{} {
+				dialect := goqu.Dialect(dialectPostgres)
+				return &dialect
+			},
+		},
 	}
 
 	for _, option := range options {
@@ -94,6 +102,12 @@ func NewEventStoreFromPGXPoolAndReplica(db *pgxpool.Pool, replica *pgxpool.Pool,
 	es := &EventStore{
 		db:             adapters.NewPGXAdapterWithReplica(db, replica),
 		eventTableName: defaultEventTableName,
+		builderPool: &sync.Pool{
+			New: func() interface{} {
+				dialect := goqu.Dialect(dialectPostgres)
+				return &dialect
+			},
+		},
 	}
 
 	for _, option := range options {
@@ -114,6 +128,12 @@ func NewEventStoreFromSQLDB(db *sql.DB, options ...Option) (*EventStore, error) 
 	es := &EventStore{
 		db:             adapters.NewSQLAdapter(db),
 		eventTableName: defaultEventTableName,
+		builderPool: &sync.Pool{
+			New: func() interface{} {
+				dialect := goqu.Dialect(dialectPostgres)
+				return &dialect
+			},
+		},
 	}
 
 	for _, option := range options {
@@ -135,6 +155,12 @@ func NewEventStoreFromSQLDBAndReplica(db *sql.DB, replica *sql.DB, options ...Op
 	es := &EventStore{
 		db:             adapters.NewSQLAdapterWithReplica(db, replica),
 		eventTableName: defaultEventTableName,
+		builderPool: &sync.Pool{
+			New: func() interface{} {
+				dialect := goqu.Dialect(dialectPostgres)
+				return &dialect
+			},
+		},
 	}
 
 	for _, option := range options {
@@ -155,6 +181,12 @@ func NewEventStoreFromSQLX(db *sqlx.DB, options ...Option) (*EventStore, error) 
 	es := &EventStore{
 		db:             adapters.NewSQLXAdapter(db),
 		eventTableName: defaultEventTableName,
+		builderPool: &sync.Pool{
+			New: func() interface{} {
+				dialect := goqu.Dialect(dialectPostgres)
+				return &dialect
+			},
+		},
 	}
 
 	for _, option := range options {
@@ -176,6 +208,12 @@ func NewEventStoreFromSQLXAndReplica(db *sqlx.DB, replica *sqlx.DB, options ...O
 	es := &EventStore{
 		db:             adapters.NewSQLXAdapterWithReplica(db, replica),
 		eventTableName: defaultEventTableName,
+		builderPool: &sync.Pool{
+			New: func() interface{} {
+				dialect := goqu.Dialect(dialectPostgres)
+				return &dialect
+			},
+		},
 	}
 
 	for _, option := range options {
@@ -559,8 +597,19 @@ func (es *EventStore) validateAppendResult(
 	return nil
 }
 
+func (es *EventStore) getBuilder() *goqu.DialectWrapper {
+	return es.builderPool.Get().(*goqu.DialectWrapper)
+}
+
+func (es *EventStore) putBuilder(builder *goqu.DialectWrapper) {
+	es.builderPool.Put(builder)
+}
+
 func (es *EventStore) buildSelectQuery(filter eventstore.Filter) (sqlQueryString, error) {
-	selectStmt := goqu.Dialect(dialectPostgres).
+	builder := es.getBuilder()
+	defer es.putBuilder(builder)
+
+	selectStmt := builder.
 		From(es.eventTableName).
 		Select(colEventType, colOccurredAt, colPayload, colMetadata, colSequenceNumber).
 		Order(goqu.I(colSequenceNumber).Asc())
@@ -581,7 +630,8 @@ func (es *EventStore) buildInsertQueryForSingleEvent(
 	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
 ) (sqlQueryString, error) {
 
-	builder := goqu.Dialect(dialectPostgres)
+	builder := es.getBuilder()
+	defer es.putBuilder(builder)
 
 	// Define the subquery for the CTE
 	cteStmt := builder.
@@ -620,7 +670,8 @@ func (es *EventStore) buildInsertQueryForMultipleEvents(
 	expectedMaxSequenceNumber eventstore.MaxSequenceNumberUint,
 ) (sqlQueryString, error) {
 
-	builder := goqu.Dialect(dialectPostgres)
+	builder := es.getBuilder()
+	defer es.putBuilder(builder)
 
 	// Define the subquery for the CTE
 	cteStmt := builder.
