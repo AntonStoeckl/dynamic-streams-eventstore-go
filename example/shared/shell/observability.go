@@ -25,6 +25,18 @@ const (
 	// CommandHandlerTimeoutMetric tracks timeout operations.
 	CommandHandlerTimeoutMetric = "commandhandler_timeout_operations_total"
 
+	// QueryHandlerDurationMetric tracks query handler execution duration (OpenTelemetry-compatible).
+	QueryHandlerDurationMetric = "queryhandler_handle_duration_seconds"
+
+	// QueryHandlerCallsMetric tracks total query handler calls.
+	QueryHandlerCallsMetric = "queryhandler_handle_calls_total"
+
+	// QueryHandlerCanceledMetric tracks canceled query operations.
+	QueryHandlerCanceledMetric = "queryhandler_canceled_operations_total"
+
+	// QueryHandlerTimeoutMetric tracks timeout query operations.
+	QueryHandlerTimeoutMetric = "queryhandler_timeout_operations_total"
+
 	// StatusSuccess indicates successful command completion.
 	StatusSuccess = "success"
 
@@ -49,8 +61,20 @@ const (
 	// LogMsgCommandFailed is logged when command processing fails.
 	LogMsgCommandFailed = "command handler failed"
 
+	// LogMsgQueryStarted is logged when query processing begins.
+	LogMsgQueryStarted = "query handler started"
+
+	// LogMsgQueryCompleted is logged when query processing succeeds.
+	LogMsgQueryCompleted = "query handler completed"
+
+	// LogMsgQueryFailed is logged when query processing fails.
+	LogMsgQueryFailed = "query handler failed"
+
 	// LogAttrCommandType identifies the command type in logs.
 	LogAttrCommandType = "command_type"
+
+	// LogAttrQueryType identifies the query type in logs.
+	LogAttrQueryType = "query_type"
 
 	// LogAttrStatus indicates the command processing status.
 	LogAttrStatus = "status"
@@ -66,6 +90,9 @@ const (
 
 	// SpanNameCommandHandle is the tracing span name for command handling.
 	SpanNameCommandHandle = "commandhandler.handle"
+
+	// SpanNameQueryHandle is the tracing span name for query handling.
+	SpanNameQueryHandle = "queryhandler.handle"
 )
 
 // Interface aliases for convenience when using command handler observability.
@@ -94,6 +121,14 @@ func BuildCommandLabels(commandType, status string) map[string]string {
 	return map[string]string{
 		LogAttrCommandType: commandType,
 		LogAttrStatus:      status,
+	}
+}
+
+// BuildQueryLabels creates standard metric labels for query handler operations.
+func BuildQueryLabels(queryType, status string) map[string]string {
+	return map[string]string{
+		LogAttrQueryType: queryType,
+		LogAttrStatus:    status,
 	}
 }
 
@@ -157,6 +192,51 @@ func RecordCommandMetrics(
 	}
 }
 
+// RecordQueryMetrics is a helper function to record all relevant metrics for a query operation.
+// It handles both context-aware and basic metrics collectors automatically.
+func RecordQueryMetrics(
+	ctx context.Context,
+	collector MetricsCollector,
+	queryType string,
+	status string,
+	duration time.Duration,
+) {
+	if collector == nil {
+		return
+	}
+
+	labels := BuildQueryLabels(queryType, status)
+
+	// Record duration metric
+	if contextualCollector, ok := collector.(ContextualMetricsCollector); ok {
+		contextualCollector.RecordDurationContext(ctx, QueryHandlerDurationMetric, duration, labels)
+		contextualCollector.IncrementCounterContext(ctx, QueryHandlerCallsMetric, labels)
+	} else {
+		collector.RecordDuration(QueryHandlerDurationMetric, duration, labels)
+		collector.IncrementCounter(QueryHandlerCallsMetric, labels)
+	}
+
+	// Record canceled operations separately
+	if status == StatusCanceled {
+		canceledLabels := BuildQueryLabels(queryType, StatusCanceled)
+		if contextualCollector, ok := collector.(ContextualMetricsCollector); ok {
+			contextualCollector.IncrementCounterContext(ctx, QueryHandlerCanceledMetric, canceledLabels)
+		} else {
+			collector.IncrementCounter(QueryHandlerCanceledMetric, canceledLabels)
+		}
+	}
+
+	// Record timeout operations separately
+	if status == StatusTimeout {
+		timeoutLabels := BuildQueryLabels(queryType, StatusTimeout)
+		if contextualCollector, ok := collector.(ContextualMetricsCollector); ok {
+			contextualCollector.IncrementCounterContext(ctx, QueryHandlerTimeoutMetric, timeoutLabels)
+		} else {
+			collector.IncrementCounter(QueryHandlerTimeoutMetric, timeoutLabels)
+		}
+	}
+}
+
 // StartCommandSpan starts a distributed tracing span for command operations.
 // Returns the updated context and span context, or original context and nil if tracing is disabled.
 func StartCommandSpan(
@@ -177,6 +257,48 @@ func StartCommandSpan(
 
 // FinishCommandSpan completes a distributed tracing span with the operation outcome.
 func FinishCommandSpan(
+	tracingCollector TracingCollector,
+	span SpanContext,
+	status string,
+	duration time.Duration,
+	err error,
+) {
+	if tracingCollector == nil || span == nil {
+		return
+	}
+
+	attrs := map[string]string{
+		LogAttrStatus:     status,
+		LogAttrDurationMS: formatDurationMS(duration),
+	}
+
+	if err != nil {
+		attrs[LogAttrError] = err.Error()
+	}
+
+	tracingCollector.FinishSpan(span, status, attrs)
+}
+
+// StartQuerySpan starts a distributed tracing span for query operations.
+// Returns the updated context and span context, or original context and nil if tracing is disabled.
+func StartQuerySpan(
+	ctx context.Context,
+	tracingCollector TracingCollector,
+	queryType string,
+) (context.Context, SpanContext) {
+	if tracingCollector == nil {
+		return ctx, nil
+	}
+
+	attrs := map[string]string{
+		LogAttrQueryType: queryType,
+	}
+
+	return tracingCollector.StartSpan(ctx, SpanNameQueryHandle, attrs)
+}
+
+// FinishQuerySpan completes a distributed tracing span with the operation outcome.
+func FinishQuerySpan(
 	tracingCollector TracingCollector,
 	span SpanContext,
 	status string,
@@ -252,6 +374,62 @@ func LogCommandError(
 		contextualLogger.ErrorContext(ctx, LogMsgCommandFailed, args...)
 	} else if logger != nil {
 		logger.Error(LogMsgCommandFailed, args...)
+	}
+}
+
+// LogQueryStart logs the beginning of query processing.
+func LogQueryStart(
+	ctx context.Context,
+	logger Logger,
+	contextualLogger ContextualLogger,
+	queryType string,
+) {
+	if contextualLogger != nil {
+		contextualLogger.InfoContext(ctx, LogMsgQueryStarted, LogAttrQueryType, queryType)
+	} else if logger != nil {
+		logger.Info(LogMsgQueryStarted, LogAttrQueryType, queryType)
+	}
+}
+
+// LogQuerySuccess logs successful query completion.
+func LogQuerySuccess(
+	ctx context.Context,
+	logger Logger,
+	contextualLogger ContextualLogger,
+	queryType string,
+	businessOutcome string,
+	duration time.Duration,
+) {
+	args := []any{
+		LogAttrQueryType, queryType,
+		LogAttrBusinessOutcome, businessOutcome,
+		LogAttrDurationMS, ToMilliseconds(duration),
+	}
+
+	if contextualLogger != nil {
+		contextualLogger.InfoContext(ctx, LogMsgQueryCompleted, args...)
+	} else if logger != nil {
+		logger.Info(LogMsgQueryCompleted, args...)
+	}
+}
+
+// LogQueryError logs query processing errors.
+func LogQueryError(
+	ctx context.Context,
+	logger Logger,
+	contextualLogger ContextualLogger,
+	queryType string,
+	err error,
+) {
+	args := []any{
+		LogAttrQueryType, queryType,
+		LogAttrError, err.Error(),
+	}
+
+	if contextualLogger != nil {
+		contextualLogger.ErrorContext(ctx, LogMsgQueryFailed, args...)
+	} else if logger != nil {
+		logger.Error(LogMsgQueryFailed, args...)
 	}
 }
 

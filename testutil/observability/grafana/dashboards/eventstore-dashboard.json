@@ -5,7 +5,7 @@
   "timezone": "browser",
   "refresh": "5s",
   "schemaVersion": 27,
-  "version": 1,
+  "version": 4,
   "time": {
     "from": "now-5m",
     "to": "now"
@@ -13,7 +13,7 @@
   "panels": [
     {
       "id": 1,
-      "title": "Successful EventStore.Append() Ops/sec",
+      "title": "Successful EventStore.Append()/sec",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -31,8 +31,8 @@
         }
       ],
       "gridPos": {
-        "h": 6,
-        "w": 6,
+        "h": 4,
+        "w": 12,
         "x": 0,
         "y": 0
       },
@@ -42,13 +42,13 @@
             "mode": "palette-classic"
           },
           "min": 0,
-          "unit": "ops"
+          "unit": "reqps"
         }
       }
     },
     {
       "id": 2,
-      "title": "Successful EventStore.Query() Ops/sec",
+      "title": "Successful EventStore.Query()/sec",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -66,9 +66,9 @@
         }
       ],
       "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 6,
+        "h": 4,
+        "w": 12,
+        "x": 12,
         "y": 0
       },
       "fieldConfig": {
@@ -77,7 +77,77 @@
             "mode": "palette-classic"
           },
           "min": 0,
-          "unit": "ops"
+          "unit": "reqps"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "SQL Insert/sec",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "rate(eventstore_append_duration_seconds_count[1m])",
+          "legendFormat": "SQL INSERT Operations/sec",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "unit": "reqps"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "SQL Select/sec",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "rate(eventstore_query_duration_seconds_count[1m])",
+          "legendFormat": "SQL SELECT Operations/sec",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "unit": "reqps"
         }
       }
     },
@@ -101,10 +171,10 @@
         }
       ],
       "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 12,
-        "y": 0
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 8
       },
       "fieldConfig": {
         "defaults": {
@@ -112,7 +182,7 @@
             "mode": "palette-classic"
           },
           "min": 0,
-          "unit": "ops"
+          "unit": "reqps"
         }
       }
     },
@@ -136,10 +206,10 @@
         }
       ],
       "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 18,
-        "y": 0
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 8
       },
       "fieldConfig": {
         "defaults": {
@@ -147,13 +217,13 @@
             "mode": "palette-classic"
           },
           "min": 0,
-          "unit": "ops"
+          "unit": "reqps"
         }
       }
     },
     {
-      "id": 5,
-      "title": "SQL Insert Ops/sec",
+      "id": 11,
+      "title": "Canceled EventStore.Append()/sec",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -165,16 +235,16 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(eventstore_append_duration_seconds_count[1m])",
-          "legendFormat": "SQL INSERT Operations/sec",
+          "expr": "eventstore_append_canceled_total",
+          "legendFormat": "Canceled Append/sec",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 6,
-        "w": 6,
+        "h": 4,
+        "w": 12,
         "x": 0,
-        "y": 6
+        "y": 12
       },
       "fieldConfig": {
         "defaults": {
@@ -182,13 +252,13 @@
             "mode": "palette-classic"
           },
           "min": 0,
-          "unit": "ops"
+          "unit": "reqps"
         }
       }
     },
     {
-      "id": 6,
-      "title": "SQL Select Ops/sec",
+      "id": 12,
+      "title": "Canceled EventStore.Query()/sec",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -200,16 +270,16 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(eventstore_query_duration_seconds_count[1m])",
-          "legendFormat": "SQL SELECT Operations/sec",
+          "expr": "eventstore_query_canceled_total",
+          "legendFormat": "Canceled Query/sec",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 6,
-        "y": 6
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 12
       },
       "fieldConfig": {
         "defaults": {
@@ -217,12 +287,82 @@
             "mode": "palette-classic"
           },
           "min": 0,
-          "unit": "ops"
+          "unit": "reqps"
         }
       }
     },
     {
-      "id": 7,
+      "id": 13,
+      "title": "Timed-Out EventStore.Append()/sec",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "rate(eventstore_append_timeout_total[1m])",
+          "legendFormat": "Timed-Out Append/sec",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "unit": "reqps"
+        }
+      }
+    },
+    {
+      "id": 14,
+      "title": "Timed-Out EventStore.Query()/sec",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "rate(eventstore_query_timeout_total[1m])",
+          "legendFormat": "Timed-Out Query/sec",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "unit": "reqps"
+        }
+      }
+    },
+    {
+      "id": 9,
       "title": "Average EventStore.Append() Duration",
       "type": "timeseries",
       "datasource": {
@@ -241,10 +381,10 @@
         }
       ],
       "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 12,
-        "y": 6
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 20
       },
       "fieldConfig": {
         "defaults": {
@@ -257,7 +397,7 @@
       }
     },
     {
-      "id": 8,
+      "id": 10,
       "title": "Average EventStore.Query() Duration",
       "type": "timeseries",
       "datasource": {
@@ -276,10 +416,10 @@
         }
       ],
       "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 18,
-        "y": 6
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 20
       },
       "fieldConfig": {
         "defaults": {
@@ -292,8 +432,8 @@
       }
     },
     {
-      "id": 9,
-      "title": "Successful Command Operations/sec",
+      "id": 7,
+      "title": "Average SQL Insert Duration",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -305,162 +445,13 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(commandhandler_handle_duration_seconds_count{status=\"success\"}[1m])",
-          "legendFormat": "{{command_type}}/sec",
+          "expr": "rate(eventstore_append_duration_seconds_sum{status=\"success\"}[1m]) / rate(eventstore_append_duration_seconds_count{status=\"success\"}[1m]) * 1000",
+          "legendFormat": "Avg SQL INSERT Duration (ms)",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 0,
-        "y": 12
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "min": 0,
-          "unit": "ops"
-        }
-      }
-    },
-    {
-      "id": 10,
-      "title": "Command Errors/sec",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(commandhandler_handle_duration_seconds_count{status=\"error\"}[1m])",
-          "legendFormat": "{{command_type}} Errors/sec",
-          "refId": "A"
-        }
-      ],
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 12,
-        "y": 12
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "min": 0,
-          "unit": "ops"
-        }
-      }
-    },
-    {
-      "id": 11,
-      "title": "Concurrency Conflicts/sec",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(eventstore_concurrency_conflicts_total[1m])",
-          "legendFormat": "Concurrency Conflicts/sec",
-          "refId": "A"
-        }
-      ],
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 0,
-        "y": 18
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "min": 0,
-          "unit": "ops"
-        }
-      }
-    },
-    {
-      "id": 12,
-      "title": "Command Idempotent Operations/sec",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(commandhandler_idempotent_operations_total[1m])",
-          "legendFormat": "{{command_type}} Idempotent/sec",
-          "refId": "A"
-        }
-      ],
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 12,
-        "y": 18
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "min": 0,
-          "unit": "ops"
-        }
-      }
-    },
-    {
-      "id": 13,
-      "title": "Canceled EventStore Operations/sec",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "eventstore_query_canceled_total",
-          "legendFormat": "Canceled Query Ops/sec",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "eventstore_append_canceled_total",
-          "legendFormat": "Canceled Append Ops/sec",
-          "refId": "B"
-        }
-      ],
-      "gridPos": {
-        "h": 6,
+        "h": 4,
         "w": 12,
         "x": 0,
         "y": 24
@@ -471,13 +462,13 @@
             "mode": "palette-classic"
           },
           "min": 0,
-          "unit": "ops"
+          "unit": "ms"
         }
       }
     },
     {
-      "id": 14,
-      "title": "Canceled Command/Query Operations/sec",
+      "id": 8,
+      "title": "Average SQL Select Duration",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -489,13 +480,13 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "commandhandler_canceled_operations_total",
-          "legendFormat": "{{command_type}} Canceled/sec",
+          "expr": "rate(eventstore_query_duration_seconds_sum{status=\"success\"}[1m]) / rate(eventstore_query_duration_seconds_count{status=\"success\"}[1m]) * 1000",
+          "legendFormat": "Avg SQL SELECT Duration (ms)",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 6,
+        "h": 4,
         "w": 12,
         "x": 12,
         "y": 24
@@ -506,86 +497,7 @@
             "mode": "palette-classic"
           },
           "min": 0,
-          "unit": "ops"
-        }
-      }
-    },
-    {
-      "id": 15,
-      "title": "Timeout EventStore Operations/sec",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(eventstore_query_timeout_total[1m])",
-          "legendFormat": "Timeout Query Ops/sec",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(eventstore_append_timeout_total[1m])",
-          "legendFormat": "Timeout Append Ops/sec",
-          "refId": "B"
-        }
-      ],
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 0,
-        "y": 30
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "min": 0,
-          "unit": "ops"
-        }
-      }
-    },
-    {
-      "id": 16,
-      "title": "Timeout Command/Query Operations/sec",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(commandhandler_timeout_operations_total[1m])",
-          "legendFormat": "{{command_type}} Timeout/sec",
-          "refId": "A"
-        }
-      ],
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 12,
-        "y": 30
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "min": 0,
-          "unit": "ops"
+          "unit": "ms"
         }
       }
     }
