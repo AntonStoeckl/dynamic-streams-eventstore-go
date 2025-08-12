@@ -20,9 +20,16 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"
 )
 
-//nolint:funlen
+//nolint:funlen,gocognit
 func main() {
 	cfg := parseFlags()
+
+	// Database adapter configuration
+	adapterType := strings.ToLower(os.Getenv("DB_ADAPTER"))
+	if adapterType == "" {
+		adapterType = "pgx"
+	}
+	log.Printf("🔧 USING DATABASE ADAPTER: %s", strings.ToUpper(adapterType))
 
 	// CPU profiling setup (will be started after setup phase)
 	var cpuProfileFile *os.File
@@ -32,7 +39,11 @@ func main() {
 		if err != nil {
 			log.Fatal("could not create CPU profile: ", err)
 		}
-		defer cpuProfileFile.Close()
+		defer func() {
+			if closeErr := cpuProfileFile.Close(); closeErr != nil {
+				log.Printf("Warning: failed to close CPU profile file: %v", closeErr)
+			}
+		}()
 		defer pprof.StopCPUProfile() // Will stop if started
 		log.Printf("CPU profiling enabled, will start after setup phase, writing to %s", cfg.CPUProfile)
 	}
@@ -44,7 +55,11 @@ func main() {
 			if err != nil {
 				log.Fatal("could not create memory profile: ", err)
 			}
-			defer f.Close()
+			defer func() {
+				if closeErr := f.Close(); closeErr != nil {
+					log.Printf("Warning: failed to close memory profile file: %v", closeErr)
+				}
+			}()
 			runtime.GC() // get up-to-date statistics
 			if err := pprof.WriteHeapProfile(f); err != nil {
 				log.Fatal("could not write memory profile: ", err)
@@ -60,13 +75,7 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// Get database adapter type from environment variable (default: pgx)
-	adapterType := strings.ToLower(os.Getenv("DB_ADAPTER"))
-	if adapterType == "" {
-		adapterType = "pgx"
-	}
-
-	log.Printf("🔧 USING DATABASE ADAPTER: %s", strings.ToUpper(adapterType))
+	// Database adapter type already validated and logged above
 
 	// Initialize observability (if enabled)
 	var eventStoreOptions []postgresengine.Option
@@ -102,12 +111,13 @@ func main() {
 	case "sqlx":
 		eventStore, err = initializeSQLXEventStore(eventStoreOptions...)
 	default:
-		cancel()
-		log.Fatalf("Unknown database adapter: %s (supported: pgx, sql, sqlx)", adapterType)
+		// Exit immediately for unknown adapter - no cleanup needed for config error
+		log.Printf("Unknown database adapter: %s (supported: pgx, sql, sqlx)", adapterType)
+		//nolint:gocritic // Acceptable for simulation config errors - fast fail is preferred
+		os.Exit(1)
 	}
 
 	if err != nil {
-		cancel()
 		log.Fatalf("Failed to create EventStore: %v", err)
 	}
 
@@ -117,7 +127,6 @@ func main() {
 	// Initialize library simulation
 	simulation, err := NewLibrarySimulation(eventStore, cfg, obsConfig)
 	if err != nil {
-		cancel()
 		log.Fatalf("Failed to create LibrarySimulation: %v", err)
 	}
 
