@@ -1,9 +1,10 @@
 package eventstore
 
 import (
-	"encoding/json"
 	"errors"
 	"time"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 var (
@@ -36,11 +37,11 @@ type StorableEvent struct {
 // It populates the StorableEvent with the given scalar input.
 // Returns an error if payloadJSON or metadataJSON are not valid JSON.
 func BuildStorableEvent(eventType string, occurredAt time.Time, payloadJSON []byte, metadataJSON []byte) (StorableEvent, error) {
-	if !json.Valid(payloadJSON) {
+	if !jsoniter.ConfigFastest.Valid(payloadJSON) {
 		return StorableEvent{}, ErrInvalidPayloadJSON
 	}
 
-	if !json.Valid(metadataJSON) {
+	if !jsoniter.ConfigFastest.Valid(metadataJSON) {
 		return StorableEvent{}, ErrInvalidMetadataJSON
 	}
 

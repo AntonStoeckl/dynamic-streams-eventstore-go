@@ -1,8 +1,9 @@
 package shell
 
 import (
-	"encoding/json"
 	"errors"
+
+	jsoniter "github.com/json-iterator/go"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
@@ -16,12 +17,12 @@ var ErrMappingToStorableEventFailedForMetadata = errors.New("mapping to storable
 
 // StorableEventFrom converts a DomainEvent and EventMetadata to a StorableEvent.
 func StorableEventFrom(event core.DomainEvent, metadata EventMetadata) (eventstore.StorableEvent, error) {
-	payloadJSON, err := json.Marshal(event)
+	payloadJSON, err := jsoniter.ConfigFastest.Marshal(event)
 	if err != nil {
 		return eventstore.StorableEvent{}, errors.Join(ErrMappingToStorableEventFailedForDomainEvent, err)
 	}
 
-	metadataJSON, err := json.Marshal(metadata)
+	metadataJSON, err := jsoniter.ConfigFastest.Marshal(metadata)
 	if err != nil {
 		return eventstore.StorableEvent{}, errors.Join(ErrMappingToStorableEventFailedForMetadata, err)
 	}
@@ -42,7 +43,7 @@ func StorableEventFrom(event core.DomainEvent, metadata EventMetadata) (eventsto
 
 // StorableEventWithEmptyMetadataFrom converts a DomainEvent to a StorableEvent with empty metadata.
 func StorableEventWithEmptyMetadataFrom(event core.DomainEvent) (eventstore.StorableEvent, error) {
-	payloadJSON, err := json.Marshal(event)
+	payloadJSON, err := jsoniter.ConfigFastest.Marshal(event)
 	if err != nil {
 		return eventstore.StorableEvent{}, errors.Join(ErrMappingToStorableEventFailedForDomainEvent, err)
 	}
