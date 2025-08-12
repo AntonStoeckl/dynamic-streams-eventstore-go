@@ -69,150 +69,100 @@ func DomainEventFrom(storableEvent eventstore.StorableEvent) (core.DomainEvent, 
 }
 
 func unmarshalBookCopyAddedToCirculation(payloadJSON []byte) (core.DomainEvent, error) {
-	payload := new(core.BookCopyAddedToCirculation)
+	var event core.BookCopyAddedToCirculation
 
-	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &payload)
+	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &event)
 	if err != nil {
 		return core.BookCopyAddedToCirculation{}, errors.Join(ErrMappingToDomainEventFailed, err)
 	}
 
-	return core.BookCopyAddedToCirculation{
-		EventType:       payload.EventType,
-		BookID:          payload.BookID,
-		ISBN:            payload.ISBN,
-		Title:           payload.Title,
-		Authors:         payload.Authors,
-		Edition:         payload.Edition,
-		Publisher:       payload.Publisher,
-		PublicationYear: payload.PublicationYear,
-		OccurredAt:      payload.OccurredAt,
-	}, nil
+	return event, nil
 }
 
 func unmarshalBookCopyRemovedFromCirculation(payloadJSON []byte) (core.DomainEvent, error) {
-	payload := new(core.BookCopyRemovedFromCirculation)
+	var event core.BookCopyRemovedFromCirculation
 
-	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &payload)
+	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &event)
 	if err != nil {
 		return core.BookCopyRemovedFromCirculation{}, errors.Join(ErrMappingToDomainEventFailed, err)
 	}
 
-	return core.BookCopyRemovedFromCirculation{
-		EventType:  payload.EventType,
-		BookID:     payload.BookID,
-		OccurredAt: payload.OccurredAt,
-	}, nil
+	return event, nil
 }
 
 func unmarshalBookCopyLentToReader(payloadJSON []byte) (core.DomainEvent, error) {
-	payload := new(core.BookCopyLentToReader)
+	var event core.BookCopyLentToReader
 
-	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &payload)
+	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &event)
 	if err != nil {
 		return core.BookCopyLentToReader{}, errors.Join(ErrMappingToDomainEventFailed, err)
 	}
 
-	return core.BookCopyLentToReader{
-		EventType:  payload.EventType,
-		BookID:     payload.BookID,
-		ReaderID:   payload.ReaderID,
-		OccurredAt: payload.OccurredAt,
-	}, nil
+	return event, nil
 }
 
 func unmarshalBookCopyReturnedByReader(payloadJSON []byte) (core.DomainEvent, error) {
-	payload := new(core.BookCopyReturnedByReader)
+	var event core.BookCopyReturnedByReader
 
-	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &payload)
+	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &event)
 	if err != nil {
 		return core.BookCopyReturnedByReader{}, errors.Join(ErrMappingToDomainEventFailed, err)
 	}
 
-	return core.BookCopyReturnedByReader{
-		EventType:  payload.EventType,
-		BookID:     payload.BookID,
-		ReaderID:   payload.ReaderID,
-		OccurredAt: payload.OccurredAt,
-	}, nil
+	return event, nil
 }
 
 func unmarshalLendingBookToReaderFailed(payloadJSON []byte) (core.DomainEvent, error) {
-	payload := new(core.LendingBookToReaderFailed)
+	var event core.LendingBookToReaderFailed
 
-	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &payload)
+	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &event)
 	if err != nil {
 		return core.LendingBookToReaderFailed{}, errors.Join(ErrMappingToDomainEventFailed, err)
 	}
 
-	return core.LendingBookToReaderFailed{
-		EventType:   payload.EventType,
-		BookID:      payload.BookID,
-		ReaderID:    payload.ReaderID,
-		FailureInfo: payload.FailureInfo,
-		OccurredAt:  payload.OccurredAt,
-	}, nil
+	return event, nil
 }
 
 func unmarshalReturningBookFromReaderFailed(payloadJSON []byte) (core.DomainEvent, error) {
-	payload := new(core.ReturningBookFromReaderFailed)
+	var event core.ReturningBookFromReaderFailed
 
-	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &payload)
+	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &event)
 	if err != nil {
 		return core.ReturningBookFromReaderFailed{}, errors.Join(ErrMappingToDomainEventFailed, err)
 	}
 
-	return core.ReturningBookFromReaderFailed{
-		EventType:   payload.EventType,
-		BookID:      payload.BookID,
-		ReaderID:    payload.ReaderID,
-		FailureInfo: payload.FailureInfo,
-		OccurredAt:  payload.OccurredAt,
-	}, nil
+	return event, nil
 }
 
 func unmarshalRemovingBookFromCirculationFailed(payloadJSON []byte) (core.DomainEvent, error) {
-	payload := new(core.RemovingBookFromCirculationFailed)
+	var event core.RemovingBookFromCirculationFailed
 
-	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &payload)
+	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &event)
 	if err != nil {
 		return core.RemovingBookFromCirculationFailed{}, errors.Join(ErrMappingToDomainEventFailed, err)
 	}
 
-	return core.RemovingBookFromCirculationFailed{
-		EventType:   payload.EventType,
-		BookID:      payload.BookID,
-		FailureInfo: payload.FailureInfo,
-		OccurredAt:  payload.OccurredAt,
-	}, nil
+	return event, nil
 }
 
 func unmarshalReaderRegistered(payloadJSON []byte) (core.DomainEvent, error) {
-	payload := new(core.ReaderRegistered)
+	var event core.ReaderRegistered
 
-	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &payload)
+	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &event)
 	if err != nil {
 		return core.ReaderRegistered{}, errors.Join(ErrMappingToDomainEventFailed, err)
 	}
 
-	return core.ReaderRegistered{
-		EventType:  payload.EventType,
-		ReaderID:   payload.ReaderID,
-		Name:       payload.Name,
-		OccurredAt: payload.OccurredAt,
-	}, nil
+	return event, nil
 }
 
 func unmarshalReaderContractCanceled(payloadJSON []byte) (core.DomainEvent, error) {
-	payload := new(core.ReaderContractCanceled)
+	var event core.ReaderContractCanceled
 
-	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &payload)
+	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &event)
 	if err != nil {
 		return core.ReaderContractCanceled{}, errors.Join(ErrMappingToDomainEventFailed, err)
 	}
 
-	return core.ReaderContractCanceled{
-		EventType:  payload.EventType,
-		ReaderID:   payload.ReaderID,
-		OccurredAt: payload.OccurredAt,
-	}, nil
+	return event, nil
 }
