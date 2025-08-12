@@ -426,7 +426,7 @@ func (es *EventStore) Append(
 	// Record SQL execution component timing
 	metrics.recordComponentSuccess(componentSQLExecution, sqlDuration)
 
-	// Validate append result (no timing needed - this is instant)
+	// Validate the result from the append operation (no timing needed - this is instant)
 	validationErr := es.validateAppendResult(ctx, rowsAffected, len(storableEvents), expectedMaxSequenceNumber, metrics)
 	if validationErr != nil {
 		methodDuration := time.Since(methodStart)
