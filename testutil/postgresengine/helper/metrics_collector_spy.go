@@ -337,6 +337,22 @@ func (m *MetricRecordMatcher) WithErrorType(errorType string) *MetricRecordMatch
 	return m
 }
 
+// WithLabels checks if the record has all the specified labels with matching values.
+func (m *MetricRecordMatcher) WithLabels(labels map[string]string) *MetricRecordMatcher {
+	if !m.found {
+		return m
+	}
+
+	for key, expectedValue := range labels {
+		if actualValue, exists := m.labels[key]; !exists || actualValue != expectedValue {
+			m.found = false
+			return m
+		}
+	}
+
+	return m
+}
+
 // WithConflictType checks if the record has the specified conflict_type label.
 func (m *MetricRecordMatcher) WithConflictType(conflictType string) *MetricRecordMatcher {
 	if !m.found {

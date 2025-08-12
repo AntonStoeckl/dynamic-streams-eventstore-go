@@ -257,7 +257,7 @@ func Test_Observability_Eventstore_WithMetrics_RecordsQueryMetrics(t *testing.T)
 
 	// assert
 	assert.NoError(t, err)
-	assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore_query_duration_seconds").
+	assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore_query_method_duration_seconds").
 		WithOperation("query").
 		WithStatus("success").
 		Assert(), "should record query duration metric with correct labels")
@@ -294,11 +294,11 @@ func Test_Observability_Eventstore_WithMetrics_RecordsAppendMetrics(t *testing.T
 
 	// assert
 	assert.NoError(t, err)
-	assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore_query_duration_seconds").
+	assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore_query_method_duration_seconds").
 		WithOperation("query").
 		WithStatus("success").
 		Assert(), "should record query duration metric for pre-append query")
-	assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore_append_duration_seconds").
+	assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore_append_method_duration_seconds").
 		WithOperation("append").
 		WithStatus("success").
 		Assert(), "should record append duration metric with correct labels")
@@ -310,6 +310,90 @@ func Test_Observability_Eventstore_WithMetrics_RecordsAppendMetrics(t *testing.T
 		WithOperation("append").
 		WithStatus("success").
 		Assert(), "should record events appended metric with correct labels")
+}
+
+//nolint:funlen
+func Test_Observability_Eventstore_WithMetrics_RecordsCompleteHierarchy(t *testing.T) {
+	// This test verifies that all three levels of metrics instrumentation work correctly:
+	// 1. Method-level: Complete operation timing (what benchmarks measure)
+	// 2. SQL-level: Database execution only (for detailed analysis)
+	// 3. Component-level: Individual component breakdown (for performance tuning)
+
+	// setup
+	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	metricsCollector := NewMetricsCollectorSpy(true)
+	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithMetrics(metricsCollector))
+	defer wrapper.Close()
+	es := wrapper.GetEventStore()
+
+	// arrange
+	CleanUp(t, wrapper)
+	fakeClock := time.Now()
+	bookID := GivenUniqueID(t)
+	filter := FilterAllEventTypesForOneBook(bookID)
+
+	// act - perform query and append operations
+	_, _, queryErr := es.Query(ctxWithTimeout, filter)
+	assert.NoError(t, queryErr)
+
+	appendErr := es.Append(
+		ctxWithTimeout,
+		filter,
+		QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
+		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
+	)
+	assert.NoError(t, appendErr)
+
+	// assert METHOD-LEVEL METRICS (complete operation timing)
+	assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore_query_method_duration_seconds").
+		WithOperation("query").
+		WithStatus("success").
+		Assert(), "should record query method duration")
+	assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore_append_method_duration_seconds").
+		WithOperation("append").
+		WithStatus("success").
+		Assert(), "should record append method duration")
+
+	// assert SQL-LEVEL METRICS (database execution only)
+	assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore_query_sql_duration_seconds").
+		WithOperation("query").
+		WithStatus("success").
+		Assert(), "should record query SQL duration")
+	assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore_append_sql_duration_seconds").
+		WithOperation("append").
+		WithStatus("success").
+		Assert(), "should record append SQL duration")
+
+	// assert COMPONENT-LEVEL METRICS (individual component breakdown)
+	// For now, let's use a simplified approach - just check that component metrics exist
+	// Expected: 3 components for query (query_build, sql_execution, result_processing) + 2 components for append (query_build, sql_execution) = 5 total
+	componentMetrics := 0
+	for _, record := range metricsCollector.GetDurationRecords() {
+		if record.Metric == "eventstore_component_duration_seconds" {
+			componentMetrics++
+		}
+	}
+	assert.GreaterOrEqual(t, componentMetrics, 5, "should record all component-level metrics (3 for query + 2 for append)")
+
+	// assert METHOD CALL COUNTERS (separate from timing metrics)
+	assert.True(t, metricsCollector.HasCounterRecordForMetric("eventstore_query_method_calls_total").
+		WithOperation("query").
+		Assert(), "should record query method call counter")
+	assert.True(t, metricsCollector.HasCounterRecordForMetric("eventstore_append_method_calls_total").
+		WithOperation("append").
+		Assert(), "should record append method call counter")
+
+	// assert BUSINESS METRICS (events processed)
+	assert.True(t, metricsCollector.HasValueRecordForMetric("eventstore_events_queried_total").
+		WithOperation("query").
+		WithStatus("success").
+		Assert(), "should record events queried count")
+	assert.True(t, metricsCollector.HasValueRecordForMetric("eventstore_events_appended_total").
+		WithOperation("append").
+		WithStatus("success").
+		Assert(), "should record events appended count")
 }
 
 func Test_Observability_Eventstore_WithMetrics_RecordsConcurrencyConflicts(t *testing.T) {
@@ -376,7 +460,7 @@ func Test_Observability_Eventstore_WithMetrics_RecordsErrorMetrics(t *testing.T)
 
 	// assert
 	assert.Error(t, err)
-	assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore_query_duration_seconds").
+	assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore_query_method_duration_seconds").
 		WithOperation("query").
 		WithStatus("error").
 		Assert(), "should record query duration metric with error status")
@@ -700,7 +784,7 @@ func Test_Observability_Eventstore_WithMetrics_FallbackToNonContextual(t *testin
 	assert.Error(t, err)
 	assert.False(t, metricsCollector.SupportsContextual(), "basic spy should not support contextual interface")
 	// This should exercise the non-contextual fallback paths in the 80% coverage functions
-	assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore_query_duration_seconds").
+	assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore_query_method_duration_seconds").
 		WithOperation("query").
 		WithStatus("error").
 		Assert(), "should record query duration via fallback path")
@@ -732,7 +816,7 @@ func Test_Observability_Eventstore_WithContextualMetrics_UsesContextualPath(t *t
 	assert.Error(t, err)
 	assert.True(t, metricsCollector.SupportsContextual(), "contextual spy should support contextual interface")
 	// This should exercise the contextual paths in recordDurationMetricsContext, etc.
-	assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore_query_duration_seconds").
+	assert.True(t, metricsCollector.HasDurationRecordForMetric("eventstore_query_method_duration_seconds").
 		WithOperation("query").
 		WithStatus("error").
 		Assert(), "should record query duration via contextual path")
@@ -852,11 +936,21 @@ func Test_Observability_Eventstore_WithRealObservabilityStack_RealisticLoad(t *t
 	t.Log("  - Jaeger Traces: http://localhost:16686")
 	t.Log("  - Prometheus Metrics: http://localhost:9090")
 
-	// Force flush metrics to ensure they are exported before the test completes
-	if err := providers.MeterProvider.ForceFlush(ctxWithTimeout); err != nil {
+	// Force flush all telemetry data to ensure it's exported before the test completes
+	// Use a fresh context for the flush operation to avoid cancellation issues
+	flushCtx, flushCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer flushCancel()
+
+	// Flush traces first
+	if err := providers.TracerProvider.ForceFlush(flushCtx); err != nil {
+		t.Logf("Warning: Failed to flush traces: %v", err)
+	}
+
+	// Then flush metrics
+	if err := providers.MeterProvider.ForceFlush(flushCtx); err != nil {
 		t.Logf("Warning: Failed to flush metrics: %v", err)
 	}
 
 	// Give time for final telemetry to be exported
-	time.Sleep(5 * time.Second)
+	time.Sleep(3 * time.Second)
 }

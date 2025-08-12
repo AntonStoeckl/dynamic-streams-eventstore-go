@@ -5,7 +5,7 @@
   "timezone": "browser",
   "refresh": "5s",
   "schemaVersion": 27,
-  "version": 5,
+  "version": 6,
   "time": {
     "from": "now-5m",
     "to": "now"
@@ -271,7 +271,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "expr": "rate(queryhandler_timeout_operations_total[1m])",
-          "legendFormat": "{{query_type}} Timed-Out/sec"
+          "legendFormat": "{{query_type}} Timed-Out/sec",
           "refId": "A"
         }
       ],

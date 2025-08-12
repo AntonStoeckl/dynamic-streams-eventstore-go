@@ -197,6 +197,9 @@ func (es *EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 ) {
 	var empty eventstore.StorableEvents
 
+	// Method-level timing (Phase 1)
+	methodStart := time.Now()
+
 	tracer, ctx := es.startQueryTracing(ctx)
 	metrics := es.startQueryMetrics(ctx)
 
@@ -212,44 +215,72 @@ func (es *EventStore) Query(ctx context.Context, filter eventstore.Filter) (
 		}
 	}
 
+	// Phase 2: Component-level timing - Query Building
+	queryBuildStart := time.Now()
 	sqlQuery, buildQueryErr := es.buildSelectQuery(filter)
+	queryBuildDuration := time.Since(queryBuildStart)
+
 	if buildQueryErr != nil {
+		methodDuration := time.Since(methodStart)
 		es.logError(logMsgBuildSelectQueryFailed, buildQueryErr)
 		es.logErrorContext(ctx, logMsgBuildSelectQueryFailed, buildQueryErr)
-		metrics.recordError(errorTypeBuildQuery, 0)
-		tracer.finishError(errorTypeBuildQuery, 0)
+		metrics.recordError(errorTypeBuildQuery, methodDuration)
+		tracer.finishError(errorTypeBuildQuery, methodDuration)
 
 		return empty, 0, buildQueryErr
 	}
 
-	rows, duration, queryErr := es.executeQuery(ctx, sqlQuery)
+	// Record query build component timing
+	metrics.recordComponentSuccess(componentQueryBuild, queryBuildDuration)
+
+	// Phase 2: Component-level timing - SQL Execution
+	rows, sqlDuration, queryErr := es.executeQuery(ctx, sqlQuery)
 	if queryErr != nil {
+		methodDuration := time.Since(methodStart)
 		switch {
 		case es.isCancellationError(queryErr):
-			metrics.recordCanceled(duration)
-			tracer.finishCancelled(duration)
+			metrics.recordCanceled(methodDuration)
+			tracer.finishCancelled(methodDuration)
 		case es.isTimeoutError(queryErr):
-			metrics.recordTimeout(duration)
-			tracer.finishTimeout(duration)
+			metrics.recordTimeout(methodDuration)
+			tracer.finishTimeout(methodDuration)
 		default:
-			metrics.recordError(errorTypeDatabaseQuery, duration)
-			tracer.finishError(errorTypeDatabaseQuery, duration)
+			metrics.recordError(errorTypeDatabaseQuery, methodDuration)
+			tracer.finishError(errorTypeDatabaseQuery, methodDuration)
 		}
 
 		return empty, 0, queryErr
 	}
 	defer es.closeRows(rows)
 
+	// Record SQL execution component timing
+	metrics.recordComponentSuccess(componentSQLExecution, sqlDuration)
+
+	// Phase 2: Component-level timing - Result Processing
+	resultProcessStart := time.Now()
 	eventStream, maxSequenceNumber, scanErr := es.processQueryResults(rows, metrics)
+	resultProcessDuration := time.Since(resultProcessStart)
+
 	if scanErr != nil {
-		tracer.finishError(errorTypeScanResults, 0)
+		methodDuration := time.Since(methodStart)
+		tracer.finishError(errorTypeScanResults, methodDuration)
 		return empty, 0, scanErr
 	}
 
-	es.logOperation(logMsgQueryCompleted, logAttrEventCount, len(eventStream), logAttrDurationMS, es.toMilliseconds(duration))
-	es.logOperationContext(ctx, logMsgQueryCompleted, logAttrEventCount, len(eventStream), logAttrDurationMS, es.toMilliseconds(duration))
-	metrics.recordSuccess(eventStream, duration)
-	tracer.finishSuccess(eventStream, maxSequenceNumber, duration)
+	// Record result processing component timing
+	metrics.recordComponentSuccess(componentResultProcessing, resultProcessDuration)
+
+	// Method completion timing
+	methodDuration := time.Since(methodStart)
+
+	es.logOperation(logMsgQueryCompleted, logAttrEventCount, len(eventStream), logAttrDurationMS, es.toMilliseconds(methodDuration))
+	es.logOperationContext(ctx, logMsgQueryCompleted, logAttrEventCount, len(eventStream), logAttrDurationMS, es.toMilliseconds(methodDuration))
+
+	// Record both SQL-level (existing) and method-level (new) timing
+	metrics.recordSuccess(eventStream, sqlDuration)          // SQL-level timing (backward compatibility)
+	metrics.recordMethodSuccess(eventStream, methodDuration) // Method-level timing (Phase 1)
+
+	tracer.finishSuccess(eventStream, maxSequenceNumber, methodDuration)
 
 	return eventStream, maxSequenceNumber, nil
 }
@@ -340,6 +371,9 @@ func (es *EventStore) Append(
 		return nil // nothing to do
 	}
 
+	// Method-level timing (Phase 1)
+	methodStart := time.Now()
+
 	tracer, ctx := es.startAppendTracing(ctx, storableEvents, expectedMaxSequenceNumber)
 	metrics := es.startAppendMetrics(ctx)
 
@@ -355,39 +389,67 @@ func (es *EventStore) Append(
 		}
 	}
 
+	// Phase 2: Component-level timing - Query Building
+	queryBuildStart := time.Now()
 	sqlQuery, buildQueryErr := es.buildAppendQuery(ctx, storableEvents, filter, expectedMaxSequenceNumber, metrics)
+	queryBuildDuration := time.Since(queryBuildStart)
+
 	if buildQueryErr != nil {
-		tracer.finishErrorWithAttrs(errorTypeBuildQuery, nil)
+		methodDuration := time.Since(methodStart)
+		tracer.finishErrorWithAttrs(errorTypeBuildQuery, map[string]string{
+			spanAttrDurationMS: fmt.Sprintf("%.2f", es.toMilliseconds(methodDuration)),
+		})
 		return buildQueryErr
 	}
 
-	rowsAffected, duration, execErr := es.executeAppendQuery(ctx, sqlQuery, metrics)
+	// Record query build component timing
+	metrics.recordComponentSuccess(componentQueryBuild, queryBuildDuration)
+
+	// Phase 2: Component-level timing - SQL Execution
+	rowsAffected, sqlDuration, execErr := es.executeAppendQuery(ctx, sqlQuery, metrics)
 	if execErr != nil {
+		methodDuration := time.Since(methodStart)
 		switch {
 		case es.isCancellationError(execErr):
-			metrics.recordCanceled(duration)
-			tracer.finishCancelled(duration)
+			metrics.recordCanceled(methodDuration)
+			tracer.finishCancelled(methodDuration)
 		case es.isTimeoutError(execErr):
-			metrics.recordTimeout(duration)
-			tracer.finishTimeout(duration)
+			metrics.recordTimeout(methodDuration)
+			tracer.finishTimeout(methodDuration)
 		default:
-			tracer.finishError(errorTypeDatabaseExec, duration)
+			tracer.finishError(errorTypeDatabaseExec, methodDuration)
 		}
 
 		return execErr
 	}
 
-	if err := es.validateAppendResult(ctx, rowsAffected, len(storableEvents), expectedMaxSequenceNumber, metrics); err != nil {
-		attrs := map[string]string{spanAttrRowsAffected: fmt.Sprintf("%d", rowsAffected)}
+	// Record SQL execution component timing
+	metrics.recordComponentSuccess(componentSQLExecution, sqlDuration)
+
+	// Validate append result (no timing needed - this is instant)
+	validationErr := es.validateAppendResult(ctx, rowsAffected, len(storableEvents), expectedMaxSequenceNumber, metrics)
+	if validationErr != nil {
+		methodDuration := time.Since(methodStart)
+		attrs := map[string]string{
+			spanAttrRowsAffected: fmt.Sprintf("%d", rowsAffected),
+			spanAttrDurationMS:   fmt.Sprintf("%.2f", es.toMilliseconds(methodDuration)),
+		}
 		tracer.finishErrorWithAttrs(errorTypeConcurrencyConflict, attrs)
 
-		return err
+		return validationErr
 	}
 
-	es.logOperation(logMsgEventsAppended, logAttrEventCount, len(storableEvents), logAttrDurationMS, es.toMilliseconds(duration))
-	es.logOperationContext(ctx, logMsgEventsAppended, logAttrEventCount, len(storableEvents), logAttrDurationMS, es.toMilliseconds(duration))
-	metrics.recordSuccess(len(storableEvents), duration)
-	tracer.finishSuccess(rowsAffected, duration)
+	// Method completion timing
+	methodDuration := time.Since(methodStart)
+
+	es.logOperation(logMsgEventsAppended, logAttrEventCount, len(storableEvents), logAttrDurationMS, es.toMilliseconds(methodDuration))
+	es.logOperationContext(ctx, logMsgEventsAppended, logAttrEventCount, len(storableEvents), logAttrDurationMS, es.toMilliseconds(methodDuration))
+
+	// Record both SQL-level (existing) and method-level (new) timing
+	metrics.recordSuccess(len(storableEvents), sqlDuration)          // SQL-level timing (backward compatibility)
+	metrics.recordMethodSuccess(len(storableEvents), methodDuration) // Method-level timing (Phase 1)
+
+	tracer.finishSuccess(rowsAffected, methodDuration)
 
 	return nil
 }

@@ -40,8 +40,19 @@ const (
 	logActionAppend         = "append"
 
 	// OpenTelemetry-compatible metrics names.
-	metricQueryDuration        = "eventstore_query_duration_seconds"
-	metricAppendDuration       = "eventstore_append_duration_seconds"
+
+	// Method-level metrics (complete operation timing).
+	metricQueryMethodDuration  = "eventstore_query_method_duration_seconds"
+	metricAppendMethodDuration = "eventstore_append_method_duration_seconds"
+
+	// SQL-level metrics (database execution only).
+	metricQuerySQLDuration  = "eventstore_query_sql_duration_seconds"
+	metricAppendSQLDuration = "eventstore_append_sql_duration_seconds"
+
+	// Component-level metrics (Phase 2).
+	metricComponentDuration = "eventstore_component_duration_seconds"
+
+	// Other existing metrics.
 	metricEventsQueried        = "eventstore_events_queried_total"
 	metricEventsAppended       = "eventstore_events_appended_total"
 	metricConcurrencyConflicts = "eventstore_concurrency_conflicts_total"
@@ -64,6 +75,11 @@ const (
 	statusError    = "error"
 	statusCanceled = "canceled"
 	statusTimeout  = "timeout"
+
+	// Component names for hierarchical timing (Phase 2).
+	componentQueryBuild       = "query_build"
+	componentSQLExecution     = "sql_execution"
+	componentResultProcessing = "result_processing"
 
 	// Error type classification for metrics and tracing.
 	errorTypeBuildQuery          = "build_query"
@@ -589,7 +605,7 @@ func (es *EventStore) startAppendMetrics(ctx context.Context) *appendMetricsObse
 
 // recordSuccess records all metrics for a successful query operation.
 func (qmo *queryMetricsObserver) recordSuccess(eventStream eventstore.StorableEvents, duration time.Duration) {
-	qmo.es.recordDurationMetricsContext(qmo.ctx, metricQueryDuration, duration, operationQuery, statusSuccess)
+	qmo.es.recordDurationMetricsContext(qmo.ctx, metricQuerySQLDuration, duration, operationQuery, statusSuccess)
 
 	eventCount := float64(0)
 	if eventStream != nil {
@@ -599,45 +615,107 @@ func (qmo *queryMetricsObserver) recordSuccess(eventStream eventstore.StorableEv
 	qmo.es.recordValueMetricsContext(qmo.ctx, metricEventsQueried, eventCount, operationQuery, statusSuccess)
 }
 
+// recordMethodSuccess records method-level timing for successful query operations.
+func (qmo *queryMetricsObserver) recordMethodSuccess(eventStream eventstore.StorableEvents, duration time.Duration) {
+	qmo.es.recordDurationMetricsContext(qmo.ctx, metricQueryMethodDuration, duration, operationQuery, statusSuccess)
+
+	eventCount := float64(0)
+	if eventStream != nil {
+		eventCount = float64(len(eventStream))
+	}
+
+	qmo.es.recordValueMetricsContext(qmo.ctx, metricEventsQueried, eventCount, operationQuery, statusSuccess)
+}
+
+// recordComponentSuccess records component-level timing (Phase 2).
+func (qmo *queryMetricsObserver) recordComponentSuccess(component string, duration time.Duration) {
+	if qmo.es.metricsCollector == nil {
+		return
+	}
+
+	labels := map[string]string{
+		spanAttrOperation: operationQuery,
+		"component":       component,
+		"status":          statusSuccess,
+	}
+
+	if contextualCollector, ok := qmo.es.metricsCollector.(eventstore.ContextualMetricsCollector); ok {
+		contextualCollector.RecordDurationContext(qmo.ctx, metricComponentDuration, duration, labels)
+	} else {
+		qmo.es.metricsCollector.RecordDuration(metricComponentDuration, duration, labels)
+	}
+}
+
 // recordError records all metrics for a failed query operation.
 func (qmo *queryMetricsObserver) recordError(errorType string, duration time.Duration) {
-	qmo.es.recordDurationMetricsContext(qmo.ctx, metricQueryDuration, duration, operationQuery, statusError)
+	qmo.es.recordDurationMetricsContext(qmo.ctx, metricQuerySQLDuration, duration, operationQuery, statusError)
+	qmo.es.recordDurationMetricsContext(qmo.ctx, metricQueryMethodDuration, duration, operationQuery, statusError)
 	qmo.es.recordErrorMetricsContext(qmo.ctx, operationQuery, errorType)
 }
 
 // recordCanceled records all metrics for a canceled query operation.
 func (qmo *queryMetricsObserver) recordCanceled(duration time.Duration) {
-	qmo.es.recordDurationMetricsContext(qmo.ctx, metricQueryDuration, duration, operationQuery, statusCanceled)
+	qmo.es.recordDurationMetricsContext(qmo.ctx, metricQuerySQLDuration, duration, operationQuery, statusCanceled)
+	qmo.es.recordDurationMetricsContext(qmo.ctx, metricQueryMethodDuration, duration, operationQuery, statusCanceled)
 	qmo.es.recordCancelledMetricsContext(qmo.ctx, operationQuery)
 }
 
 // recordTimeout records all metrics for a timeout query operation.
 func (qmo *queryMetricsObserver) recordTimeout(duration time.Duration) {
-	qmo.es.recordDurationMetricsContext(qmo.ctx, metricQueryDuration, duration, operationQuery, statusTimeout)
+	qmo.es.recordDurationMetricsContext(qmo.ctx, metricQuerySQLDuration, duration, operationQuery, statusTimeout)
+	qmo.es.recordDurationMetricsContext(qmo.ctx, metricQueryMethodDuration, duration, operationQuery, statusTimeout)
 	qmo.es.recordTimeoutMetricsContext(qmo.ctx, operationQuery)
 }
 
 // recordSuccess records all metrics for a successful append operation.
 func (amo *appendMetricsObserver) recordSuccess(eventCount int, duration time.Duration) {
-	amo.es.recordDurationMetricsContext(amo.ctx, metricAppendDuration, duration, operationAppend, statusSuccess)
+	amo.es.recordDurationMetricsContext(amo.ctx, metricAppendSQLDuration, duration, operationAppend, statusSuccess)
 	amo.es.recordValueMetricsContext(amo.ctx, metricEventsAppended, float64(eventCount), operationAppend, statusSuccess)
+}
+
+// recordMethodSuccess records method-level timing for successful append operations.
+func (amo *appendMetricsObserver) recordMethodSuccess(eventCount int, duration time.Duration) {
+	amo.es.recordDurationMetricsContext(amo.ctx, metricAppendMethodDuration, duration, operationAppend, statusSuccess)
+	amo.es.recordValueMetricsContext(amo.ctx, metricEventsAppended, float64(eventCount), operationAppend, statusSuccess)
+}
+
+// recordComponentSuccess records component-level timing (Phase 2).
+func (amo *appendMetricsObserver) recordComponentSuccess(component string, duration time.Duration) {
+	if amo.es.metricsCollector == nil {
+		return
+	}
+
+	labels := map[string]string{
+		spanAttrOperation: operationAppend,
+		"component":       component,
+		"status":          statusSuccess,
+	}
+
+	if contextualCollector, ok := amo.es.metricsCollector.(eventstore.ContextualMetricsCollector); ok {
+		contextualCollector.RecordDurationContext(amo.ctx, metricComponentDuration, duration, labels)
+	} else {
+		amo.es.metricsCollector.RecordDuration(metricComponentDuration, duration, labels)
+	}
 }
 
 // recordError records all metrics for a failed append operation.
 func (amo *appendMetricsObserver) recordError(errorType string, duration time.Duration) {
-	amo.es.recordDurationMetricsContext(amo.ctx, metricAppendDuration, duration, operationAppend, statusError)
+	amo.es.recordDurationMetricsContext(amo.ctx, metricAppendSQLDuration, duration, operationAppend, statusError)
+	amo.es.recordDurationMetricsContext(amo.ctx, metricAppendMethodDuration, duration, operationAppend, statusError)
 	amo.es.recordErrorMetricsContext(amo.ctx, operationAppend, errorType)
 }
 
 // recordCanceled records all metrics for a canceled append operation.
 func (amo *appendMetricsObserver) recordCanceled(duration time.Duration) {
-	amo.es.recordDurationMetricsContext(amo.ctx, metricAppendDuration, duration, operationAppend, statusCanceled)
+	amo.es.recordDurationMetricsContext(amo.ctx, metricAppendSQLDuration, duration, operationAppend, statusCanceled)
+	amo.es.recordDurationMetricsContext(amo.ctx, metricAppendMethodDuration, duration, operationAppend, statusCanceled)
 	amo.es.recordCancelledMetricsContext(amo.ctx, operationAppend)
 }
 
 // recordTimeout records all metrics for a timeout append operation.
 func (amo *appendMetricsObserver) recordTimeout(duration time.Duration) {
-	amo.es.recordDurationMetricsContext(amo.ctx, metricAppendDuration, duration, operationAppend, statusTimeout)
+	amo.es.recordDurationMetricsContext(amo.ctx, metricAppendSQLDuration, duration, operationAppend, statusTimeout)
+	amo.es.recordDurationMetricsContext(amo.ctx, metricAppendMethodDuration, duration, operationAppend, statusTimeout)
 	amo.es.recordTimeoutMetricsContext(amo.ctx, operationAppend)
 }
 

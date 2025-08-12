@@ -207,8 +207,8 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) { //nol
 		}
 
 		// Validate that metrics were captured
-		assert.True(b, metricsSpy.HasDurationRecord("eventstore_query_duration_seconds"), "Missing query duration metrics")
-		assert.True(b, metricsSpy.HasDurationRecord("eventstore_append_duration_seconds"), "Missing append duration metrics")
+		assert.True(b, metricsSpy.HasDurationRecord("eventstore_query_method_duration_seconds"), "Missing query method duration metrics")
+		assert.True(b, metricsSpy.HasDurationRecord("eventstore_append_method_duration_seconds"), "Missing append method duration metrics")
 		assert.True(b, metricsSpy.HasDurationRecord("commandhandler_handle_duration_seconds"), "Missing command handler duration metrics")
 
 		// Report average durations from captured metrics
@@ -218,10 +218,10 @@ func Benchmark_TypicalWorkload_With_Many_Events_InTheStore(b *testing.B) { //nol
 
 		for _, record := range queryRecords {
 			switch record.Metric {
-			case "eventstore_query_duration_seconds":
+			case "eventstore_query_method_duration_seconds":
 				totalQueryTime += record.Duration
 				queryCount++
-			case "eventstore_append_duration_seconds":
+			case "eventstore_append_method_duration_seconds":
 				totalAppendTime += record.Duration
 				appendCount++
 			case "commandhandler_handle_duration_seconds":
