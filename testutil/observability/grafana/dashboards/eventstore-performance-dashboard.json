@@ -1,0 +1,237 @@
+{
+  "uid": "eventstore-performance-dashboard",
+  "title": "EventStore Performance Dashboard",
+  "tags": ["eventstore", "performance", "timing", "duration"],
+  "timezone": "browser",
+  "refresh": "5s",
+  "schemaVersion": 27,
+  "version": 1,
+  "time": {
+    "from": "now-5m",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Average EventStore.Append() Duration",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "rate(eventstore_append_method_duration_seconds_sum{status=\"success\"}[1m]) / rate(eventstore_append_method_duration_seconds_count{status=\"success\"}[1m]) * 1000",
+          "legendFormat": "Avg Successful Append Duration (ms)",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "unit": "ms"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Average EventStore.Query() Duration",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "rate(eventstore_query_method_duration_seconds_sum{status=\"success\"}[1m]) / rate(eventstore_query_method_duration_seconds_count{status=\"success\"}[1m]) * 1000",
+          "legendFormat": "Avg Successful Query Duration (ms)",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "unit": "ms"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Average SQL Insert Duration",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "rate(eventstore_append_sql_duration_seconds_sum{status=\"success\"}[1m]) / rate(eventstore_append_sql_duration_seconds_count{status=\"success\"}[1m]) * 1000",
+          "legendFormat": "Avg SQL INSERT Duration (ms)",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "unit": "ms"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Average SQL Select Duration",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "rate(eventstore_query_sql_duration_seconds_sum{status=\"success\"}[1m]) / rate(eventstore_query_sql_duration_seconds_count{status=\"success\"}[1m]) * 1000",
+          "legendFormat": "Avg SQL SELECT Duration (ms)",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 6
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "unit": "ms"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Append Component Timing Breakdown",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "rate(eventstore_component_duration_seconds_sum{operation=\"append\",status=\"success\"}[1m]) / rate(eventstore_component_duration_seconds_count{operation=\"append\",status=\"success\"}[1m]) * 1000000",
+          "legendFormat": "{{component}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "scaleDistribution": {
+              "type": "log",
+              "log": 10
+            }
+          },
+          "min": 1,
+          "unit": "µs"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Query Component Timing Breakdown",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "rate(eventstore_component_duration_seconds_sum{operation=\"query\",status=\"success\"}[1m]) / rate(eventstore_component_duration_seconds_count{operation=\"query\",status=\"success\"}[1m]) * 1000000",
+          "legendFormat": "{{component}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "scaleDistribution": {
+              "type": "log",
+              "log": 10
+            }
+          },
+          "min": 1,
+          "unit": "µs"
+        }
+      }
+    }
+  ]
+}
