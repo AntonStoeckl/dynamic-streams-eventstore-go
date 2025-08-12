@@ -5,7 +5,7 @@
   "timezone": "browser",
   "refresh": "5s",
   "schemaVersion": 27,
-  "version": 9,
+  "version": 10,
   "time": {
     "from": "now-5m",
     "to": "now"
@@ -25,7 +25,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(eventstore_append_duration_seconds_count{status=\"success\"}[1m])",
+          "expr": "rate(eventstore_append_method_duration_seconds_count{status=\"success\"}[1m])",
           "legendFormat": "Successful Appends/sec",
           "refId": "A"
         }
@@ -60,7 +60,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(eventstore_query_duration_seconds_count{status=\"success\"}[1m])",
+          "expr": "rate(eventstore_query_method_duration_seconds_count{status=\"success\"}[1m])",
           "legendFormat": "Successful Queries/sec",
           "refId": "A"
         }
@@ -165,7 +165,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(eventstore_append_duration_seconds_count{status=\"error\"}[1m])",
+          "expr": "rate(eventstore_append_method_duration_seconds_count{status=\"error\"}[1m])",
           "legendFormat": "Append Errors/sec",
           "refId": "A"
         }
@@ -200,7 +200,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(eventstore_query_duration_seconds_count{status=\"error\"}[1m])",
+          "expr": "rate(eventstore_query_method_duration_seconds_count{status=\"error\"}[1m])",
           "legendFormat": "Query Errors/sec",
           "refId": "A"
         }
