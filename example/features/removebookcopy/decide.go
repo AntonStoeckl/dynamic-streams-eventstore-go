@@ -7,12 +7,16 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
 
-const failureReasonBookNotInCirculation = "book is not in circulation"
+const (
+	failureReasonBookNeverAddedToCirculation = "book was never added to circulation"
+	failureReasonBookIsCurrentlyLent         = "book is currently lent"
+)
 
 // state represents the current state projected from the event history.
 type state struct {
 	bookIsNotInCirculation         bool
 	bookWasNeverAddedToCirculation bool
+	bookIsCurrentlyLent            bool
 }
 
 // Decide implements the business logic to determine whether a book copy should be removed from circulation.
@@ -24,7 +28,8 @@ type state struct {
 //	GIVEN: A book copy with BookID
 //	WHEN: RemoveBookCopyFromCirculation command is received
 //	THEN: BookCopyRemovedFromCirculation event is generated
-//	ERROR: "book is not in circulation" if a book was never added to circulation
+//	ERROR: "book was never added to circulation" if a book was never added to circulation
+//	ERROR: "book is currently lent" if a book is currently lent to a reader
 //	IDEMPOTENCY: If book already removed from circulation, no event generated (no-op)
 func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 	s := project(history, command.BookID.String())
@@ -37,8 +42,20 @@ func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 		return core.ErrorDecision(
 			core.BuildRemovingBookFromCirculationFailed(
 				command.BookID,
-				failureReasonBookNotInCirculation,
-				command.OccurredAt))
+				failureReasonBookNeverAddedToCirculation,
+				command.OccurredAt,
+			),
+		)
+	}
+
+	if s.bookIsCurrentlyLent {
+		return core.ErrorDecision(
+			core.BuildRemovingBookFromCirculationFailed(
+				command.BookID,
+				failureReasonBookIsCurrentlyLent,
+				command.OccurredAt,
+			),
+		)
 	}
 
 	return core.SuccessDecision(
@@ -67,6 +84,16 @@ func project(history core.DomainEvents, bookID string) state {
 		case core.BookCopyRemovedFromCirculation:
 			if e.BookID == bookID {
 				s.bookIsNotInCirculation = true
+			}
+
+		case core.BookCopyLentToReader:
+			if e.BookID == bookID {
+				s.bookIsCurrentlyLent = true
+			}
+
+		case core.BookCopyReturnedByReader:
+			if e.BookID == bookID {
+				s.bookIsCurrentlyLent = false
 			}
 		}
 	}
