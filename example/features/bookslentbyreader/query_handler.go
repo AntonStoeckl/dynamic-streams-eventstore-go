@@ -4,10 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/google/uuid"
-
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
 )
 
@@ -59,7 +56,7 @@ func (h QueryHandler) Handle(ctx context.Context, query Query) (BooksCurrentlyLe
 	ctx, span := shell.StartQuerySpan(ctx, h.tracingCollector, queryType)
 	shell.LogQueryStart(ctx, h.logger, h.contextualLogger, queryType)
 
-	filter := h.buildEventFilter(query.ReaderID)
+	filter := BuildEventFilter(query.ReaderID)
 
 	// Query phase
 	storableEvents, _, err := h.eventStore.Query(ctx, filter)
@@ -81,23 +78,6 @@ func (h QueryHandler) Handle(ctx context.Context, query Query) (BooksCurrentlyLe
 	h.recordQuerySuccess(ctx, time.Since(queryStart), span)
 
 	return result, nil
-}
-
-// buildEventFilter creates the filter for querying all events
-// related to the specified reader and all book circulation events
-// which are relevant for this query/use-case.
-func (h QueryHandler) buildEventFilter(readerID uuid.UUID) eventstore.Filter {
-	return eventstore.BuildEventFilter().
-		Matching().
-		AnyEventTypeOf(
-			core.BookCopyAddedToCirculationEventType,
-			core.BookCopyLentToReaderEventType,
-			core.BookCopyReturnedByReaderEventType,
-		).
-		AndAnyPredicateOf(
-			eventstore.P("ReaderID", readerID.String()),
-		).
-		Finalize()
 }
 
 /*** Query Handler Options and helper methods for observability ***/

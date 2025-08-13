@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
 )
 
@@ -57,7 +56,7 @@ func (h QueryHandler) Handle(ctx context.Context) (BooksLentOut, error) {
 	ctx, span := shell.StartQuerySpan(ctx, h.tracingCollector, queryType)
 	shell.LogQueryStart(ctx, h.logger, h.contextualLogger, queryType)
 
-	filter := h.buildEventFilter()
+	filter := BuildEventFilter()
 
 	// Query phase
 	storableEvents, _, err := h.eventStore.Query(ctx, filter)
@@ -79,19 +78,6 @@ func (h QueryHandler) Handle(ctx context.Context) (BooksLentOut, error) {
 	h.recordQuerySuccess(ctx, time.Since(queryStart), span)
 
 	return result, nil
-}
-
-// buildEventFilter creates the filter for querying all book circulation and lending events
-// which are relevant for this query/use-case.
-func (h QueryHandler) buildEventFilter() eventstore.Filter {
-	return eventstore.BuildEventFilter().
-		Matching().
-		AnyEventTypeOf(
-			core.BookCopyAddedToCirculationEventType,
-			core.BookCopyLentToReaderEventType,
-			core.BookCopyReturnedByReaderEventType,
-		).
-		Finalize()
 }
 
 /*** Query Handler Options and helper methods for observability ***/

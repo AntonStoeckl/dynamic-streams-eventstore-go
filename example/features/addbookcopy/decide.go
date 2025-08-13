@@ -1,6 +1,9 @@
 package addbookcopy
 
 import (
+	"github.com/google/uuid"
+
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
 
@@ -62,4 +65,19 @@ func project(history core.DomainEvents, bookID string) state {
 	}
 
 	return s
+}
+
+// BuildEventFilter creates the filter for querying all events
+// related to the specified book which are relevant for this feature/use-case.
+func BuildEventFilter(bookID uuid.UUID) eventstore.Filter {
+	return eventstore.BuildEventFilter().
+		Matching().
+		AnyEventTypeOf(
+			core.BookCopyAddedToCirculationEventType,
+			core.BookCopyRemovedFromCirculationEventType,
+		).
+		AndAnyPredicateOf(
+			eventstore.P("BookID", bookID.String()),
+		).
+		Finalize()
 }

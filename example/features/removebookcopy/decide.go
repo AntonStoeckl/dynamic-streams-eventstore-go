@@ -1,8 +1,13 @@
 package removebookcopy
 
 import (
+	"github.com/google/uuid"
+
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
+
+const failureReasonBookNotInCirculation = "book is not in circulation"
 
 // state represents the current state projected from the event history.
 type state struct {
@@ -32,12 +37,16 @@ func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 		return core.ErrorDecision(
 			core.BuildRemovingBookFromCirculationFailed(
 				command.BookID,
-				"book is not in circulation",
+				failureReasonBookNotInCirculation,
 				command.OccurredAt))
 	}
 
 	return core.SuccessDecision(
-		core.BuildBookCopyRemovedFromCirculation(command.BookID, command.OccurredAt))
+		core.BuildBookCopyRemovedFromCirculation(
+			command.BookID,
+			command.OccurredAt,
+		),
+	)
 }
 
 // project builds the current state by replaying all events from the history.
@@ -63,4 +72,21 @@ func project(history core.DomainEvents, bookID string) state {
 	}
 
 	return s
+}
+
+// BuildEventFilter creates the filter for querying all events
+// related to the specified book which are relevant for this feature/use-case.
+func BuildEventFilter(bookID uuid.UUID) eventstore.Filter {
+	return eventstore.BuildEventFilter().
+		Matching().
+		AnyEventTypeOf(
+			core.BookCopyAddedToCirculationEventType,
+			core.BookCopyRemovedFromCirculationEventType,
+			core.BookCopyLentToReaderEventType,
+			core.BookCopyReturnedByReaderEventType,
+		).
+		AndAnyPredicateOf(
+			eventstore.P("BookID", bookID.String()),
+		).
+		Finalize()
 }

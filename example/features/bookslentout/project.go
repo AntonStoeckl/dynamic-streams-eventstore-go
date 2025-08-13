@@ -4,6 +4,7 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
 
@@ -70,4 +71,17 @@ func ProjectBooksLentOut(history core.DomainEvents) BooksLentOut {
 		Lendings: lendings,
 		Count:    len(lendings),
 	}
+}
+
+// BuildEventFilter creates the filter for querying all book circulation and lending events
+// which are relevant for this query/use-case.
+func BuildEventFilter() eventstore.Filter {
+	return eventstore.BuildEventFilter().
+		Matching().
+		AnyEventTypeOf(
+			core.BookCopyAddedToCirculationEventType,
+			core.BookCopyLentToReaderEventType,
+			core.BookCopyReturnedByReaderEventType,
+		).
+		Finalize()
 }

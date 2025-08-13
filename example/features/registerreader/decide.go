@@ -1,6 +1,9 @@
 package registerreader
 
 import (
+	"github.com/google/uuid"
+
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
 
@@ -57,4 +60,19 @@ func project(history core.DomainEvents, readerID string) state {
 	}
 
 	return s
+}
+
+// BuildEventFilter creates the filter for querying all events
+// related to the specified reader which are relevant for this feature/use-case.
+func BuildEventFilter(readerID uuid.UUID) eventstore.Filter {
+	return eventstore.BuildEventFilter().
+		Matching().
+		AnyEventTypeOf(
+			core.ReaderRegisteredEventType,
+			core.ReaderContractCanceledEventType,
+		).
+		AndAnyPredicateOf(
+			eventstore.P("ReaderID", readerID.String()),
+		).
+		Finalize()
 }

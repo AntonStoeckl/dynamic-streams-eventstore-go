@@ -4,6 +4,9 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/google/uuid"
+
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
 
@@ -75,4 +78,21 @@ func ProjectBooksCurrentlyLent(history core.DomainEvents, query Query) BooksCurr
 		Books:    books,
 		Count:    len(lentBooks),
 	}
+}
+
+// BuildEventFilter creates the filter for querying all events
+// related to the specified reader and all book circulation events
+// which are relevant for this query/use-case.
+func BuildEventFilter(readerID uuid.UUID) eventstore.Filter {
+	return eventstore.BuildEventFilter().
+		Matching().
+		AnyEventTypeOf(
+			core.BookCopyAddedToCirculationEventType,
+			core.BookCopyLentToReaderEventType,
+			core.BookCopyReturnedByReaderEventType,
+		).
+		AndAnyPredicateOf(
+			eventstore.P("ReaderID", readerID.String()),
+		).
+		Finalize()
 }

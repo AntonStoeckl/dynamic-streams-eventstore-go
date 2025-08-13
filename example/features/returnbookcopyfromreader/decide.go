@@ -1,7 +1,15 @@
 package returnbookcopyfromreader
 
 import (
+	"github.com/google/uuid"
+
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
+)
+
+const (
+	failureReasonBookNotInCirculation = "book is not in circulation"
+	failureReasonBookNotLentToReader  = "book is not lent to this reader"
 )
 
 // state represents the current state projected from the event history.
@@ -35,7 +43,7 @@ func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 			core.BuildReturningBookFromReaderFailed(
 				command.BookID,
 				command.ReaderID,
-				"book is not in circulation",
+				failureReasonBookNotInCirculation,
 				command.OccurredAt))
 	}
 
@@ -44,13 +52,17 @@ func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 			core.BuildReturningBookFromReaderFailed(
 				command.BookID,
 				command.ReaderID,
-				"book is not lent to this reader",
+				failureReasonBookNotLentToReader,
 				command.OccurredAt))
 	}
 
 	return core.SuccessDecision(
 		core.BuildBookCopyReturnedFromReader(
-			command.BookID, command.ReaderID, command.OccurredAt))
+			command.BookID,
+			command.ReaderID,
+			command.OccurredAt,
+		),
+	)
 }
 
 // project builds the current state by replaying all events from the history.
@@ -87,4 +99,22 @@ func project(history core.DomainEvents, bookID string, readerID string) state {
 	}
 
 	return s
+}
+
+// BuildEventFilter creates the filter for querying all events
+// related to the specified book and reader which are relevant for this feature/use-case.
+func BuildEventFilter(bookID uuid.UUID, readerID uuid.UUID) eventstore.Filter {
+	return eventstore.BuildEventFilter().
+		Matching().
+		AnyEventTypeOf(
+			core.BookCopyAddedToCirculationEventType,
+			core.BookCopyRemovedFromCirculationEventType,
+			core.BookCopyLentToReaderEventType,
+			core.BookCopyReturnedByReaderEventType,
+		).
+		AndAnyPredicateOf(
+			eventstore.P("BookID", bookID.String()),
+			eventstore.P("ReaderID", readerID.String()),
+		).
+		Finalize()
 }

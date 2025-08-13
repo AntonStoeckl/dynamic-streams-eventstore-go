@@ -4,6 +4,7 @@ import (
 	"maps"
 	"slices"
 
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
 
@@ -48,4 +49,16 @@ func ProjectRegisteredReaders(history core.DomainEvents) RegisteredReaders {
 		Readers: readerList,
 		Count:   len(readerList),
 	}
+}
+
+// BuildEventFilter creates the filter for querying all reader registration events
+// which are relevant for this query/use-case.
+func BuildEventFilter() eventstore.Filter {
+	return eventstore.BuildEventFilter().
+		Matching().
+		AnyEventTypeOf(
+			core.ReaderRegisteredEventType,
+			core.ReaderContractCanceledEventType,
+		).
+		Finalize()
 }
