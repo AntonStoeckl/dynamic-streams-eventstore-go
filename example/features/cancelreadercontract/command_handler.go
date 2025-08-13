@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
 )
 
@@ -65,7 +64,7 @@ func (h CommandHandler) Handle(ctx context.Context, command Command) error {
 	ctx, span := shell.StartCommandSpan(ctx, h.tracingCollector, commandType)
 	shell.LogCommandStart(ctx, h.logger, h.contextualLogger, commandType)
 
-	filter := h.buildEventFilter(command.ReaderID)
+	filter := BuildEventFilter(command.ReaderID)
 
 	// Query phase
 	storableEvents, maxSequenceNumber, err := h.eventStore.Query(ctx, filter)
@@ -108,21 +107,6 @@ func (h CommandHandler) Handle(ctx context.Context, command Command) error {
 	h.recordCommandSuccess(ctx, result.Outcome, time.Since(commandStart), span)
 
 	return nil
-}
-
-// buildEventFilter creates the filter for querying all events
-// related to the specified reader which are relevant for this feature/use-case.
-func (h CommandHandler) buildEventFilter(readerID uuid.UUID) eventstore.Filter {
-	return eventstore.BuildEventFilter().
-		Matching().
-		AnyEventTypeOf(
-			core.ReaderRegisteredEventType,
-			core.ReaderContractCanceledEventType,
-		).
-		AndAnyPredicateOf(
-			eventstore.P("ReaderID", readerID.String()),
-		).
-		Finalize()
 }
 
 /*** Command Handler Options and helper methods for observability ***/

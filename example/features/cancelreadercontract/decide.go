@@ -1,12 +1,18 @@
 package cancelreadercontract
 
 import (
+	"github.com/google/uuid"
+
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
 
+const failureReasonOutstandingLoans = "reader has outstanding book loans"
+
 // state represents the current state projected from the event history.
 type state struct {
-	readerIsRegistered bool
+	readerIsRegistered   bool
+	outstandingBookLoans map[core.BookIDString]bool
 }
 
 // Decide implements the business logic to determine whether a reader's contract should be canceled.
@@ -18,13 +24,23 @@ type state struct {
 //	GIVEN: A reader with ReaderID
 //	WHEN: ReaderContractCanceled command is received
 //	THEN: ReaderContractCanceled event is generated
-//	ERROR: None (always succeeds)
+//	ERROR: "reader has outstanding book loans" if the reader currently has books borrowed
 //	IDEMPOTENCY: If reader not registered or already canceled, no event generated (no-op)
 func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 	s := project(history, command.ReaderID.String())
 
 	if !s.readerIsRegistered {
 		return core.IdempotentDecision() // idempotency - the reader is not registered or already canceled, so no new event
+	}
+
+	if len(s.outstandingBookLoans) > 0 {
+		return core.ErrorDecision(
+			core.BuildCancelingReaderContractFailed(
+				command.ReaderID,
+				failureReasonOutstandingLoans,
+				command.OccurredAt,
+			),
+		)
 	}
 
 	return core.SuccessDecision(
@@ -38,7 +54,8 @@ func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 // project builds the current state by replaying all events from the history.
 func project(history core.DomainEvents, readerID string) state {
 	s := state{
-		readerIsRegistered: false, // Default to "not registered"
+		readerIsRegistered:   false, // Default to "not registered"
+		outstandingBookLoans: make(map[core.BookIDString]bool),
 	}
 
 	for _, event := range history {
@@ -52,8 +69,35 @@ func project(history core.DomainEvents, readerID string) state {
 			if e.ReaderID == readerID {
 				s.readerIsRegistered = false
 			}
+
+		case core.BookCopyLentToReader:
+			if e.ReaderID == readerID {
+				s.outstandingBookLoans[e.BookID] = true
+			}
+
+		case core.BookCopyReturnedByReader:
+			if e.ReaderID == readerID {
+				delete(s.outstandingBookLoans, e.BookID)
+			}
 		}
 	}
 
 	return s
+}
+
+// BuildEventFilter creates the filter for querying all events
+// related to the specified reader which are relevant for this feature/use-case.
+func BuildEventFilter(readerID uuid.UUID) eventstore.Filter {
+	return eventstore.BuildEventFilter().
+		Matching().
+		AnyEventTypeOf(
+			core.ReaderRegisteredEventType,
+			core.ReaderContractCanceledEventType,
+			core.BookCopyLentToReaderEventType,
+			core.BookCopyReturnedByReaderEventType,
+		).
+		AndAnyPredicateOf(
+			eventstore.P("ReaderID", readerID.String()),
+		).
+		Finalize()
 }
