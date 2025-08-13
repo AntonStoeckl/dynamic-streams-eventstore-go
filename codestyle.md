@@ -114,7 +114,9 @@ func SomeFunction(
 
 #### Function Calls
 - If any function call has more than three parameters, wrap the parameters, starting with the first parameter
+- If any function call has 2+ arguments and is nested inside another function call, wrap the parameters for better readability
 - Ignore this for *_test.go files unless the line is longer than 130 characters
+- Ignore this for simulation code where readability may be less critical
 
 #### Grouping of Err, Const, Var
 - Should be all on top (after package)
