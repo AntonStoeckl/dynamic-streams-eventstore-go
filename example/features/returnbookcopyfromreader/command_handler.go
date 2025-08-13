@@ -58,25 +58,47 @@ func NewCommandHandler(eventStore EventStore, opts ...Option) (CommandHandler, e
 // Handle executes the complete command processing workflow: Query -> Decide -> Append.
 // It queries the current event history, delegates business logic to the core Decide function,
 // and appends any resulting events with comprehensive observability instrumentation.
+//
+// Resilience: Implements exponential backoff retry logic for concurrency conflicts.
 func (h CommandHandler) Handle(ctx context.Context, command Command) error {
 	// Start command handler instrumentation
 	commandStart := time.Now()
 	ctx, span := shell.StartCommandSpan(ctx, h.tracingCollector, commandType)
 	shell.LogCommandStart(ctx, h.logger, h.contextualLogger, commandType)
 
+	// Execute command with retry logic
+	var retryOptions []shell.RetryOption
+	if h.metricsCollector != nil {
+		retryOptions = append(retryOptions, shell.WithMetrics(h.metricsCollector, commandType))
+	}
+
+	err := shell.RetryWithExponentialBackoff(ctx, func(retryCtx context.Context) error {
+		return h.executeCommand(retryCtx, command)
+	}, retryOptions...)
+
+	if err != nil {
+		h.recordCommandError(ctx, err, time.Since(commandStart), span)
+		return err
+	}
+
+	h.recordCommandSuccess(ctx, "success", time.Since(commandStart), span)
+
+	return nil
+}
+
+// executeCommand contains the core command processing logic that can be retried.
+func (h CommandHandler) executeCommand(ctx context.Context, command Command) error {
 	filter := BuildEventFilter(command.BookID, command.ReaderID)
 
 	// Query phase
 	storableEvents, maxSequenceNumber, err := h.eventStore.Query(ctx, filter)
 	if err != nil {
-		h.recordCommandError(ctx, err, time.Since(commandStart), span)
 		return err
 	}
 
 	// Unmarshal phase
 	history, err := shell.DomainEventsFrom(storableEvents)
 	if err != nil {
-		h.recordCommandError(ctx, err, time.Since(commandStart), span)
 		return err
 	}
 
@@ -84,7 +106,6 @@ func (h CommandHandler) Handle(ctx context.Context, command Command) error {
 	result := Decide(history, command)
 
 	if !result.HasEventToAppend() {
-		h.recordCommandSuccess(ctx, result.Outcome, time.Since(commandStart), span)
 		return nil // nothing to do
 	}
 
@@ -94,17 +115,13 @@ func (h CommandHandler) Handle(ctx context.Context, command Command) error {
 
 	storableEvent, marshalErr := shell.StorableEventFrom(result.Event, eventMetadata)
 	if marshalErr != nil {
-		h.recordCommandError(ctx, marshalErr, time.Since(commandStart), span)
 		return marshalErr
 	}
 
 	appendErr := h.eventStore.Append(ctx, filter, maxSequenceNumber, storableEvent)
 	if appendErr != nil {
-		h.recordCommandError(ctx, appendErr, time.Since(commandStart), span)
 		return appendErr
 	}
-
-	h.recordCommandSuccess(ctx, result.Outcome, time.Since(commandStart), span)
 
 	return nil
 }

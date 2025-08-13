@@ -37,6 +37,49 @@ const (
 	// QueryHandlerTimeoutMetric tracks timeout query operations.
 	QueryHandlerTimeoutMetric = "queryhandler_timeout_operations_total"
 
+	// CommandHandlerRetriesMetric tracks retry attempts in command handlers.
+	//
+	// Labels:
+	//   - command_type: Type of command being retried (e.g., "CancelReaderContract")
+	//   - attempt_number: Which retry attempt (1, 2, 3, 4, 5)
+	//   - error_type: Category of error causing retry (e.g., "concurrency_conflict")
+	//
+	// Cardinality: O(command_types × max_attempts × error_types)
+	// Expected: ~6 commands × 5 attempts × 3 error types = ~90 series
+	//
+	// Use cases:
+	//   - Alert on high retry rates: rate(commandhandler_retries_total[5m])
+	//   - Retry success rate: (total commands - max_retries_reached) / total commands
+	CommandHandlerRetriesMetric = "commandhandler_retries_total"
+
+	// CommandHandlerRetryDelayMetric tracks retry delays in command handlers.
+	//
+	// Labels:
+	//   - command_type: Type of command being retried
+	//   - attempt_number: Which retry attempt (1, 2, 3, 4, 5)
+	//
+	// Cardinality: O(command_types × max_attempts)
+	// Expected: ~6 commands × 5 attempts = ~30 series
+	//
+	// Use cases:
+	//   - Monitor backoff behavior: histogram_quantile(0.95, commandhandler_retry_delay_seconds)
+	//   - Detect thundering herd: sudden spikes in delay distribution
+	CommandHandlerRetryDelayMetric = "commandhandler_retry_delay_seconds"
+
+	// CommandHandlerMaxRetriesReachedMetric tracks when max retries are exhausted.
+	//
+	// Labels:
+	//   - command_type: Type of command that exhausted retries
+	//   - final_error_type: Error type that caused final failure
+	//
+	// Cardinality: O(command_types × error_types)
+	// Expected: ~6 commands × 3 error types = ~18 series
+	//
+	// Use cases:
+	//   - Alert on retry exhaustion: increase(commandhandler_max_retries_reached_total[5m]) > 0
+	//   - Identify problematic commands: rate(commandhandler_max_retries_reached_total[1h]) by (command_type)
+	CommandHandlerMaxRetriesReachedMetric = "commandhandler_max_retries_reached_total"
+
 	// StatusSuccess indicates successful command completion.
 	StatusSuccess = "success"
 
@@ -129,6 +172,15 @@ func BuildQueryLabels(queryType, status string) map[string]string {
 	return map[string]string{
 		LogAttrQueryType: queryType,
 		LogAttrStatus:    status,
+	}
+}
+
+// BuildRetryLabels creates standard metric labels for retry operations.
+func BuildRetryLabels(commandType string, attemptNumber int, errorType string) map[string]string {
+	return map[string]string{
+		LogAttrCommandType: commandType,
+		"attempt_number":   fmt.Sprintf("%d", attemptNumber),
+		"error_type":       errorType,
 	}
 }
 

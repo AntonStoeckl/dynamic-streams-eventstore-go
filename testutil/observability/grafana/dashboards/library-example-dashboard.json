@@ -26,12 +26,12 @@
             "uid": "PBFA97CFB590B2093"
           },
           "expr": "rate(commandhandler_handle_duration_seconds_count{status=\"success\"}[1m])",
-          "legendFormat": "{{command_type}}/sec",
+          "legendFormat": "{{command_type}}",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 6,
+        "h": 5,
         "w": 12,
         "x": 0,
         "y": 0
@@ -61,12 +61,12 @@
             "uid": "PBFA97CFB590B2093"
           },
           "expr": "rate(queryhandler_handle_duration_seconds_count{status=\"success\"}[1m])",
-          "legendFormat": "{{query_type}}/sec",
+          "legendFormat": "{{query_type}}",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 6,
+        "h": 5,
         "w": 12,
         "x": 12,
         "y": 0
@@ -96,12 +96,12 @@
             "uid": "PBFA97CFB590B2093"
           },
           "expr": "rate(commandhandler_handle_duration_seconds_count{status=\"error\"}[1m])",
-          "legendFormat": "{{command_type}} Errors/sec",
+          "legendFormat": "{{command_type}}",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 6,
+        "h": 5,
         "w": 12,
         "x": 0,
         "y": 6
@@ -131,12 +131,12 @@
             "uid": "PBFA97CFB590B2093"
           },
           "expr": "rate(queryhandler_handle_duration_seconds_count{status=\"error\"}[1m])",
-          "legendFormat": "{{query_type}} Errors/sec",
+          "legendFormat": "{{query_type}}",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 6,
+        "h": 5,
         "w": 12,
         "x": 12,
         "y": 6
@@ -166,15 +166,15 @@
             "uid": "PBFA97CFB590B2093"
           },
           "expr": "rate(commandhandler_canceled_operations_total[1m])",
-          "legendFormat": "{{command_type}} Canceled/sec",
+          "legendFormat": "{{command_type}}",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 6,
+        "h": 5,
         "w": 12,
         "x": 0,
-        "y": 12
+        "y": 10
       },
       "fieldConfig": {
         "defaults": {
@@ -201,15 +201,15 @@
             "uid": "PBFA97CFB590B2093"
           },
           "expr": "rate(queryhandler_canceled_operations_total[1m])",
-          "legendFormat": "{{query_type}} Canceled/sec",
+          "legendFormat": "{{query_type}}",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 6,
+        "h": 5,
         "w": 12,
         "x": 12,
-        "y": 12
+        "y": 10
       },
       "fieldConfig": {
         "defaults": {
@@ -236,15 +236,15 @@
             "uid": "PBFA97CFB590B2093"
           },
           "expr": "rate(commandhandler_timeout_operations_total[1m])",
-          "legendFormat": "{{command_type}} Timed-Out/sec",
+          "legendFormat": "{{command_type}}",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 6,
+        "h": 5,
         "w": 12,
         "x": 0,
-        "y": 18
+        "y": 14
       },
       "fieldConfig": {
         "defaults": {
@@ -271,15 +271,15 @@
             "uid": "PBFA97CFB590B2093"
           },
           "expr": "rate(queryhandler_timeout_operations_total[1m])",
-          "legendFormat": "{{query_type}} Timed-Out/sec",
+          "legendFormat": "{{query_type}}",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 6,
+        "h": 5,
         "w": 12,
         "x": 12,
-        "y": 18
+        "y": 14
       },
       "fieldConfig": {
         "defaults": {
@@ -293,7 +293,7 @@
     },
     {
       "id": 9,
-      "title": "Concurrency Conflicts/sec",
+      "title": "Command Concurrency Conflicts/sec",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -311,10 +311,10 @@
         }
       ],
       "gridPos": {
-        "h": 6,
-        "w": 6,
+        "h": 5,
+        "w": 12,
         "x": 0,
-        "y": 24
+        "y": 18
       },
       "fieldConfig": {
         "defaults": {
@@ -341,15 +341,15 @@
             "uid": "PBFA97CFB590B2093"
           },
           "expr": "rate(commandhandler_idempotent_operations_total[1m])",
-          "legendFormat": "{{command_type}} Idempotent/sec",
+          "legendFormat": "{{command_type}}",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 6,
-        "w": 6,
-        "x": 6,
-        "y": 24
+        "h": 5,
+        "w": 12,
+        "x": 12,
+        "y": 18
       },
       "fieldConfig": {
         "defaults": {
@@ -358,6 +358,111 @@
           },
           "min": 0,
           "unit": "ops"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Command Retry Rate/sec",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "rate(commandhandler_retries_total[1m])",
+          "legendFormat": "{{command_type}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 22
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "unit": "ops"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "Command Retry Exhausted/sec",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "rate(commandhandler_max_retries_reached_total[1m])",
+          "legendFormat": "{{command_type}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 8,
+        "y": 22
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "unit": "ops"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "title": "Command Average Retry Delay (ms)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "rate(commandhandler_retry_delay_seconds_sum[1m]) / rate(commandhandler_retry_delay_seconds_count[1m]) * 1000",
+          "legendFormat": "{{command_type}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 16,
+        "y": 22
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "unit": "ms"
         }
       }
     }
