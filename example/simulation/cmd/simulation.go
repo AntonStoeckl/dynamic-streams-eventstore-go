@@ -81,7 +81,7 @@ type LibrarySimulation struct {
 // NewLibrarySimulation creates a new LibrarySimulation instance with the provided EventStore and configuration.
 func NewLibrarySimulation(eventStore *postgresengine.EventStore, config Config, obsConfig ObservabilityConfig) (*LibrarySimulation, error) {
 	// Calculate worker count based on connection pool capacity (avoid oversubscription)
-	workerCount := 50            // Aligned with typical connection pool size
+	workerCount := 85            // Optimized for ~75 req/sec sustained performance
 	queueSize := workerCount * 2 // Bounded queue to prevent memory leaks
 
 	state := NewSimulationState()
@@ -453,13 +453,26 @@ func (ls *LibrarySimulation) runMainSimulation(ctx context.Context) error {
 	ls.backpressureCount = 0
 	ls.mu.Unlock()
 
-	// Calculate interval between requests based on the target rate
-	interval := time.Second / time.Duration(ls.config.Rate)
-	ticker := time.NewTicker(interval)
+	// Calculate batching parameters for higher rate precision
+	// For rates >50 req/sec, batch multiple requests to avoid timer precision issues
+	batchSize := 1
+	batchInterval := time.Second / time.Duration(ls.config.Rate)
+
+	if ls.config.Rate >= 50 {
+		// Batch approach: generate multiple requests per ticker interval
+		// This avoids OS timer precision limitations at high rates
+		batchSize = ls.config.Rate / 10 // 10 batches per second
+		if batchSize < 1 {
+			batchSize = 1
+		}
+		batchInterval = 100 * time.Millisecond // 10 batches per second
+	}
+
+	ticker := time.NewTicker(batchInterval)
 	defer ticker.Stop()
 
-	log.Printf("Main simulation starting with %d requests/second (interval: %v), %d workers, goroutines: %d",
-		ls.config.Rate, interval, ls.workerCount, runtime.NumGoroutine())
+	log.Printf("Main simulation starting with %d requests/second (batch: %d req every %v), %d workers, goroutines: %d",
+		ls.config.Rate, batchSize, batchInterval, ls.workerCount, runtime.NumGoroutine())
 
 	// Start fixed number of worker goroutines
 	for i := 0; i < ls.workerCount; i++ {
@@ -471,7 +484,7 @@ func (ls *LibrarySimulation) runMainSimulation(ctx context.Context) error {
 	ls.wg.Add(1)
 	go ls.metricsReporter(ctx)
 
-	// Rate-limited request generation loop
+	// Rate-limited request generation loop with batching
 	for {
 		select {
 		case <-ctx.Done():
@@ -487,18 +500,21 @@ func (ls *LibrarySimulation) runMainSimulation(ctx context.Context) error {
 			return nil
 
 		case <-ticker.C:
-			// Generate realistic scenario instead of random request
-			scenario := ls.selector.SelectScenario()
-			request := ls.generateRequest(ctx, scenario)
+			// Generate and queue multiple requests per batch for higher throughput
+			for i := 0; i < batchSize; i++ {
+				// Generate realistic scenario instead of random request
+				scenario := ls.selector.SelectScenario()
+				request := ls.generateRequest(ctx, scenario)
 
-			// Non-blocking request submission (backpressure handling)
-			select {
-			case ls.requestQueue <- request:
-				// Request queued successfully
-			default:
-				// Queue full - record backpressure and fail fast
-				ls.recordBackpressure()
-				close(request.resultChan) // Signal failure
+				// Non-blocking request submission (backpressure handling)
+				select {
+				case ls.requestQueue <- request:
+					// Request queued successfully
+				default:
+					// Queue full - record backpressure and fail fast
+					ls.recordBackpressure()
+					close(request.resultChan) // Signal failure
+				}
 			}
 		}
 	}

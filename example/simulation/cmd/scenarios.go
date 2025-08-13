@@ -2,6 +2,8 @@ package main
 
 import (
 	"math/rand"
+	"sync"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -28,23 +30,88 @@ type Scenario struct {
 	Reason   string // Description of why this is an error scenario
 }
 
+// StateSnapshot holds cached state data to avoid mutex contention during scenario selection.
+type StateSnapshot struct {
+	books             int
+	readers           int
+	lending           int
+	availableBooks    []string
+	lentBooks         []string
+	registeredReaders []string
+	readersWithBooks  []string
+	lastUpdated       time.Time
+	mu                sync.RWMutex
+}
+
 // ScenarioSelector intelligently selects realistic scenarios based on current simulation state.
 type ScenarioSelector struct {
-	state  *SimulationState
-	config Config
+	state    *SimulationState
+	config   Config
+	snapshot *StateSnapshot
 }
 
 // NewScenarioSelector creates a new scenario selector with the given state and configuration.
 func NewScenarioSelector(state *SimulationState, config Config) *ScenarioSelector {
-	return &ScenarioSelector{
-		state:  state,
-		config: config,
+	selector := &ScenarioSelector{
+		state:    state,
+		config:   config,
+		snapshot: &StateSnapshot{},
 	}
+
+	// Initialize with first snapshot
+	selector.refreshSnapshot()
+
+	return selector
+}
+
+// refreshSnapshot updates the cached state snapshot from the actual state.
+func (s *ScenarioSelector) refreshSnapshot() {
+	// Get all state data in a single batch to minimize mutex contention
+	books, readers, lending := s.state.GetStats()
+	availableBooks := s.state.GetAvailableBooks()
+	lentBooks := s.state.GetLentBooks()
+	registeredReaders := s.state.GetRegisteredReaders()
+	readersWithBooks := s.state.GetReadersWithLentBooks()
+
+	// Update snapshot under write lock
+	s.snapshot.mu.Lock()
+	s.snapshot.books = books
+	s.snapshot.readers = readers
+	s.snapshot.lending = lending
+	s.snapshot.availableBooks = availableBooks
+	s.snapshot.lentBooks = lentBooks
+	s.snapshot.registeredReaders = registeredReaders
+	s.snapshot.readersWithBooks = readersWithBooks
+	s.snapshot.lastUpdated = time.Now()
+	s.snapshot.mu.Unlock()
+}
+
+// ensureFreshSnapshot refreshes the snapshot if it's older than 100ms.
+func (s *ScenarioSelector) ensureFreshSnapshot() {
+	s.snapshot.mu.RLock()
+	needsRefresh := time.Since(s.snapshot.lastUpdated) > 100*time.Millisecond
+	s.snapshot.mu.RUnlock()
+
+	if needsRefresh {
+		s.refreshSnapshot()
+	}
+}
+
+// getSnapshotData returns cached state data (refreshing if stale).
+func (s *ScenarioSelector) getSnapshotData() (books, readers, lending int, availableBooks, lentBooks, registeredReaders, readersWithBooks []string) {
+	s.ensureFreshSnapshot()
+
+	s.snapshot.mu.RLock()
+	defer s.snapshot.mu.RUnlock()
+
+	return s.snapshot.books, s.snapshot.readers, s.snapshot.lending,
+		s.snapshot.availableBooks, s.snapshot.lentBooks, s.snapshot.registeredReaders, s.snapshot.readersWithBooks
 }
 
 // SelectScenario chooses a realistic scenario based on current state and error injection probabilities.
 func (s *ScenarioSelector) SelectScenario() Scenario {
-	books, readers, lending := s.state.GetStats()
+	// Use cached snapshot data instead of hitting state mutex every time
+	books, readers, lending, availableBooks, lentBooks, registeredReaders, readersWithBooks := s.getSnapshotData()
 
 	// Check if we need to add books or readers to reach minimum thresholds
 	if books < s.config.MinBooks {
@@ -56,38 +123,38 @@ func (s *ScenarioSelector) SelectScenario() Scenario {
 	}
 
 	// Determine primary scenario type based on current state and realistic weights
-	scenarioWeights := s.calculateScenarioWeights(books, readers, lending)
+	scenarioWeights := s.calculateScenarioWeightsFromSnapshot(books, readers, lending, availableBooks, lentBooks)
 	scenarioType := s.selectWeightedScenario(scenarioWeights)
 
 	// Apply error injection if applicable
 	if s.shouldInjectError(scenarioType) {
-		return s.createErrorScenario(scenarioType)
+		return s.createErrorScenarioFromSnapshot(scenarioType, lentBooks, registeredReaders)
 	}
 
-	// Create normal scenario
+	// Create normal scenario using cached data
 	switch scenarioType {
 	case ScenarioAddBook:
 		return s.createAddBookScenario()
 	case ScenarioRemoveBook:
-		return s.createRemoveBookScenario()
+		return s.createRemoveBookScenarioFromSnapshot(availableBooks)
 	case ScenarioRegisterReader:
 		return s.createRegisterReaderScenario()
 	case ScenarioCancelReader:
-		return s.createCancelReaderScenario()
+		return s.createCancelReaderScenarioFromSnapshot(registeredReaders)
 	case ScenarioLendBook:
-		return s.createLendBookScenario()
+		return s.createLendBookScenarioFromSnapshot(availableBooks, registeredReaders)
 	case ScenarioReturnBook:
-		return s.createReturnBookScenario()
+		return s.createReturnBookScenarioFromSnapshot(readersWithBooks)
 	case ScenarioQueryBooks:
-		return s.createQueryBooksScenario()
+		return s.createQueryBooksScenarioFromSnapshot(registeredReaders)
 	default:
 		// Fallback to lending if no other scenario is suitable
-		return s.createLendBookScenario()
+		return s.createLendBookScenarioFromSnapshot(availableBooks, registeredReaders)
 	}
 }
 
-// calculateScenarioWeights determines realistic weights for different scenarios based on current state.
-func (s *ScenarioSelector) calculateScenarioWeights(books, readers, _ int) map[ScenarioType]int {
+// calculateScenarioWeightsFromSnapshot determines realistic weights using cached data (avoids mutex contention).
+func (s *ScenarioSelector) calculateScenarioWeightsFromSnapshot(books, readers, _ int, availableBooks, lentBooks []string) map[ScenarioType]int {
 	weights := make(map[ScenarioType]int)
 
 	// Book management weights (library manager actions) - VERY RARE
@@ -118,11 +185,8 @@ func (s *ScenarioSelector) calculateScenarioWeights(books, readers, _ int) map[S
 		weights[ScenarioCancelReader] = 3   // Higher to bring count down
 	}
 
-	// Lending weights (DOMINANT activity - 85-90% of operations)
-	availableBooks := s.state.GetAvailableBooks()
-	lentBooks := s.state.GetLentBooks()
-
-	if len(availableBooks) > 0 && len(s.state.GetRegisteredReaders()) > 0 {
+	// Lending weights (DOMINANT activity - 85-90% of operations) using cached data
+	if len(availableBooks) > 0 && readers > 0 {
 		weights[ScenarioLendBook] = 200 // DOMINANT: Most common operation
 	}
 
@@ -172,118 +236,11 @@ func (s *ScenarioSelector) shouldInjectError(scenarioType ScenarioType) bool {
 	}
 }
 
-// createErrorScenario creates an intentional error scenario for testing.
-func (s *ScenarioSelector) createErrorScenario(scenarioType ScenarioType) Scenario {
-	switch scenarioType {
-	case ScenarioRemoveBook:
-		// Try to remove a book that is currently lent (should fail)
-		lentBooks := s.state.GetLentBooks()
-		if len(lentBooks) > 0 {
-			bookID := uuid.MustParse(lentBooks[rand.Intn(len(lentBooks))]) //nolint:gosec // Simulation code - weak random is acceptable
-			return Scenario{
-				Type:    ScenarioRemoveBook,
-				BookID:  bookID,
-				IsError: true,
-				Reason:  "library manager tries to remove just-lent book",
-			}
-		}
-
-	case ScenarioLendBook:
-		// Try to lend a book that doesn't exist (simulate just-removed book)
-		return Scenario{
-			Type:     ScenarioLendBook,
-			BookID:   uuid.New(), // Non-existent book
-			ReaderID: s.getRandomReaderID(),
-			IsError:  true,
-			Reason:   "reader tries to borrow just-removed book",
-		}
-
-	default:
-		// Idempotent repeat - just repeat the same operation
-		return s.createIdempotentScenario(scenarioType)
-	}
-
-	// Fallback to normal scenario if error creation fails
-	return s.createNormalScenario(scenarioType)
-}
-
-// createIdempotentScenario creates a scenario that should be idempotent (no-op).
-func (s *ScenarioSelector) createIdempotentScenario(scenarioType ScenarioType) Scenario {
-	switch scenarioType {
-	case ScenarioAddBook:
-		// Try to add a book that already exists
-		availableBooks := s.state.GetAvailableBooks()
-		if len(availableBooks) > 0 {
-			bookID := uuid.MustParse(availableBooks[rand.Intn(len(availableBooks))]) //nolint:gosec // Simulation code - weak random is acceptable
-			return Scenario{
-				Type:    ScenarioAddBook,
-				BookID:  bookID,
-				IsError: true,
-				Reason:  "idempotent repeat - book already exists",
-			}
-		}
-
-	case ScenarioLendBook:
-		// Try to lend a book that is already lent
-		lentBooks := s.state.GetLentBooks()
-		if len(lentBooks) > 0 {
-			bookID := uuid.MustParse(lentBooks[rand.Intn(len(lentBooks))]) //nolint:gosec // Simulation code - weak random is acceptable
-			return Scenario{
-				Type:     ScenarioLendBook,
-				BookID:   bookID,
-				ReaderID: s.getRandomReaderID(),
-				IsError:  true,
-				Reason:   "idempotent repeat - book already lent",
-			}
-		}
-	}
-
-	// Fallback to normal scenario
-	return s.createNormalScenario(scenarioType)
-}
-
-// createNormalScenario creates a normal (non-error) scenario.
-func (s *ScenarioSelector) createNormalScenario(scenarioType ScenarioType) Scenario {
-	switch scenarioType {
-	case ScenarioAddBook:
-		return s.createAddBookScenario()
-	case ScenarioRemoveBook:
-		return s.createRemoveBookScenario()
-	case ScenarioRegisterReader:
-		return s.createRegisterReaderScenario()
-	case ScenarioCancelReader:
-		return s.createCancelReaderScenario()
-	case ScenarioLendBook:
-		return s.createLendBookScenario()
-	case ScenarioReturnBook:
-		return s.createReturnBookScenario()
-	case ScenarioQueryBooks:
-		return s.createQueryBooksScenario()
-	default:
-		return s.createLendBookScenario()
-	}
-}
-
 // createAddBookScenario creates a scenario to add a book to circulation.
 func (s *ScenarioSelector) createAddBookScenario() Scenario {
 	return Scenario{
 		Type:   ScenarioAddBook,
 		BookID: uuid.New(),
-	}
-}
-
-// createRemoveBookScenario creates a scenario to remove a book from circulation.
-func (s *ScenarioSelector) createRemoveBookScenario() Scenario {
-	availableBooks := s.state.GetAvailableBooks()
-	if len(availableBooks) == 0 {
-		// No available books to remove, create add book instead
-		return s.createAddBookScenario()
-	}
-
-	bookID := uuid.MustParse(availableBooks[rand.Intn(len(availableBooks))]) //nolint:gosec // Simulation code - weak random is acceptable
-	return Scenario{
-		Type:   ScenarioRemoveBook,
-		BookID: bookID,
 	}
 }
 
@@ -295,40 +252,51 @@ func (s *ScenarioSelector) createRegisterReaderScenario() Scenario {
 	}
 }
 
-// createCancelReaderScenario creates a scenario to cancel a reader's contract.
-func (s *ScenarioSelector) createCancelReaderScenario() Scenario {
-	readers := s.state.GetRegisteredReaders()
-	if len(readers) == 0 {
-		// No readers to cancel, register one instead
-		return s.createRegisterReaderScenario()
+// createReturnBookScenarioFromSnapshot creates a return scenario using cached data (avoids mutex contention).
+func (s *ScenarioSelector) createReturnBookScenarioFromSnapshot(readersWithBooks []string) Scenario {
+	if len(readersWithBooks) == 0 {
+		// No readers have books to return, create lending instead - but we need fresh data for that
+		availableBooks := s.state.GetAvailableBooks()
+		registeredReaders := s.state.GetRegisteredReaders()
+		return s.createLendBookScenarioFromSnapshot(availableBooks, registeredReaders)
 	}
 
-	// Select a random reader to cancel
-	// In real life, we'd prefer readers without active lendings, but
-	// the business logic should handle the case where they have books
-	readerID := uuid.MustParse(readers[rand.Intn(len(readers))]) //nolint:gosec // Simulation code - weak random is acceptable
+	// Select a random reader who has books (from cached data)
+	readerID := uuid.MustParse(readersWithBooks[rand.Intn(len(readersWithBooks))]) //nolint:gosec // Simulation code - weak random is acceptable
+
+	// For performance, we'll need to check available books for return using the actual state
+	// since this requires cross-referencing with pending returns (not cached)
+	availableBooks := s.state.GetAvailableBooksForReturn(readerID)
+	if len(availableBooks) == 0 {
+		// This reader's books are all being returned, create lending instead
+		availableBooks := s.state.GetAvailableBooks()
+		registeredReaders := s.state.GetRegisteredReaders()
+		return s.createLendBookScenarioFromSnapshot(availableBooks, registeredReaders)
+	}
+
+	bookID := uuid.MustParse(availableBooks[rand.Intn(len(availableBooks))]) //nolint:gosec // Simulation code - weak random is acceptable
+
 	return Scenario{
-		Type:     ScenarioCancelReader,
+		Type:     ScenarioReturnBook,
+		BookID:   bookID,
 		ReaderID: readerID,
 	}
 }
 
-// createLendBookScenario creates a scenario to lend a book to a reader.
-func (s *ScenarioSelector) createLendBookScenario() Scenario {
-	availableBooks := s.state.GetAvailableBooks()
+// Cached scenario creation methods (avoid mutex contention)
+
+// createLendBookScenarioFromSnapshot creates a lending scenario using cached data.
+func (s *ScenarioSelector) createLendBookScenarioFromSnapshot(availableBooks, registeredReaders []string) Scenario {
 	if len(availableBooks) == 0 {
-		// No books available, create add book instead
 		return s.createAddBookScenario()
 	}
 
-	readers := s.state.GetRegisteredReaders()
-	if len(readers) == 0 {
-		// No readers registered, register one instead
+	if len(registeredReaders) == 0 {
 		return s.createRegisterReaderScenario()
 	}
 
-	bookID := uuid.MustParse(availableBooks[rand.Intn(len(availableBooks))]) //nolint:gosec // Simulation code - weak random is acceptable
-	readerID := uuid.MustParse(readers[rand.Intn(len(readers))])             //nolint:gosec // Simulation code - weak random is acceptable
+	bookID := uuid.MustParse(availableBooks[rand.Intn(len(availableBooks))])         //nolint:gosec
+	readerID := uuid.MustParse(registeredReaders[rand.Intn(len(registeredReaders))]) //nolint:gosec
 
 	return Scenario{
 		Type:     ScenarioLendBook,
@@ -337,66 +305,107 @@ func (s *ScenarioSelector) createLendBookScenario() Scenario {
 	}
 }
 
-// createReturnBookScenario creates a scenario to return a book from a reader using actor-aware logic.
-// This ensures that only readers who actually have borrowed books can return them, eliminating
-// unrealistic concurrency conflicts where multiple workers try to return the same book.
-func (s *ScenarioSelector) createReturnBookScenario() Scenario {
-	// Step 1: Find readers who have books to return (actor-aware approach)
-	readersWithBooks := s.state.GetReadersWithLentBooks()
-	if len(readersWithBooks) == 0 {
-		// No readers have books to return, create lending instead
-		return s.createLendBookScenario()
+// createRemoveBookScenarioFromSnapshot creates a book removal scenario using cached data.
+func (s *ScenarioSelector) createRemoveBookScenarioFromSnapshot(availableBooks []string) Scenario {
+	if len(availableBooks) == 0 {
+		return s.createAddBookScenario()
 	}
 
-	// Step 2: Try multiple readers to find one with available books to return
-	// (books not already being returned by another worker)
-	maxAttempts := len(readersWithBooks)
-	if maxAttempts > 10 {
-		maxAttempts = 10 // Limit attempts to avoid excessive searching
+	bookID := uuid.MustParse(availableBooks[rand.Intn(len(availableBooks))]) //nolint:gosec
+	return Scenario{
+		Type:   ScenarioRemoveBook,
+		BookID: bookID,
 	}
-
-	for attempt := 0; attempt < maxAttempts; attempt++ {
-		// Select a random reader who has books
-		readerID := uuid.MustParse(readersWithBooks[rand.Intn(len(readersWithBooks))]) //nolint:gosec // Simulation code - weak random is acceptable
-
-		// Step 3: Get books that THIS specific reader has borrowed AND are not being returned
-		availableBooks := s.state.GetAvailableBooksForReturn(readerID)
-		if len(availableBooks) == 0 {
-			// This reader's books are all being returned or were just returned, try another reader
-			continue
-		}
-
-		// Step 4: Select one of their available books to return
-		bookID := uuid.MustParse(availableBooks[rand.Intn(len(availableBooks))]) //nolint:gosec // Simulation code - weak random is acceptable
-
-		// Successfully found an available book - return this scenario
-		// Note: Reservation happens in executeRequest to be closer to actual execution
-		return Scenario{
-			Type:     ScenarioReturnBook,
-			BookID:   bookID,
-			ReaderID: readerID, // Guaranteed to be the correct reader who borrowed this book
-		}
-	}
-
-	// All attempts failed - all books are being returned, create lending instead
-	return s.createLendBookScenario()
 }
 
-// createQueryBooksScenario creates a scenario to query books lent by a reader.
-func (s *ScenarioSelector) createQueryBooksScenario() Scenario {
-	readerID := s.getRandomReaderID()
+// createCancelReaderScenarioFromSnapshot creates a reader cancellation scenario using cached data.
+func (s *ScenarioSelector) createCancelReaderScenarioFromSnapshot(registeredReaders []string) Scenario {
+	if len(registeredReaders) == 0 {
+		return s.createRegisterReaderScenario()
+	}
+
+	readerID := uuid.MustParse(registeredReaders[rand.Intn(len(registeredReaders))]) //nolint:gosec
+	return Scenario{
+		Type:     ScenarioCancelReader,
+		ReaderID: readerID,
+	}
+}
+
+// createQueryBooksScenarioFromSnapshot creates a query scenario using cached data.
+func (s *ScenarioSelector) createQueryBooksScenarioFromSnapshot(registeredReaders []string) Scenario {
+	var readerID uuid.UUID
+	if len(registeredReaders) == 0 {
+		readerID = uuid.New()
+	} else {
+		readerID = uuid.MustParse(registeredReaders[rand.Intn(len(registeredReaders))]) //nolint:gosec
+	}
+
 	return Scenario{
 		Type:     ScenarioQueryBooks,
 		ReaderID: readerID,
 	}
 }
 
-// getRandomReaderID returns a random registered reader ID, or generates new one if none exist.
-func (s *ScenarioSelector) getRandomReaderID() uuid.UUID {
-	readers := s.state.GetRegisteredReaders()
-	if len(readers) == 0 {
-		return uuid.New() // Will trigger reader registration
+// createErrorScenarioFromSnapshot creates error scenarios using cached data.
+func (s *ScenarioSelector) createErrorScenarioFromSnapshot(scenarioType ScenarioType, lentBooks, registeredReaders []string) Scenario {
+	switch scenarioType {
+	case ScenarioRemoveBook:
+		// Try to remove a book that is currently lent (should fail)
+		if len(lentBooks) > 0 {
+			bookID := uuid.MustParse(lentBooks[rand.Intn(len(lentBooks))]) //nolint:gosec
+			return Scenario{
+				Type:    ScenarioRemoveBook,
+				BookID:  bookID,
+				IsError: true,
+				Reason:  "library manager tries to remove just-lent book",
+			}
+		}
+
+	case ScenarioLendBook:
+		// Try to lend a book that doesn't exist (simulate just-removed book)
+		var readerID uuid.UUID
+		if len(registeredReaders) > 0 {
+			readerID = uuid.MustParse(registeredReaders[rand.Intn(len(registeredReaders))]) //nolint:gosec
+		} else {
+			readerID = uuid.New()
+		}
+
+		return Scenario{
+			Type:     ScenarioLendBook,
+			BookID:   uuid.New(), // Non-existent book
+			ReaderID: readerID,
+			IsError:  true,
+			Reason:   "reader tries to borrow just-removed book",
+		}
 	}
 
-	return uuid.MustParse(readers[rand.Intn(len(readers))]) //nolint:gosec // Simulation code - weak random is acceptable
+	// Fallback - create idempotent scenario using cached data
+	return s.createIdempotentScenarioFromSnapshot(scenarioType, lentBooks, registeredReaders)
+}
+
+// createIdempotentScenarioFromSnapshot creates idempotent scenarios using cached data.
+func (s *ScenarioSelector) createIdempotentScenarioFromSnapshot(scenarioType ScenarioType, lentBooks, registeredReaders []string) Scenario {
+	if scenarioType == ScenarioLendBook {
+		// Try to lend a book that is already lent
+		if len(lentBooks) > 0 {
+			bookID := uuid.MustParse(lentBooks[rand.Intn(len(lentBooks))]) //nolint:gosec
+			var readerID uuid.UUID
+			if len(registeredReaders) > 0 {
+				readerID = uuid.MustParse(registeredReaders[rand.Intn(len(registeredReaders))]) //nolint:gosec
+			} else {
+				readerID = uuid.New()
+			}
+
+			return Scenario{
+				Type:     ScenarioLendBook,
+				BookID:   bookID,
+				ReaderID: readerID,
+				IsError:  true,
+				Reason:   "idempotent repeat - book already lent",
+			}
+		}
+	}
+
+	// Fallback to normal scenario
+	return s.createLendBookScenarioFromSnapshot([]string{}, registeredReaders)
 }

@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	defaultRate              = 30
+	defaultRate              = 70
 	defaultMinBooks          = 60000 // München branch: ~62,500 books
 	defaultMaxBooks          = 65000 // Allow some growth above minimum
 	defaultMinReaders        = 14000 // München branch: ~14,000 active borrowers
