@@ -44,7 +44,9 @@ func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 				command.BookID,
 				command.ReaderID,
 				failureReasonBookNotInCirculation,
-				command.OccurredAt))
+				command.OccurredAt,
+			),
+		)
 	}
 
 	if s.bookWasNeverLentToThisReader {
@@ -53,7 +55,9 @@ func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 				command.BookID,
 				command.ReaderID,
 				failureReasonBookNotLentToReader,
-				command.OccurredAt))
+				command.OccurredAt,
+			),
+		)
 	}
 
 	return core.SuccessDecision(

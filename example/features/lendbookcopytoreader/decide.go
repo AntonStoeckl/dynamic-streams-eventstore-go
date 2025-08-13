@@ -48,7 +48,9 @@ func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 				command.BookID,
 				command.ReaderID,
 				failureReasonBookNotInCirculation,
-				command.OccurredAt))
+				command.OccurredAt,
+			),
+		)
 	}
 
 	if s.bookIsLentToAnotherReader {
@@ -57,7 +59,9 @@ func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 				command.BookID,
 				command.ReaderID,
 				failureReasonBookAlreadyLent,
-				command.OccurredAt))
+				command.OccurredAt,
+			),
+		)
 	}
 
 	if s.readerCurrentBookCount >= maxBookLoansAllowedPerReader {
@@ -66,7 +70,9 @@ func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 				command.BookID,
 				command.ReaderID,
 				failureReasonReaderTooManyBooks,
-				command.OccurredAt))
+				command.OccurredAt,
+			),
+		)
 	}
 
 	return core.SuccessDecision(
