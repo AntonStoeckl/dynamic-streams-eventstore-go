@@ -838,7 +838,7 @@ func Test_Observability_Eventstore_WithRealObservabilityStack_RealisticLoad(t *t
 	defer cancel()
 
 	// Create real OpenTelemetry providers for the test observability stack
-	providers, err := config.NewTestObservabilityConfig()
+	providers, err := config.NewObservabilityConfig()
 	assert.NoError(t, err, "should create observability providers")
 	defer func() {
 		shutdownErr := providers.Shutdown()

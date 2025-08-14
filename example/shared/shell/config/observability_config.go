@@ -25,17 +25,17 @@ func OTELCollectorEndpoint() string {
 	return "localhost:4317"
 }
 
-// TestObservabilityProviders holds the OpenTelemetry providers for testing.
-type TestObservabilityProviders struct {
+// ObservabilityProviders holds the OpenTelemetry providers for testing.
+type ObservabilityProviders struct {
 	TracerProvider *trace.TracerProvider
 	MeterProvider  *metric.MeterProvider
 	Resource       *resource.Resource
 }
 
-// NewTestObservabilityConfig creates OpenTelemetry providers configured for the test observability stack.
+// NewObservabilityConfig creates OpenTelemetry providers configured for the test observability stack.
 // This function sets up real OpenTelemetry providers that send telemetry to the observability backends
 // running in Docker containers (Prometheus, Jaeger, OTEL Collector).
-func NewTestObservabilityConfig() (*TestObservabilityProviders, error) {
+func NewObservabilityConfig() (*ObservabilityProviders, error) {
 	ctx := context.Background()
 
 	// Create a resource for identifying this service
@@ -85,7 +85,7 @@ func NewTestObservabilityConfig() (*TestObservabilityProviders, error) {
 	otel.SetMeterProvider(meterProvider)
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 
-	return &TestObservabilityProviders{
+	return &ObservabilityProviders{
 		TracerProvider: tracerProvider,
 		MeterProvider:  meterProvider,
 		Resource:       res,
@@ -93,7 +93,7 @@ func NewTestObservabilityConfig() (*TestObservabilityProviders, error) {
 }
 
 // Shutdown gracefully shuts down the OpenTelemetry providers.
-func (p *TestObservabilityProviders) Shutdown() error {
+func (p *ObservabilityProviders) Shutdown() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
