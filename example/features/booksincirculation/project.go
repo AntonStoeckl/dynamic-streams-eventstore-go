@@ -27,17 +27,19 @@ func ProjectBooksInCirculation(history core.DomainEvents) BooksInCirculation {
 	for _, event := range history {
 		switch e := event.(type) {
 		case core.BookCopyAddedToCirculation:
-			// Add the book to circulation
-			books[e.BookID] = BookInfo{
-				BookID:          e.BookID,
-				Title:           e.Title,
-				Authors:         e.Authors,
-				ISBN:            e.ISBN,
-				Edition:         e.Edition,
-				Publisher:       e.Publisher,
-				PublicationYear: e.PublicationYear,
-				AddedAt:         e.OccurredAt,
-				IsCurrentlyLent: false, // Initially not lent
+			// Add the book (only if not already added)
+			if _, exists := books[e.BookID]; !exists {
+				books[e.BookID] = BookInfo{
+					BookID:          e.BookID,
+					Title:           e.Title,
+					Authors:         e.Authors,
+					ISBN:            e.ISBN,
+					Edition:         e.Edition,
+					Publisher:       e.Publisher,
+					PublicationYear: e.PublicationYear,
+					AddedAt:         e.OccurredAt,
+					IsCurrentlyLent: false, // Initially not lent
+				}
 			}
 
 		case core.BookCopyRemovedFromCirculation:

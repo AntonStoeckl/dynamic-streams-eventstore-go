@@ -28,19 +28,26 @@ func ProjectBooksLentOut(history core.DomainEvents) BooksLentOut {
 	for _, event := range history {
 		switch e := event.(type) {
 		case core.BookCopyAddedToCirculation:
-			// Track book details for later use
-			lendingInfos[e.BookID] = LendingInfo{
-				BookID:          e.BookID,
-				Title:           e.Title,
-				Authors:         e.Authors,
-				ISBN:            e.ISBN,
-				Edition:         e.Edition,
-				Publisher:       e.Publisher,
-				PublicationYear: e.PublicationYear,
+			// Track book details for later use (only if not already tracked)
+			if _, exists := lendingInfos[e.BookID]; !exists {
+				lendingInfos[e.BookID] = LendingInfo{
+					BookID:          e.BookID,
+					Title:           e.Title,
+					Authors:         e.Authors,
+					ISBN:            e.ISBN,
+					Edition:         e.Edition,
+					Publisher:       e.Publisher,
+					PublicationYear: e.PublicationYear,
+				}
 			}
 
+		case core.BookCopyRemovedFromCirculation:
+			// Remove book from book info and lent books
+			delete(lendingInfos, e.BookID)
+			delete(lentBooks, e.BookID)
+
 		case core.BookCopyLentToReader:
-			// Add the book to lent books
+			// Add the book to lent books (only if tracked)
 			if details, exists := lendingInfos[e.BookID]; exists {
 				lentBooks[e.BookID] = LendingInfo{
 					BookID:          e.BookID,
@@ -56,7 +63,7 @@ func ProjectBooksLentOut(history core.DomainEvents) BooksLentOut {
 			}
 
 		case core.BookCopyReturnedByReader:
-			// Remove book from lent books
+			// Remove the book from lent books (only if it's actually lent)
 			delete(lentBooks, e.BookID)
 		}
 	}
@@ -80,6 +87,7 @@ func BuildEventFilter() eventstore.Filter {
 		Matching().
 		AnyEventTypeOf(
 			core.BookCopyAddedToCirculationEventType,
+			core.BookCopyRemovedFromCirculationEventType,
 			core.BookCopyLentToReaderEventType,
 			core.BookCopyReturnedByReaderEventType,
 		).

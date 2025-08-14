@@ -31,20 +31,27 @@ func ProjectBooksCurrentlyLent(history core.DomainEvents, query Query) BooksCurr
 	for _, event := range history {
 		switch e := event.(type) {
 		case core.BookCopyAddedToCirculation:
-			// Track book details for later use
-			bookInfos[e.BookID] = BookInfo{
-				BookID:          e.BookID,
-				Title:           e.Title,
-				Authors:         e.Authors,
-				ISBN:            e.ISBN,
-				Edition:         e.Edition,
-				Publisher:       e.Publisher,
-				PublicationYear: e.PublicationYear,
+			// Track book details for later use (only if not already tracked)
+			if _, exists := bookInfos[e.BookID]; !exists {
+				bookInfos[e.BookID] = BookInfo{
+					BookID:          e.BookID,
+					Title:           e.Title,
+					Authors:         e.Authors,
+					ISBN:            e.ISBN,
+					Edition:         e.Edition,
+					Publisher:       e.Publisher,
+					PublicationYear: e.PublicationYear,
+				}
 			}
+
+		case core.BookCopyRemovedFromCirculation:
+			// Remove book from book info and lent books
+			delete(bookInfos, e.BookID)
+			delete(lentBooks, e.BookID)
 
 		case core.BookCopyLentToReader:
 			if e.ReaderID == queriedReaderID {
-				// Add the book to bookInfos if we have details - gracefully ignore if we don't have details
+				// Add the book to lent books (only if tracked)
 				if details, exists := bookInfos[e.BookID]; exists {
 					lentBooks[e.BookID] = BookInfo{
 						BookID:          e.BookID,
@@ -61,7 +68,7 @@ func ProjectBooksCurrentlyLent(history core.DomainEvents, query Query) BooksCurr
 
 		case core.BookCopyReturnedByReader:
 			if e.ReaderID == queriedReaderID {
-				// Remove book from lent bookInfos
+				// Remove the book from lent books (only if it's actually lent)
 				delete(lentBooks, e.BookID)
 			}
 		}
@@ -88,6 +95,7 @@ func BuildEventFilter(readerID uuid.UUID) eventstore.Filter {
 		Matching().
 		AnyEventTypeOf(
 			core.BookCopyAddedToCirculationEventType,
+			core.BookCopyRemovedFromCirculationEventType,
 			core.BookCopyLentToReaderEventType,
 			core.BookCopyReturnedByReaderEventType,
 		).
