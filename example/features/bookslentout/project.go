@@ -2,6 +2,7 @@ package bookslentout
 
 import (
 	"slices"
+	"time"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
@@ -20,14 +21,13 @@ import (
 //	EXCLUDES: Books that have been returned
 //	DETAILS: Includes reader ID, book details, and lending timestamp
 func ProjectBooksLentOut(history core.DomainEvents) BooksLentOut {
-	// Track book lending state and book details
-	lentBooks := make(map[string]*LendingInfo) // BookID -> LendingInfo
+	// Track all books with lending state (unified approach like BooksInCirculation)
 	lendingInfos := make(map[string]*LendingInfo)
 
 	for _, event := range history {
 		switch e := event.(type) {
 		case core.BookCopyAddedToCirculation:
-			// Track lending info for later use (only if not already tracked)
+			// Add the book (only if not already added)
 			if _, exists := lendingInfos[e.BookID]; !exists {
 				lendingInfos[e.BookID] = &LendingInfo{
 					BookID:          e.BookID,
@@ -37,41 +37,40 @@ func ProjectBooksLentOut(history core.DomainEvents) BooksLentOut {
 					Edition:         e.Edition,
 					Publisher:       e.Publisher,
 					PublicationYear: e.PublicationYear,
+					ReaderID:        "", // Initially not lent
+					LentAt:          time.Time{},
 				}
 			}
 
 		case core.BookCopyRemovedFromCirculation:
-			// Remove book from lending info and lent books
+			// Remove book from circulation
 			delete(lendingInfos, e.BookID)
-			delete(lentBooks, e.BookID)
 
 		case core.BookCopyLentToReader:
-			// Add the book to lent books (only if tracked)
-			if details := lendingInfos[e.BookID]; details != nil {
-				lentBooks[e.BookID] = &LendingInfo{
-					BookID:          e.BookID,
-					ReaderID:        e.ReaderID,
-					Title:           details.Title,
-					Authors:         details.Authors,
-					ISBN:            details.ISBN,
-					Edition:         details.Edition,
-					Publisher:       details.Publisher,
-					PublicationYear: details.PublicationYear,
-					LentAt:          e.OccurredAt,
-				}
+			// Mark the book as lent and add reader info
+			if info := lendingInfos[e.BookID]; info != nil {
+				info.ReaderID = e.ReaderID
+				info.LentAt = e.OccurredAt
 			}
 
 		case core.BookCopyReturnedByReader:
-			// Remove the book from lent books (only if it's actually lent)
-			delete(lentBooks, e.BookID)
+			// Mark the book as not lent and clear reader info
+			if info := lendingInfos[e.BookID]; info != nil {
+				info.ReaderID = ""
+				info.LentAt = time.Time{}
+			}
 		}
 	}
 
-	// Convert map to slice and sort by LentAt (oldest first)
-	lendings := make([]LendingInfo, 0, len(lentBooks))
-	for _, lendingPtr := range lentBooks {
-		lendings = append(lendings, *lendingPtr)
+	// Filter to only currently lent books
+	lendings := make([]LendingInfo, 0)
+	for _, info := range lendingInfos {
+		if info.ReaderID != "" { // Book is lent if it has a ReaderID
+			lendings = append(lendings, *info)
+		}
 	}
+
+	// Sort by LentAt (oldest first)
 	slices.SortFunc(lendings, func(a, b LendingInfo) int {
 		return a.LentAt.Compare(b.LentAt)
 	})
