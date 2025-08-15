@@ -183,7 +183,7 @@ func (c Config) NewObservabilityConfig() ObservabilityConfig {
 	}
 
 	// Create real OpenTelemetry providers for the simulation
-	_, err := config.NewTestObservabilityConfig()
+	_, err := config.NewObservabilityConfig()
 	if err != nil {
 		log.Printf("Failed to create observability providers: %v", err)
 		return ObservabilityConfig{}

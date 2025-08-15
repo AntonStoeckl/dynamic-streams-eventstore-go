@@ -31,7 +31,7 @@
         }
       ],
       "gridPos": {
-        "h": 5,
+        "h": 4,
         "w": 12,
         "x": 0,
         "y": 0
@@ -66,7 +66,7 @@
         }
       ],
       "gridPos": {
-        "h": 5,
+        "h": 4,
         "w": 12,
         "x": 12,
         "y": 0
@@ -78,6 +78,76 @@
           },
           "min": 0,
           "unit": "ops"
+        }
+      }
+    },
+    {
+      "id": 20,
+      "title": "Command Duration (ms)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "rate(commandhandler_handle_duration_seconds_sum[1m]) / rate(commandhandler_handle_duration_seconds_count[1m]) * 1000",
+          "legendFormat": "{{command_type}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "unit": "ms"
+        }
+      }
+    },
+    {
+      "id": 21,
+      "title": "Query Duration (ms)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "rate(queryhandler_handle_duration_seconds_sum[1m]) / rate(queryhandler_handle_duration_seconds_count[1m]) * 1000",
+          "legendFormat": "{{query_type}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 4,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "unit": "ms"
         }
       }
     },
@@ -101,10 +171,10 @@
         }
       ],
       "gridPos": {
-        "h": 5,
+        "h": 4,
         "w": 12,
         "x": 0,
-        "y": 6
+        "y": 9
       },
       "fieldConfig": {
         "defaults": {
@@ -136,10 +206,10 @@
         }
       ],
       "gridPos": {
-        "h": 5,
+        "h": 4,
         "w": 12,
         "x": 12,
-        "y": 6
+        "y": 9
       },
       "fieldConfig": {
         "defaults": {
@@ -171,10 +241,10 @@
         }
       ],
       "gridPos": {
-        "h": 5,
+        "h": 4,
         "w": 12,
         "x": 0,
-        "y": 10
+        "y": 13
       },
       "fieldConfig": {
         "defaults": {
@@ -206,10 +276,10 @@
         }
       ],
       "gridPos": {
-        "h": 5,
+        "h": 4,
         "w": 12,
         "x": 12,
-        "y": 10
+        "y": 13
       },
       "fieldConfig": {
         "defaults": {
@@ -241,10 +311,10 @@
         }
       ],
       "gridPos": {
-        "h": 5,
+        "h": 4,
         "w": 12,
         "x": 0,
-        "y": 14
+        "y": 17
       },
       "fieldConfig": {
         "defaults": {
@@ -276,10 +346,10 @@
         }
       ],
       "gridPos": {
-        "h": 5,
+        "h": 4,
         "w": 12,
         "x": 12,
-        "y": 14
+        "y": 17
       },
       "fieldConfig": {
         "defaults": {
@@ -311,10 +381,10 @@
         }
       ],
       "gridPos": {
-        "h": 5,
+        "h": 4,
         "w": 12,
         "x": 0,
-        "y": 18
+        "y": 21
       },
       "fieldConfig": {
         "defaults": {
@@ -346,10 +416,10 @@
         }
       ],
       "gridPos": {
-        "h": 5,
+        "h": 4,
         "w": 12,
         "x": 12,
-        "y": 18
+        "y": 21
       },
       "fieldConfig": {
         "defaults": {
@@ -381,10 +451,10 @@
         }
       ],
       "gridPos": {
-        "h": 5,
+        "h": 4,
         "w": 8,
         "x": 0,
-        "y": 22
+        "y": 25
       },
       "fieldConfig": {
         "defaults": {
@@ -416,10 +486,10 @@
         }
       ],
       "gridPos": {
-        "h": 5,
+        "h": 4,
         "w": 8,
         "x": 8,
-        "y": 22
+        "y": 25
       },
       "fieldConfig": {
         "defaults": {
@@ -451,10 +521,10 @@
         }
       ],
       "gridPos": {
-        "h": 5,
+        "h": 4,
         "w": 8,
         "x": 16,
-        "y": 22
+        "y": 25
       },
       "fieldConfig": {
         "defaults": {
