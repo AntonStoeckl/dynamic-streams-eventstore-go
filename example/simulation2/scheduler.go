@@ -262,7 +262,7 @@ func (as *ActorScheduler) processActiveReaders() {
 			}()
 
 			// Pass batch context instead of as.ctx
-			batchOps := as.processReaderBatch(readers, ctx)
+			batchOps := as.processReaderBatch(ctx, readers)
 
 			operationsMu.Lock()
 			totalOperations += batchOps
@@ -311,7 +311,7 @@ func (as *ActorScheduler) processActiveReaders() {
 }
 
 // processReaderBatch processes a single batch of readers.
-func (as *ActorScheduler) processReaderBatch(readers []*ReaderActor, ctx context.Context) int {
+func (as *ActorScheduler) processReaderBatch(ctx context.Context, readers []*ReaderActor) int {
 	operationsThisBatch := 0
 	for _, reader := range readers {
 		if ctx.Err() != nil { // Check batch context, not as.ctx
