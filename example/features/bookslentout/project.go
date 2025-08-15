@@ -1,7 +1,6 @@
 package bookslentout
 
 import (
-	"maps"
 	"slices"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
@@ -22,15 +21,15 @@ import (
 //	DETAILS: Includes reader ID, book details, and lending timestamp
 func ProjectBooksLentOut(history core.DomainEvents) BooksLentOut {
 	// Track book lending state and book details
-	lentBooks := make(map[string]LendingInfo) // BookID -> LendingInfo
-	lendingInfos := make(map[string]LendingInfo)
+	lentBooks := make(map[string]*LendingInfo) // BookID -> LendingInfo
+	lendingInfos := make(map[string]*LendingInfo)
 
 	for _, event := range history {
 		switch e := event.(type) {
 		case core.BookCopyAddedToCirculation:
-			// Track book details for later use (only if not already tracked)
+			// Track lending info for later use (only if not already tracked)
 			if _, exists := lendingInfos[e.BookID]; !exists {
-				lendingInfos[e.BookID] = LendingInfo{
+				lendingInfos[e.BookID] = &LendingInfo{
 					BookID:          e.BookID,
 					Title:           e.Title,
 					Authors:         e.Authors,
@@ -42,14 +41,14 @@ func ProjectBooksLentOut(history core.DomainEvents) BooksLentOut {
 			}
 
 		case core.BookCopyRemovedFromCirculation:
-			// Remove book from book info and lent books
+			// Remove book from lending info and lent books
 			delete(lendingInfos, e.BookID)
 			delete(lentBooks, e.BookID)
 
 		case core.BookCopyLentToReader:
 			// Add the book to lent books (only if tracked)
-			if details, exists := lendingInfos[e.BookID]; exists {
-				lentBooks[e.BookID] = LendingInfo{
+			if details := lendingInfos[e.BookID]; details != nil {
+				lentBooks[e.BookID] = &LendingInfo{
 					BookID:          e.BookID,
 					ReaderID:        e.ReaderID,
 					Title:           details.Title,
@@ -69,7 +68,10 @@ func ProjectBooksLentOut(history core.DomainEvents) BooksLentOut {
 	}
 
 	// Convert map to slice and sort by LentAt (oldest first)
-	lendings := slices.Collect(maps.Values(lentBooks))
+	lendings := make([]LendingInfo, 0, len(lentBooks))
+	for _, lendingPtr := range lentBooks {
+		lendings = append(lendings, *lendingPtr)
+	}
 	slices.SortFunc(lendings, func(a, b LendingInfo) int {
 		return a.LentAt.Compare(b.LentAt)
 	})

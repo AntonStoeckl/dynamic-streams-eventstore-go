@@ -1,7 +1,6 @@
 package registeredreaders
 
 import (
-	"maps"
 	"slices"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
@@ -21,13 +20,13 @@ import (
 //	EXCLUDES: Readers that have had their contracts canceled
 func ProjectRegisteredReaders(history core.DomainEvents) RegisteredReaders {
 	// Track reader registration state and reader information
-	readers := make(map[string]ReaderInfo)
+	readers := make(map[string]*ReaderInfo)
 
 	for _, event := range history {
 		switch e := event.(type) {
 		case core.ReaderRegistered:
 			// Add the reader to the registration state
-			readers[e.ReaderID] = ReaderInfo{
+			readers[e.ReaderID] = &ReaderInfo{
 				ReaderID:     e.ReaderID,
 				Name:         e.Name,
 				RegisteredAt: e.OccurredAt,
@@ -40,7 +39,10 @@ func ProjectRegisteredReaders(history core.DomainEvents) RegisteredReaders {
 	}
 
 	// Convert map to slice and sort by RegisteredAt (oldest first)
-	readerList := slices.Collect(maps.Values(readers))
+	readerList := make([]ReaderInfo, 0, len(readers))
+	for _, readerPtr := range readers {
+		readerList = append(readerList, *readerPtr)
+	}
 	slices.SortFunc(readerList, func(a, b ReaderInfo) int {
 		return a.RegisteredAt.Compare(b.RegisteredAt)
 	})

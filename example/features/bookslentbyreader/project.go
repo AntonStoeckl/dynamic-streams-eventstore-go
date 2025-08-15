@@ -1,7 +1,6 @@
 package bookslentbyreader
 
 import (
-	"maps"
 	"slices"
 
 	"github.com/google/uuid"
@@ -19,21 +18,21 @@ import (
 //	GIVEN: A reader with ReaderID
 //	WHEN: BooksLentByReader query is executed
 //	THEN: BooksCurrentlyLent struct is returned with current lending state
-//	INCLUDES: Book information (ID, title, authors, isbn, lent date)
+//	INCLUDES: lending information (ID, title, authors, isbn, lent date)
 //	EXCLUDES: Books that have been returned
 func ProjectBooksCurrentlyLent(history core.DomainEvents, query Query) BooksCurrentlyLent {
 	queriedReaderID := query.ReaderID.String()
 
-	// Track book lending state and book information
-	lentBooks := make(map[string]BookInfo)
-	bookInfos := make(map[string]BookInfo)
+	// Track book lending state and lending information
+	lentBooks := make(map[string]*LendingInfo)
+	lendingInfos := make(map[string]*LendingInfo)
 
 	for _, event := range history {
 		switch e := event.(type) {
 		case core.BookCopyAddedToCirculation:
-			// Track book details for later use (only if not already tracked)
-			if _, exists := bookInfos[e.BookID]; !exists {
-				bookInfos[e.BookID] = BookInfo{
+			// Track lending info for later use (only if not already tracked)
+			if _, exists := lendingInfos[e.BookID]; !exists {
+				lendingInfos[e.BookID] = &LendingInfo{
 					BookID:          e.BookID,
 					Title:           e.Title,
 					Authors:         e.Authors,
@@ -45,15 +44,15 @@ func ProjectBooksCurrentlyLent(history core.DomainEvents, query Query) BooksCurr
 			}
 
 		case core.BookCopyRemovedFromCirculation:
-			// Remove book from book info and lent books
-			delete(bookInfos, e.BookID)
+			// Remove book from lending info and lent books
+			delete(lendingInfos, e.BookID)
 			delete(lentBooks, e.BookID)
 
 		case core.BookCopyLentToReader:
 			if e.ReaderID == queriedReaderID {
 				// Add the book to lent books (only if tracked)
-				if details, exists := bookInfos[e.BookID]; exists {
-					lentBooks[e.BookID] = BookInfo{
+				if details := lendingInfos[e.BookID]; details != nil {
+					lentBooks[e.BookID] = &LendingInfo{
 						BookID:          e.BookID,
 						Title:           details.Title,
 						Authors:         details.Authors,
@@ -75,8 +74,11 @@ func ProjectBooksCurrentlyLent(history core.DomainEvents, query Query) BooksCurr
 	}
 
 	// Convert map to slice and sort by LentAt (oldest first)
-	books := slices.Collect(maps.Values(lentBooks))
-	slices.SortFunc(books, func(a, b BookInfo) int {
+	books := make([]LendingInfo, 0, len(lentBooks))
+	for _, bookPtr := range lentBooks {
+		books = append(books, *bookPtr)
+	}
+	slices.SortFunc(books, func(a, b LendingInfo) int {
 		return a.LentAt.Compare(b.LentAt)
 	})
 

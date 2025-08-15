@@ -19,7 +19,7 @@ var (
 
 // DomainEventsFrom converts multiple StorableEvents to DomainEvents.
 func DomainEventsFrom(storableEvents eventstore.StorableEvents) (core.DomainEvents, error) {
-	domainEvents := make(core.DomainEvents, 0)
+	domainEvents := make(core.DomainEvents, 0, len(storableEvents))
 
 	for _, storableEvent := range storableEvents {
 		domainEvent, err := DomainEventFrom(storableEvent)

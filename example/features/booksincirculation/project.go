@@ -1,7 +1,6 @@
 package booksincirculation
 
 import (
-	"maps"
 	"slices"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
@@ -22,14 +21,14 @@ import (
 //	DETAILS: Includes lending status for each book
 func ProjectBooksInCirculation(history core.DomainEvents) BooksInCirculation {
 	// Track book circulation state and book information
-	books := make(map[string]BookInfo)
+	bookInfos := make(map[string]*BookInfo)
 
 	for _, event := range history {
 		switch e := event.(type) {
 		case core.BookCopyAddedToCirculation:
 			// Add the book (only if not already added)
-			if _, exists := books[e.BookID]; !exists {
-				books[e.BookID] = BookInfo{
+			if _, exists := bookInfos[e.BookID]; !exists {
+				bookInfos[e.BookID] = &BookInfo{
 					BookID:          e.BookID,
 					Title:           e.Title,
 					Authors:         e.Authors,
@@ -44,26 +43,27 @@ func ProjectBooksInCirculation(history core.DomainEvents) BooksInCirculation {
 
 		case core.BookCopyRemovedFromCirculation:
 			// Remove book from circulation
-			delete(books, e.BookID)
+			delete(bookInfos, e.BookID)
 
 		case core.BookCopyLentToReader:
 			// Mark the book as lent if it's in circulation
-			if bookInfo, exists := books[e.BookID]; exists {
+			if bookInfo := bookInfos[e.BookID]; bookInfo != nil {
 				bookInfo.IsCurrentlyLent = true
-				books[e.BookID] = bookInfo
 			}
 
 		case core.BookCopyReturnedByReader:
 			// Mark the book as not lent if it's in circulation
-			if bookInfo, exists := books[e.BookID]; exists {
+			if bookInfo := bookInfos[e.BookID]; bookInfo != nil {
 				bookInfo.IsCurrentlyLent = false
-				books[e.BookID] = bookInfo
 			}
 		}
 	}
 
 	// Convert map to slice and sort by AddedAt (oldest first)
-	bookList := slices.Collect(maps.Values(books))
+	bookList := make([]BookInfo, 0, len(bookInfos))
+	for _, bookPtr := range bookInfos {
+		bookList = append(bookList, *bookPtr)
+	}
 	slices.SortFunc(bookList, func(a, b BookInfo) int {
 		return a.AddedAt.Compare(b.AddedAt)
 	})
