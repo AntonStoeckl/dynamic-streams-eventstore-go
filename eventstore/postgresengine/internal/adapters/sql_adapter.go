@@ -42,7 +42,7 @@ func (s *SQLAdapter) Query(ctx context.Context, query string) (DBRows, error) {
 			_ = rows.Close()
 		}(rows)
 
-		return nil, eventstore.ErrRowsIterationFailed
+		return nil, eventstore.ErrRowIterationFailed
 	}
 
 	return &stdRows{rows: rows}, nil

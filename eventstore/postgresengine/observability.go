@@ -35,6 +35,7 @@ const (
 	logMsgDBQueryFailed            = "database query execution failed"
 	logMsgCloseRowsFailed          = "failed to close database rows"
 	logMsgScanRowFailed            = "failed to scan database row"
+	logMsgRowIterationFailed       = "row iteration failed due to error"
 	logMsgBuildStorableEventFailed = "failed to build storable event from database row"
 	logMsgBuildInsertQueryFailed   = "failed to build insert query"
 	logMsgDBExecFailed             = "database execution failed during event append"
@@ -112,6 +113,7 @@ const (
 	errorTypeRowsAffected        = "rows_affected"
 	errorTypeBuildSingleEventSQL = "build_single_event_sql"
 	errorTypeBuildMultiEventSQL  = "build_multi_event_sql"
+	errorTypeRowIteration        = "row_iteration"
 	errorTypeCancelled           = "cancelled"
 	errorTypeTimeout             = "timeout"
 

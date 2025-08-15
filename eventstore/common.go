@@ -35,8 +35,8 @@ var (
 	// ErrBuildingQueryFailed is returned when SQL query construction fails during event store operations.
 	ErrBuildingQueryFailed = errors.New("building the query failed")
 
-	// ErrRowsIterationFailed is returned when iterating over database result rows fails during event retrieval.
-	ErrRowsIterationFailed = errors.New("database rows iteration failed")
+	// ErrRowIterationFailed is returned when iterating over database result rows fails during event retrieval.
+	ErrRowIterationFailed = errors.New("database rows iteration failed")
 )
 
 // MaxSequenceNumberUint is a type alias for uint, representing the maximum sequence number for a "dynamic event stream".

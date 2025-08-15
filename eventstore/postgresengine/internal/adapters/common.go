@@ -16,6 +16,7 @@ type DBRows interface {
 	Next() bool
 	Scan(dest ...any) error
 	Close() error
+	Err() error
 }
 
 // DBResult defines the interface for execution results.
@@ -41,6 +42,11 @@ func (s *stdRows) Scan(dest ...any) error {
 // Close closes the rows iterator.
 func (s *stdRows) Close() error {
 	return s.rows.Close()
+}
+
+// Err returns any error encountered during iteration.
+func (s *stdRows) Err() error {
+	return s.rows.Err()
 }
 
 // stdResult wraps standard library sql.Result to implement DBResult interface.

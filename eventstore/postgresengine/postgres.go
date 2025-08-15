@@ -426,6 +426,14 @@ func (es *EventStore) processQueryResults(rows adapters.DBRows, metrics *queryMe
 		maxSequenceNumber = result.maxSequenceNumber
 	}
 
+	// Check for iteration errors after the loop
+	if iterationErr := rows.Err(); iterationErr != nil {
+		es.logError(logMsgRowIterationFailed, iterationErr)
+		metrics.recordError(errorTypeRowIteration, 0)
+
+		return empty, 0, errors.Join(eventstore.ErrRowIterationFailed, iterationErr)
+	}
+
 	return eventStream, maxSequenceNumber, nil
 }
 

@@ -71,6 +71,11 @@ func (p *pgxRows) Close() error {
 	return nil
 }
 
+// Err returns any error encountered during iteration.
+func (p *pgxRows) Err() error {
+	return p.rows.Err()
+}
+
 // pgxResult wraps pgconn.CommandTag to implement the DBResult interface.
 type pgxResult struct {
 	tag pgconn.CommandTag
