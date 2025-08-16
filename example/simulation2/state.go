@@ -8,9 +8,9 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/booksincirculation"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/bookslentout"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/registeredreaders"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/booksincirculation"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/bookslentout"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/registeredreaders"
 )
 
 // =================================================================

@@ -1,4 +1,4 @@
-package registerreader
+package returnbookcopyfromreader
 
 import (
 	"time"
@@ -8,24 +8,19 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
 
-// Command represents the intent to register a new reader.
-// It encapsulates all the necessary information required to execute the register reader use case.
+// Command represents the intent to return a book copy from a reader.
+// It encapsulates all the necessary information required to execute the return book copy use case.
 type Command struct {
+	BookID     uuid.UUID
 	ReaderID   uuid.UUID
-	Name       string
 	OccurredAt core.OccurredAtTS
 }
 
 // BuildCommand creates a new Command with the provided parameters.
-func BuildCommand(
-	readerID uuid.UUID,
-	name string,
-	occurredAt time.Time,
-) Command {
-
+func BuildCommand(bookID uuid.UUID, readerID uuid.UUID, occurredAt time.Time) Command {
 	return Command{
+		BookID:     bookID,
 		ReaderID:   readerID,
-		Name:       name,
 		OccurredAt: core.ToOccurredAt(occurredAt),
 	}
 }

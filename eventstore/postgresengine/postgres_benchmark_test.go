@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/removebookcopy"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/command/removebookcopy"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"                 //nolint:revive
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper" //nolint:revive
 )

@@ -11,16 +11,16 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/addbookcopy"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/booksincirculation"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/bookslentbyreader"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/bookslentout"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/cancelreadercontract"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/lendbookcopytoreader"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/registeredreaders"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/registerreader"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/removebookcopy"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/returnbookcopyfromreader"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/command/addbookcopy"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/command/cancelreadercontract"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/command/lendbookcopytoreader"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/command/registerreader"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/command/removebookcopy"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/command/returnbookcopyfromreader"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/booksincirculation"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/bookslentbyreader"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/bookslentout"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/registeredreaders"
 )
 
 // HandlerBundle contains all command and query handlers for the simulation.
