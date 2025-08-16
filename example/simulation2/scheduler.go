@@ -665,38 +665,6 @@ func (as *ActorScheduler) syncSingleReader(actor *ReaderActor) error {
 	return nil
 }
 
-// synchronizeActorBorrowedBooks populates actor BorrowedBooks from database state.
-// Only syncs active readers to avoid performance issues.
-func (as *ActorScheduler) synchronizeActorBorrowedBooks() error {
-	// Take snapshot of active readers under lock to prevent race condition
-	as.mu.RLock()
-	activeSnapshot := make([]*ReaderActor, len(as.activeReaders))
-	copy(activeSnapshot, as.activeReaders)
-	as.mu.RUnlock()
-
-	syncCount := 0
-	readersWithBooks := 0
-
-	// Process active readers snapshot (no inactive readers for performance)
-	for _, actor := range activeSnapshot {
-		if err := as.syncSingleReader(actor); err != nil {
-			log.Printf("⚠️ Failed to sync reader %s: %v", actor.ID, err)
-			continue
-		}
-		if len(actor.BorrowedBooks) > 0 {
-			syncCount += len(actor.BorrowedBooks)
-			readersWithBooks++
-		}
-	}
-
-	if syncCount > 0 {
-		log.Printf("🔗 Synchronized %d borrowed books across %d active readers (targeted queries)",
-			syncCount, readersWithBooks)
-	}
-
-	return nil
-}
-
 // synchronizeAllActorBorrowedBooksFromLentOut populates ALL actor BorrowedBooks using single BooksLentOut query.
 // Used only at startup for efficiency (one query vs thousands).
 func (as *ActorScheduler) synchronizeAllActorBorrowedBooksFromLentOut() error {
