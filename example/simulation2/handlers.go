@@ -13,6 +13,7 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/addbookcopy"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/booksincirculation"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/bookslentbyreader"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/bookslentout"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/cancelreadercontract"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/lendbookcopytoreader"
@@ -34,6 +35,7 @@ type HandlerBundle struct {
 
 	// Query handlers for state refresh.
 	booksInCirculationHandler booksincirculation.QueryHandler
+	booksLentByReaderHandler  bookslentbyreader.QueryHandler
 	booksLentOutHandler       bookslentout.QueryHandler
 	registeredReadersHandler  registeredreaders.QueryHandler
 
@@ -100,6 +102,12 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 		return nil, fmt.Errorf("failed to create BooksInCirculation handler: %w", err)
 	}
 
+	booksLentByReaderHandler, err := bookslentbyreader.NewQueryHandler(eventStore,
+		buildBooksLentByReaderOptions(obsConfig)...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create BooksLentByReader handler: %w", err)
+	}
+
 	booksLentOutHandler, err := bookslentout.NewQueryHandler(eventStore,
 		buildBooksLentOutOptions(obsConfig)...)
 	if err != nil {
@@ -120,6 +128,7 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 		lendBookCopyHandler:       lendBookCopyHandler,
 		returnBookCopyHandler:     returnBookCopyHandler,
 		booksInCirculationHandler: booksInCirculationHandler,
+		booksLentByReaderHandler:  booksLentByReaderHandler,
 		booksLentOutHandler:       booksLentOutHandler,
 		registeredReadersHandler:  registeredReadersHandler,
 	}, nil
@@ -260,6 +269,14 @@ func (hb *HandlerBundle) QueryBooksInCirculation(ctx context.Context) (booksinci
 	return hb.booksInCirculationHandler.Handle(timeoutCtx)
 }
 
+// QueryBooksLentByReader returns all books currently lent to a specific reader.
+func (hb *HandlerBundle) QueryBooksLentByReader(ctx context.Context, readerID uuid.UUID) (bookslentbyreader.BooksCurrentlyLent, error) {
+	timeoutCtx, cancel := context.WithTimeout(ctx, QueryTimeoutSeconds*time.Second)
+	defer cancel()
+	query := bookslentbyreader.Query{ReaderID: readerID}
+	return hb.booksLentByReaderHandler.Handle(timeoutCtx, query)
+}
+
 // QueryBooksLentOut returns all books currently lent out.
 func (hb *HandlerBundle) QueryBooksLentOut(ctx context.Context) (bookslentout.BooksLentOut, error) {
 	timeoutCtx, cancel := context.WithTimeout(ctx, QueryTimeoutSeconds*time.Second)
@@ -275,26 +292,19 @@ func (hb *HandlerBundle) QueryRegisteredReaders(ctx context.Context) (registered
 }
 
 // =================================================================
-// STATE REFRESH QUERIES - Longer timeout for critical state updates
+// STATE REFRESH QUERIES - For periodic state synchronization
 // =================================================================
 
-// QueryBooksInCirculationForState returns all books with extended timeout for state refresh.
+// QueryBooksInCirculationForState returns all books for state refresh.
 func (hb *HandlerBundle) QueryBooksInCirculationForState(ctx context.Context) (booksincirculation.BooksInCirculation, error) {
-	timeoutCtx, cancel := context.WithTimeout(ctx, StateRefreshTimeoutSeconds*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(ctx, QueryTimeoutSeconds*time.Second)
 	defer cancel()
 	return hb.booksInCirculationHandler.Handle(timeoutCtx)
 }
 
-// QueryBooksLentOutForState returns all books lent out with extended timeout for state refresh.
-func (hb *HandlerBundle) QueryBooksLentOutForState(ctx context.Context) (bookslentout.BooksLentOut, error) {
-	timeoutCtx, cancel := context.WithTimeout(ctx, StateRefreshTimeoutSeconds*time.Second)
-	defer cancel()
-	return hb.booksLentOutHandler.Handle(timeoutCtx)
-}
-
-// QueryRegisteredReadersForState returns all readers with extended timeout for state refresh.
+// QueryRegisteredReadersForState returns all readers for state refresh.
 func (hb *HandlerBundle) QueryRegisteredReadersForState(ctx context.Context) (registeredreaders.RegisteredReaders, error) {
-	timeoutCtx, cancel := context.WithTimeout(ctx, StateRefreshTimeoutSeconds*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(ctx, QueryTimeoutSeconds*time.Second)
 	defer cancel()
 	return hb.registeredReadersHandler.Handle(timeoutCtx)
 }
@@ -455,6 +465,23 @@ func buildBooksInCirculationOptions(obsConfig ObservabilityConfig) []booksincirc
 	}
 	if obsConfig.Logger != nil {
 		opts = append(opts, booksincirculation.WithLogging(obsConfig.Logger))
+	}
+	return opts
+}
+
+func buildBooksLentByReaderOptions(obsConfig ObservabilityConfig) []bookslentbyreader.Option {
+	var opts []bookslentbyreader.Option
+	if obsConfig.MetricsCollector != nil {
+		opts = append(opts, bookslentbyreader.WithMetrics(obsConfig.MetricsCollector))
+	}
+	if obsConfig.TracingCollector != nil {
+		opts = append(opts, bookslentbyreader.WithTracing(obsConfig.TracingCollector))
+	}
+	if obsConfig.ContextualLogger != nil {
+		opts = append(opts, bookslentbyreader.WithContextualLogging(obsConfig.ContextualLogger))
+	}
+	if obsConfig.Logger != nil {
+		opts = append(opts, bookslentbyreader.WithLogging(obsConfig.Logger))
 	}
 	return opts
 }

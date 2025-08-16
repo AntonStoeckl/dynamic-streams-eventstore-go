@@ -381,8 +381,8 @@ func (s *SimulationState) RefreshFromEventStore(ctx context.Context, handlers *H
 		return nil // Continue with stale state rather than breaking simulation
 	}
 
-	// Query books lent out with extended timeout
-	lentBooksResult, err := handlers.QueryBooksLentOutForState(ctx)
+	// Query books lent out
+	lentBooksResult, err := handlers.QueryBooksLentOut(ctx)
 	if err != nil {
 		log.Printf("⚠️ State refresh failed (lendings query), keeping previous state: %v", err)
 		return nil // Continue with stale state rather than breaking simulation

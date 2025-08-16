@@ -306,7 +306,7 @@ func (lc *LoadController) evaluateAndAdjust() {
 		// Get book statistics for comprehensive system overview
 		stateStats := lc.state.GetStats()
 
-		log.Printf("🎯 Performance: P50=%dms, P99=%dms, timeouts=%.1f%%, throughput=%.1f ops/s, active=%d readers | Books: %d total, %d borrowed",
+		log.Printf("🎯 Performance: P50=%dms, P99=%dms, timeouts=%.1f%%, throughput=%.1f ops/s, active=%d readers | Books: %d total, %d lent out",
 			lc.stats.CurrentP50Ms, lc.stats.CurrentP99Ms, lc.stats.TimeoutRate*100,
 			lc.stats.Throughput, currentActiveReaders, stateStats.TotalBooks, stateStats.BooksLentOut)
 	}

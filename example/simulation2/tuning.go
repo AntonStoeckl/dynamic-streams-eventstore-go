@@ -19,11 +19,11 @@ const (
 	// ACTOR POOL CONFIGURATION ...
 
 	// InitialActiveReaders defines the conservative starting point for active readers.
-	InitialActiveReaders = 250
+	InitialActiveReaders = 50
 	// MinActiveReaders defines the minimum scale limit.
-	MinActiveReaders = 50
+	MinActiveReaders = 25
 	// MaxActiveReaders defines the upper safety limit.
-	MaxActiveReaders = 1000
+	MaxActiveReaders = 120 // should be 300 ... I just want to reduce my system load for the moment
 
 	// LibrarianCount defines the number of librarian staff (Acquisitions and Maintenance roles).
 	LibrarianCount = 4
@@ -38,10 +38,10 @@ const (
 	MaxBooksPerReader = 5 // should be 10
 
 	// ChanceReturnAll defines the probability that readers return all borrowed books.
-	ChanceReturnAll = 0.95 // Natural behavior: 80% return all, 20% keep 1-2 books -> should be 0.8
+	ChanceReturnAll = 0.99 // Natural behavior: 80% return all, 20% keep 1-2 books -> should be 0.8
 
 	// ChanceBorrowAfterReturn defines the probability to browse/borrow books after returning.
-	ChanceBorrowAfterReturn = 0.5 // Natural behavior: 50% browse after returning books -> should be 0.7?
+	ChanceBorrowAfterReturn = 0.2 // Natural behavior: 50% browse after returning books -> should be 0.7?
 
 	// BROWSING AND DISCOVERY PATTERNS ...
 
@@ -73,7 +73,7 @@ const (
 	// TargetP99LatencyMs defines the maximum acceptable latency in milliseconds.
 	TargetP99LatencyMs = 250
 	// MaxTimeoutRate defines the timeout threshold as a percentage.
-	MaxTimeoutRate = 0.01
+	MaxTimeoutRate = 0.005 // should be 0.01
 
 	// ScaleUpIncrement defines the number of readers to add when performing well.
 	ScaleUpIncrement = 10
@@ -110,13 +110,9 @@ const (
 	// These are fast, transactional operations that should complete quickly.
 	CommandTimeoutSeconds = 2
 
-	// QueryTimeoutSeconds defines timeout for regular query operations (QueryBooksInCirculation, etc.)
-	// These are moderate read operations that may scan indexed data.
-	QueryTimeoutSeconds = 5
-
-	// StateRefreshTimeoutSeconds defines timeout for state refresh queries (QueryBooksInCirculationForState, etc.)
-	// These are expensive operations that may perform full table scans for accurate state reconstruction.
-	StateRefreshTimeoutSeconds = 30
+	// QueryTimeoutSeconds defines timeout for all query operations (QueryBooksInCirculation, state refresh, etc.)
+	// With proper error handling, we can use a reasonable timeout for all queries.
+	QueryTimeoutSeconds = 45
 
 	// V1 SIMPLIFICATIONS - Advanced behavior patterns (not implemented in v1)!
 
