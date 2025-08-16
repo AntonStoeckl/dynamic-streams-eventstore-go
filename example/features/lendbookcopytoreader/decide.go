@@ -12,6 +12,7 @@ const (
 	failureReasonBookNotInCirculation = "book is not in circulation"
 	failureReasonBookAlreadyLent      = "book is already lent"
 	failureReasonReaderTooManyBooks   = "reader has too many books"
+	failureReasonReaderNotRegistered  = "reader is not currently registered"
 )
 
 // state represents the current state projected from the event history.
@@ -20,6 +21,7 @@ type state struct {
 	bookIsLentToThisReader    bool
 	bookIsLentToAnotherReader bool
 	readerCurrentBookCount    int
+	readerIsNotRegistered     bool
 }
 
 // Decide implements the business logic to determine whether a book copy should be lent to a reader.
@@ -28,18 +30,31 @@ type state struct {
 //
 // Business Rules:
 //
-//	GIVEN: A book copy with BookID and reader with ReaderID
-//	WHEN: LendBookCopyToReader command is received
-//	THEN: BookCopyLentToReader event is generated
-//	ERROR: "book is not in circulation" if a book not added or was removed
-//	ERROR: "book is already lent" if book currently lent to any reader
-//	ERROR: "reader has too many books" if reader already has 10 books lent
-//	IDEMPOTENCY: If book already lent to this reader, no event generated (no-op)
+//		GIVEN: A book copy with BookID and reader with ReaderID
+//		WHEN: LendBookCopyToReader command is received
+//		THEN: BookCopyLentToReader event is generated
+//		ERROR: "book is not in circulation" if a book not added or was removed
+//		ERROR: "book is already lent" if book currently lent to any reader
+//		ERROR: "reader has too many books" if reader already has 10 books lent
+//	 ERROR: "reader is not currently registered" if reader is not registered
+//		IDEMPOTENCY: If book already lent to this reader, no event generated (no-op)
 func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 	s := project(history, command.BookID.String(), command.ReaderID.String())
 
 	if s.bookIsLentToThisReader {
 		return core.IdempotentDecision() // idempotency - the book is already lent to this reader, so no new event
+	}
+
+	// Strict validation: reader must be currently registered (not cancelled)
+	if s.readerIsNotRegistered {
+		return core.ErrorDecision(
+			core.BuildLendingBookToReaderFailed(
+				command.BookID,
+				command.ReaderID,
+				failureReasonReaderNotRegistered,
+				command.OccurredAt,
+			),
+		)
 	}
 
 	if s.bookIsNotInCirculation {
@@ -91,6 +106,7 @@ func project(history core.DomainEvents, bookID string, readerID string) state { 
 		bookIsLentToThisReader:    false, // Default to "not lent to this reader"
 		bookIsLentToAnotherReader: false, // Default to "not lent to another reader"
 		readerCurrentBookCount:    0,     // Default to "no books"
+		readerIsNotRegistered:     true,  // Default to "not registered"
 	}
 
 	for _, event := range history {
@@ -130,6 +146,16 @@ func project(history core.DomainEvents, bookID string, readerID string) state { 
 			if e.ReaderID == readerID {
 				s.readerCurrentBookCount--
 			}
+
+		case core.ReaderRegistered:
+			if e.ReaderID == readerID {
+				s.readerIsNotRegistered = false
+			}
+
+		case core.ReaderContractCanceled:
+			if e.ReaderID == readerID {
+				s.readerIsNotRegistered = true
+			}
 		}
 	}
 
@@ -146,6 +172,8 @@ func BuildEventFilter(bookID uuid.UUID, readerID uuid.UUID) eventstore.Filter {
 			core.BookCopyRemovedFromCirculationEventType,
 			core.BookCopyLentToReaderEventType,
 			core.BookCopyReturnedByReaderEventType,
+			core.ReaderRegisteredEventType,
+			core.ReaderContractCanceledEventType,
 		).
 		AndAnyPredicateOf(
 			eventstore.P("BookID", bookID.String()),
