@@ -9,6 +9,7 @@ package core
 type DecisionResult struct {
 	Outcome string      // "idempotent", "success", or "error"
 	Event   DomainEvent // nil for idempotent decisions
+	Err     error
 }
 
 const (
@@ -34,14 +35,24 @@ func SuccessDecision(event DomainEvent) DecisionResult {
 }
 
 // ErrorDecision creates a DecisionResult indicating a business rule violation with an error event to append.
-func ErrorDecision(event DomainEvent) DecisionResult {
+func ErrorDecision(event DomainEvent, err error) DecisionResult {
 	return DecisionResult{
 		Outcome: errorOutcome,
 		Event:   event,
+		Err:     err,
 	}
 }
 
 // HasEventToAppend returns true if there is an event to append to the event store.
 func (r DecisionResult) HasEventToAppend() bool {
 	return r.Outcome != idempotentOutcome
+}
+
+// HasError returns the error if there is one, otherwise nil.
+func (r DecisionResult) HasError() error {
+	if r.Outcome == errorOutcome {
+		return r.Err
+	}
+
+	return nil
 }

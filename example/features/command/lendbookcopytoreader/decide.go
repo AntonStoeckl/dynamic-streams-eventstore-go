@@ -1,6 +1,8 @@
 package lendbookcopytoreader
 
 import (
+	"errors"
+
 	"github.com/google/uuid"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
@@ -47,47 +49,23 @@ func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 
 	// Strict validation: reader must be currently registered (not cancelled)
 	if s.readerIsNotRegistered {
-		return core.ErrorDecision(
-			core.BuildLendingBookToReaderFailed(
-				command.BookID,
-				command.ReaderID,
-				failureReasonReaderNotRegistered,
-				command.OccurredAt,
-			),
-		)
+		event := core.BuildLendingBookToReaderFailed(command.BookID, command.ReaderID, failureReasonReaderNotRegistered, command.OccurredAt)
+		return core.ErrorDecision(event, errors.New(event.EventType+": "+failureReasonReaderNotRegistered))
 	}
 
 	if s.bookIsNotInCirculation {
-		return core.ErrorDecision(
-			core.BuildLendingBookToReaderFailed(
-				command.BookID,
-				command.ReaderID,
-				failureReasonBookNotInCirculation,
-				command.OccurredAt,
-			),
-		)
+		event := core.BuildLendingBookToReaderFailed(command.BookID, command.ReaderID, failureReasonBookNotInCirculation, command.OccurredAt)
+		return core.ErrorDecision(event, errors.New(event.EventType+": "+failureReasonBookNotInCirculation))
 	}
 
 	if s.bookIsLentToAnotherReader {
-		return core.ErrorDecision(
-			core.BuildLendingBookToReaderFailed(
-				command.BookID,
-				command.ReaderID,
-				failureReasonBookAlreadyLent,
-				command.OccurredAt,
-			),
-		)
+		event := core.BuildLendingBookToReaderFailed(command.BookID, command.ReaderID, failureReasonBookAlreadyLent, command.OccurredAt)
+		return core.ErrorDecision(event, errors.New(event.EventType+": "+failureReasonBookAlreadyLent))
 	}
 
 	if s.readerCurrentBookCount >= maxBookLoansAllowedPerReader {
-		return core.ErrorDecision(
-			core.BuildLendingBookToReaderFailed(
-				command.BookID,
-				command.ReaderID,
-				failureReasonReaderTooManyBooks,
-				command.OccurredAt,
-			),
-		)
+		event := core.BuildLendingBookToReaderFailed(command.BookID, command.ReaderID, failureReasonReaderTooManyBooks, command.OccurredAt)
+		return core.ErrorDecision(event, errors.New(event.EventType+": "+failureReasonReaderTooManyBooks))
 	}
 
 	return core.SuccessDecision(

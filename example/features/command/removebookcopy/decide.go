@@ -1,6 +1,8 @@
 package removebookcopy
 
 import (
+	"errors"
+
 	"github.com/google/uuid"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
@@ -39,23 +41,13 @@ func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 	}
 
 	if s.bookWasNeverAddedToCirculation {
-		return core.ErrorDecision(
-			core.BuildRemovingBookFromCirculationFailed(
-				command.BookID,
-				failureReasonBookNeverAddedToCirculation,
-				command.OccurredAt,
-			),
-		)
+		event := core.BuildRemovingBookFromCirculationFailed(command.BookID, failureReasonBookNeverAddedToCirculation, command.OccurredAt)
+		return core.ErrorDecision(event, errors.New(event.EventType+": "+failureReasonBookNeverAddedToCirculation))
 	}
 
 	if s.bookIsCurrentlyLent {
-		return core.ErrorDecision(
-			core.BuildRemovingBookFromCirculationFailed(
-				command.BookID,
-				failureReasonBookIsCurrentlyLent,
-				command.OccurredAt,
-			),
-		)
+		event := core.BuildRemovingBookFromCirculationFailed(command.BookID, failureReasonBookIsCurrentlyLent, command.OccurredAt)
+		return core.ErrorDecision(event, errors.New(event.EventType+": "+failureReasonBookIsCurrentlyLent))
 	}
 
 	return core.SuccessDecision(

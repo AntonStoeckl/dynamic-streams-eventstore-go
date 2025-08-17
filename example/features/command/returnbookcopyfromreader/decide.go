@@ -1,6 +1,8 @@
 package returnbookcopyfromreader
 
 import (
+	"errors"
+
 	"github.com/google/uuid"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
@@ -8,17 +10,17 @@ import (
 )
 
 const (
-	failureReasonBookNotInCirculation  = "book is not in circulation"
-	failureReasonBookNotLentToReader   = "book is not lent to this reader"
-	failureReasonReaderNeverRegistered = "reader was never registered"
+	failureReasonBookNeverInCirculation = "book was never added to circulation"
+	failureReasonBookNotLentToReader    = "book is not lent to this reader"
+	failureReasonReaderNeverRegistered  = "reader was never registered"
 )
 
 // state represents the current state projected from the event history.
 type state struct {
-	bookIsNotInCirculation       bool
-	bookWasNeverLentToThisReader bool
-	bookIsNotLentToThisReader    bool
-	readerWasNeverRegistered     bool
+	bookWasNeverAddedToCirculation bool
+	bookWasNeverLentToThisReader   bool
+	bookIsNotLentToThisReader      bool
+	readerWasNeverRegistered       bool
 }
 
 // Decide implements the business logic to determine whether a book copy should be returned from a reader.
@@ -27,13 +29,13 @@ type state struct {
 //
 // Business Rules:
 //
-//		GIVEN: A book copy with BookID and reader with ReaderID
-//		WHEN: ReturnBookCopyFromReader command is received
-//		THEN: BookCopyReturnedByReader event is generated
-//		ERROR: "book is not in circulation" if a book not added or was removed
-//		ERROR: "book is not lent to this reader" if a book not lent to this specific reader
-//	 ERROR: "reader was never registered" if reader was never registered (but: allows returning for already canceled readers)
-//		IDEMPOTENCY: If book already returned by this reader, no event generated (no-op)
+//	GIVEN: A book copy with BookID and reader with ReaderID
+//	WHEN: ReturnBookCopyFromReader command is received
+//	THEN: BookCopyReturnedByReader event is generated
+//	ERROR: "book was never added to circulation" if a book was never added (but: allows returning for already removed books)
+//	ERROR: "book is not lent to this reader" if a book not lent to this specific reader
+//	ERROR: "reader was never registered" if reader was never registered (but: allows returning for already canceled readers)
+//	IDEMPOTENCY: If book already returned by this reader, no event generated (no-op)
 func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 	s := project(history, command.BookID.String(), command.ReaderID.String())
 
@@ -43,36 +45,36 @@ func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 
 	// Flexible validation: reader must have been registered at some point (allows cleanup of orphaned data)
 	if s.readerWasNeverRegistered {
-		return core.ErrorDecision(
-			core.BuildReturningBookFromReaderFailed(
-				command.BookID,
-				command.ReaderID,
-				failureReasonReaderNeverRegistered,
-				command.OccurredAt,
-			),
+		event := core.BuildReturningBookFromReaderFailed(
+			command.BookID,
+			command.ReaderID,
+			failureReasonReaderNeverRegistered,
+			command.OccurredAt,
 		)
+
+		return core.ErrorDecision(event, errors.New(event.EventType+": "+failureReasonReaderNeverRegistered))
 	}
 
-	if s.bookIsNotInCirculation {
-		return core.ErrorDecision(
-			core.BuildReturningBookFromReaderFailed(
-				command.BookID,
-				command.ReaderID,
-				failureReasonBookNotInCirculation,
-				command.OccurredAt,
-			),
+	if s.bookWasNeverAddedToCirculation {
+		event := core.BuildReturningBookFromReaderFailed(
+			command.BookID,
+			command.ReaderID,
+			failureReasonBookNeverInCirculation,
+			command.OccurredAt,
 		)
+
+		return core.ErrorDecision(event, errors.New(event.EventType+": "+failureReasonBookNeverInCirculation))
 	}
 
 	if s.bookWasNeverLentToThisReader {
-		return core.ErrorDecision(
-			core.BuildReturningBookFromReaderFailed(
-				command.BookID,
-				command.ReaderID,
-				failureReasonBookNotLentToReader,
-				command.OccurredAt,
-			),
+		event := core.BuildReturningBookFromReaderFailed(
+			command.BookID,
+			command.ReaderID,
+			failureReasonBookNotLentToReader,
+			command.OccurredAt,
 		)
+
+		return core.ErrorDecision(event, errors.New(event.EventType+": "+failureReasonBookNotLentToReader))
 	}
 
 	return core.SuccessDecision(
@@ -87,22 +89,21 @@ func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 // project builds the current state by replaying all events from the history.
 func project(history core.DomainEvents, bookID string, readerID string) state {
 	s := state{
-		bookIsNotInCirculation:       true, // Default to "not in circulation"
-		bookWasNeverLentToThisReader: true, // Default to "never lent to this reader"
-		bookIsNotLentToThisReader:    true, // Default to "not lent to this reader"
-		readerWasNeverRegistered:     true, // Default to "never registered"
+		bookWasNeverAddedToCirculation: true, // Default to "never added to circulation"
+		bookWasNeverLentToThisReader:   true, // Default to "never lent to this reader"
+		bookIsNotLentToThisReader:      true, // Default to "not lent to this reader"
+		readerWasNeverRegistered:       true, // Default to "never registered"
 	}
 
 	for _, event := range history {
 		switch e := event.(type) {
 		case core.BookCopyAddedToCirculation:
 			if e.BookID == bookID {
-				s.bookIsNotInCirculation = false
+				s.bookWasNeverAddedToCirculation = false
 			}
 
 		case core.BookCopyRemovedFromCirculation:
 			if e.BookID == bookID {
-				s.bookIsNotInCirculation = true
 			}
 
 		case core.BookCopyLentToReader:

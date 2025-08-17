@@ -1,6 +1,8 @@
 package cancelreadercontract
 
 import (
+	"errors"
+
 	"github.com/google/uuid"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
@@ -34,13 +36,8 @@ func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 	}
 
 	if len(s.outstandingBookLoans) > 0 {
-		return core.ErrorDecision(
-			core.BuildCancelingReaderContractFailed(
-				command.ReaderID,
-				failureReasonOutstandingLoans,
-				command.OccurredAt,
-			),
-		)
+		event := core.BuildCancelingReaderContractFailed(command.ReaderID, failureReasonOutstandingLoans, command.OccurredAt)
+		return core.ErrorDecision(event, errors.New(event.EventType+": "+failureReasonOutstandingLoans))
 	}
 
 	return core.SuccessDecision(

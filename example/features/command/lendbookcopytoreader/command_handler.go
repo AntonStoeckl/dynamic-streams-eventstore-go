@@ -145,7 +145,7 @@ func (h CommandHandler) executeCommand(ctx context.Context, command Command) err
 	}
 	h.recordComponentTiming(ctx, shell.ComponentAppend, shell.StatusSuccess, appendDuration)
 
-	return nil
+	return result.HasError()
 }
 
 /*** Command Handler Options and helper methods for observability ***/
