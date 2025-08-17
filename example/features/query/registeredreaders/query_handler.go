@@ -59,21 +59,32 @@ func (h QueryHandler) Handle(ctx context.Context) (RegisteredReaders, error) {
 	filter := BuildEventFilter()
 
 	// Query phase
+	queryPhaseStart := time.Now()
 	storableEvents, _, err := h.eventStore.Query(ctx, filter)
+	queryPhaseDuration := time.Since(queryPhaseStart)
 	if err != nil {
+		h.recordComponentTiming(ctx, shell.ComponentQuery, shell.StatusError, queryPhaseDuration)
 		h.recordQueryError(ctx, err, time.Since(queryStart), span)
 		return RegisteredReaders{}, err
 	}
+	h.recordComponentTiming(ctx, shell.ComponentQuery, shell.StatusSuccess, queryPhaseDuration)
 
 	// Unmarshal phase
+	unmarshalStart := time.Now()
 	history, err := shell.DomainEventsFrom(storableEvents)
+	unmarshalDuration := time.Since(unmarshalStart)
 	if err != nil {
+		h.recordComponentTiming(ctx, shell.ComponentUnmarshal, shell.StatusError, unmarshalDuration)
 		h.recordQueryError(ctx, err, time.Since(queryStart), span)
 		return RegisteredReaders{}, err
 	}
+	h.recordComponentTiming(ctx, shell.ComponentUnmarshal, shell.StatusSuccess, unmarshalDuration)
 
 	// Projection phase - delegate to pure core function
+	projectionStart := time.Now()
 	result := ProjectRegisteredReaders(history)
+	projectionDuration := time.Since(projectionStart)
+	h.recordComponentTiming(ctx, shell.ComponentProjection, shell.StatusSuccess, projectionDuration)
 
 	h.recordQuerySuccess(ctx, time.Since(queryStart), span)
 
@@ -153,4 +164,9 @@ func (h QueryHandler) recordQueryTimeout(ctx context.Context, err error, duratio
 	shell.RecordQueryMetrics(ctx, h.metricsCollector, queryType, shell.StatusTimeout, duration)
 	shell.FinishQuerySpan(h.tracingCollector, span, shell.StatusTimeout, duration, err)
 	shell.LogQueryError(ctx, h.logger, h.contextualLogger, queryType, err)
+}
+
+// recordComponentTiming records component-level timing metrics.
+func (h QueryHandler) recordComponentTiming(ctx context.Context, component string, status string, duration time.Duration) {
+	shell.RecordQueryComponentDuration(ctx, h.metricsCollector, queryType, component, status, duration)
 }

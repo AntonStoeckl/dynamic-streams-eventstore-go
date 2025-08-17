@@ -5,7 +5,7 @@
   "timezone": "browser",
   "refresh": "5s",
   "schemaVersion": 27,
-  "version": 6,
+  "version": 8,
   "time": {
     "from": "now-5m",
     "to": "now"
@@ -31,7 +31,7 @@
         }
       ],
       "gridPos": {
-        "h": 4,
+        "h": 6,
         "w": 12,
         "x": 0,
         "y": 0
@@ -66,7 +66,7 @@
         }
       ],
       "gridPos": {
-        "h": 4,
+        "h": 6,
         "w": 12,
         "x": 12,
         "y": 0
@@ -95,13 +95,13 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(commandhandler_handle_duration_seconds_sum[1m]) / rate(commandhandler_handle_duration_seconds_count[1m]) * 1000",
+          "expr": "rate(commandhandler_handle_duration_seconds_sum{status=\"success\"}[1m]) / rate(commandhandler_handle_duration_seconds_count{status=\"success\"}[1m]) * 1000",
           "legendFormat": "{{command_type}}",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 4,
+        "h": 6,
         "w": 12,
         "x": 0,
         "y": 5
@@ -130,13 +130,13 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(queryhandler_handle_duration_seconds_sum[1m]) / rate(queryhandler_handle_duration_seconds_count[1m]) * 1000",
+          "expr": "rate(queryhandler_handle_duration_seconds_sum{status=\"success\"}[1m]) / rate(queryhandler_handle_duration_seconds_count{status=\"success\"}[1m]) * 1000",
           "legendFormat": "{{query_type}}",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 4,
+        "h": 6,
         "w": 12,
         "x": 12,
         "y": 5
@@ -148,6 +148,76 @@
           },
           "min": 0,
           "unit": "ms"
+        }
+      }
+    },
+    {
+      "id": 22,
+      "title": "Command Component Timing Breakdown",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "rate(commandhandler_component_duration_seconds_sum{status=\"success\"}[1m]) / rate(commandhandler_component_duration_seconds_count{status=\"success\"}[1m]) * 1000000",
+          "legendFormat": "{{command_type}} - {{component}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 1,
+          "unit": "µs"
+        }
+      }
+    },
+    {
+      "id": 23,
+      "title": "Query Component Timing Breakdown",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "rate(queryhandler_component_duration_seconds_sum{status=\"success\"}[1m]) / rate(queryhandler_component_duration_seconds_count{status=\"success\"}[1m]) * 1000000",
+          "legendFormat": "{{query_type}} - {{component}}",
+          "refId": "A"
+        }
+      ],
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 10
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 1,
+          "unit": "µs"
         }
       }
     },
@@ -171,10 +241,10 @@
         }
       ],
       "gridPos": {
-        "h": 4,
+        "h": 6,
         "w": 12,
         "x": 0,
-        "y": 9
+        "y": 16
       },
       "fieldConfig": {
         "defaults": {
@@ -206,10 +276,10 @@
         }
       ],
       "gridPos": {
-        "h": 4,
+        "h": 6,
         "w": 12,
         "x": 12,
-        "y": 9
+        "y": 16
       },
       "fieldConfig": {
         "defaults": {
@@ -235,16 +305,16 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(commandhandler_canceled_operations_total[1m])",
+          "expr": "sum by (command_type) (rate(commandhandler_canceled_operations_total[1m]))",
           "legendFormat": "{{command_type}}",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 4,
+        "h": 6,
         "w": 12,
         "x": 0,
-        "y": 13
+        "y": 21
       },
       "fieldConfig": {
         "defaults": {
@@ -270,16 +340,16 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(queryhandler_canceled_operations_total[1m])",
+          "expr": "sum by (query_type) (rate(queryhandler_canceled_operations_total[1m]))",
           "legendFormat": "{{query_type}}",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 4,
+        "h": 6,
         "w": 12,
         "x": 12,
-        "y": 13
+        "y": 21
       },
       "fieldConfig": {
         "defaults": {
@@ -305,16 +375,16 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(commandhandler_timeout_operations_total[1m])",
+          "expr": "sum by (command_type) (rate(commandhandler_timeout_operations_total[1m]))",
           "legendFormat": "{{command_type}}",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 4,
+        "h": 6,
         "w": 12,
         "x": 0,
-        "y": 17
+        "y": 26
       },
       "fieldConfig": {
         "defaults": {
@@ -340,16 +410,16 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(queryhandler_timeout_operations_total[1m])",
+          "expr": "sum by (query_type) (rate(queryhandler_timeout_operations_total[1m]))",
           "legendFormat": "{{query_type}}",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 4,
+        "h": 6,
         "w": 12,
         "x": 12,
-        "y": 17
+        "y": 26
       },
       "fieldConfig": {
         "defaults": {
@@ -375,16 +445,16 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(eventstore_concurrency_conflicts_total[1m])",
-          "legendFormat": "Concurrency Conflicts/sec",
+          "expr": "sum by (command_type) (rate(commandhandler_concurrency_conflicts_total[1m]))",
+          "legendFormat": "{{command_type}}",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 4,
+        "h": 6,
         "w": 12,
         "x": 0,
-        "y": 21
+        "y": 31
       },
       "fieldConfig": {
         "defaults": {
@@ -410,16 +480,16 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(commandhandler_idempotent_operations_total[1m])",
+          "expr": "sum by (command_type) (rate(commandhandler_idempotent_operations_total[1m]))",
           "legendFormat": "{{command_type}}",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 4,
+        "h": 6,
         "w": 12,
         "x": 12,
-        "y": 21
+        "y": 31
       },
       "fieldConfig": {
         "defaults": {
@@ -445,16 +515,16 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(commandhandler_retries_total[1m])",
+          "expr": "sum by (command_type) (rate(commandhandler_retries_total[1m]))",
           "legendFormat": "{{command_type}}",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 4,
+        "h": 6,
         "w": 8,
         "x": 0,
-        "y": 25
+        "y": 36
       },
       "fieldConfig": {
         "defaults": {
@@ -480,16 +550,16 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(commandhandler_max_retries_reached_total[1m])",
+          "expr": "sum by (command_type) (rate(commandhandler_max_retries_reached_total[1m]))",
           "legendFormat": "{{command_type}}",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 4,
+        "h": 6,
         "w": 8,
         "x": 8,
-        "y": 25
+        "y": 36
       },
       "fieldConfig": {
         "defaults": {
@@ -515,16 +585,16 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(commandhandler_retry_delay_seconds_sum[1m]) / rate(commandhandler_retry_delay_seconds_count[1m]) * 1000",
+          "expr": "sum by (command_type) (rate(commandhandler_retry_delay_seconds_sum[1m])) / sum by (command_type) (rate(commandhandler_retry_delay_seconds_count[1m])) * 1000",
           "legendFormat": "{{command_type}}",
           "refId": "A"
         }
       ],
       "gridPos": {
-        "h": 4,
+        "h": 6,
         "w": 8,
         "x": 16,
-        "y": 25
+        "y": 36
       },
       "fieldConfig": {
         "defaults": {

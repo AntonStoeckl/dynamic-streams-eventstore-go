@@ -7,16 +7,12 @@ import (
 )
 
 // LendingInfo represents information about a book currently lent to a reader.
+// Optimized for performance - contains only essential data (BookID, ReaderID, and lending timestamp).
+// Book metadata (title, authors, etc.) should be retrieved separately if needed.
 type LendingInfo struct {
-	BookID          core.BookIDString
-	Title           string
-	Authors         string
-	ISBN            string
-	Edition         string
-	Publisher       string
-	PublicationYear uint
-	ReaderID        core.ReaderIDString
-	LentAt          time.Time
+	BookID   core.BookIDString
+	ReaderID core.ReaderIDString
+	LentAt   time.Time
 }
 
 // BooksLentOut represents the query result containing all books currently lent out to readers.

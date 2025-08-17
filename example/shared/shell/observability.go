@@ -25,6 +25,9 @@ const (
 	// CommandHandlerTimeoutMetric tracks timeout operations.
 	CommandHandlerTimeoutMetric = "commandhandler_timeout_operations_total"
 
+	// CommandHandlerConcurrencyConflictMetric tracks concurrency conflict operations.
+	CommandHandlerConcurrencyConflictMetric = "commandhandler_concurrency_conflicts_total"
+
 	// QueryHandlerDurationMetric tracks query handler execution duration (OpenTelemetry-compatible).
 	QueryHandlerDurationMetric = "queryhandler_handle_duration_seconds"
 
@@ -80,6 +83,33 @@ const (
 	//   - Identify problematic commands: rate(commandhandler_max_retries_reached_total[1h]) by (command_type)
 	CommandHandlerMaxRetriesReachedMetric = "commandhandler_max_retries_reached_total"
 
+	// CommandHandlerComponentDurationMetric tracks component-level timing in command handlers.
+	//
+	// Labels:
+	//   - command_type: Type of command (e.g., "LendBookCopy")
+	//   - component: Processing phase (query, unmarshal, decide, append)
+	//   - status: Execution status (success, error, canceled, timeout)
+	//
+	// Components:
+	//   - query: EventStore.Query execution time
+	//   - unmarshal: DomainEventsFrom deserialization time
+	//   - decide: Business logic execution time
+	//   - append: EventStore.Append execution time
+	CommandHandlerComponentDurationMetric = "commandhandler_component_duration_seconds"
+
+	// QueryHandlerComponentDurationMetric tracks component-level timing in query handlers.
+	//
+	// Labels:
+	//   - query_type: Type of query (e.g., "BooksLentByReader")
+	//   - component: Processing phase (query, unmarshal, projection)
+	//   - status: Execution status (success, error, canceled, timeout)
+	//
+	// Components:
+	//   - query: EventStore.Query execution time
+	//   - unmarshal: DomainEventsFrom deserialization time
+	//   - projection: Business logic execution time
+	QueryHandlerComponentDurationMetric = "queryhandler_component_duration_seconds"
+
 	// StatusSuccess indicates successful command completion.
 	StatusSuccess = "success"
 
@@ -94,6 +124,16 @@ const (
 
 	// StatusTimeout indicates the operation timed out due to context deadline exceeded.
 	StatusTimeout = "timeout"
+
+	// StatusConcurrencyConflict indicates the operation failed due to optimistic concurrency control.
+	StatusConcurrencyConflict = "concurrency_conflict"
+
+	// Component names for timing metrics.
+	ComponentQuery      = "query"
+	ComponentUnmarshal  = "unmarshal"
+	ComponentDecide     = "decide"
+	ComponentAppend     = "append"
+	ComponentProjection = "projection"
 
 	// LogMsgCommandStarted is logged when command processing begins.
 	LogMsgCommandStarted = "command handler started"
@@ -175,6 +215,24 @@ func BuildQueryLabels(queryType, status string) map[string]string {
 	}
 }
 
+// BuildCommandComponentLabels creates metric labels for command handler component timing.
+func BuildCommandComponentLabels(commandType, component, status string) map[string]string {
+	return map[string]string{
+		LogAttrCommandType: commandType,
+		"component":        component,
+		LogAttrStatus:      status,
+	}
+}
+
+// BuildQueryComponentLabels creates metric labels for query handler component timing.
+func BuildQueryComponentLabels(queryType, component, status string) map[string]string {
+	return map[string]string{
+		LogAttrQueryType: queryType,
+		"component":      component,
+		LogAttrStatus:    status,
+	}
+}
+
 // BuildRetryLabels creates standard metric labels for retry operations.
 func BuildRetryLabels(commandType string, attemptNumber int, errorType string) map[string]string {
 	return map[string]string{
@@ -240,6 +298,16 @@ func RecordCommandMetrics(
 			contextualCollector.IncrementCounterContext(ctx, CommandHandlerTimeoutMetric, timeoutLabels)
 		} else {
 			collector.IncrementCounter(CommandHandlerTimeoutMetric, timeoutLabels)
+		}
+	}
+
+	// Record concurrency conflict operations separately
+	if status == StatusConcurrencyConflict {
+		conflictLabels := BuildCommandLabels(commandType, StatusConcurrencyConflict)
+		if contextualCollector, ok := collector.(ContextualMetricsCollector); ok {
+			contextualCollector.IncrementCounterContext(ctx, CommandHandlerConcurrencyConflictMetric, conflictLabels)
+		} else {
+			collector.IncrementCounter(CommandHandlerConcurrencyConflictMetric, conflictLabels)
 		}
 	}
 }
@@ -485,6 +553,52 @@ func LogQueryError(
 	}
 }
 
+// RecordCommandComponentDuration records component-level timing metrics for command handlers.
+// It handles both context-aware and basic metrics collectors automatically.
+func RecordCommandComponentDuration(
+	ctx context.Context,
+	collector MetricsCollector,
+	commandType string,
+	component string,
+	status string,
+	duration time.Duration,
+) {
+	if collector == nil {
+		return
+	}
+
+	labels := BuildCommandComponentLabels(commandType, component, status)
+
+	if contextualCollector, ok := collector.(ContextualMetricsCollector); ok {
+		contextualCollector.RecordDurationContext(ctx, CommandHandlerComponentDurationMetric, duration, labels)
+	} else {
+		collector.RecordDuration(CommandHandlerComponentDurationMetric, duration, labels)
+	}
+}
+
+// RecordQueryComponentDuration records component-level timing metrics for query handlers.
+// It handles both context-aware and basic metrics collectors automatically.
+func RecordQueryComponentDuration(
+	ctx context.Context,
+	collector MetricsCollector,
+	queryType string,
+	component string,
+	status string,
+	duration time.Duration,
+) {
+	if collector == nil {
+		return
+	}
+
+	labels := BuildQueryComponentLabels(queryType, component, status)
+
+	if contextualCollector, ok := collector.(ContextualMetricsCollector); ok {
+		contextualCollector.RecordDurationContext(ctx, QueryHandlerComponentDurationMetric, duration, labels)
+	} else {
+		collector.RecordDuration(QueryHandlerComponentDurationMetric, duration, labels)
+	}
+}
+
 // formatDurationMS formats duration in milliseconds for span attributes.
 func formatDurationMS(duration time.Duration) string {
 	return fmt.Sprintf("%.2f", ToMilliseconds(duration))
@@ -498,4 +612,9 @@ func IsCancellationError(err error) bool {
 // IsTimeoutError checks if an error is due to context deadline exceeded.
 func IsTimeoutError(err error) bool {
 	return errors.Is(err, context.DeadlineExceeded)
+}
+
+// IsConcurrencyConflictError checks if an error is due to optimistic concurrency control failure.
+func IsConcurrencyConflictError(err error) bool {
+	return errors.Is(err, eventstore.ErrConcurrencyConflict)
 }

@@ -2,7 +2,6 @@ package bookslentout
 
 import (
 	"slices"
-	"time"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
@@ -14,60 +13,35 @@ import (
 //
 // Query Logic:
 //
-//	GIVEN: All events in the system
+//	GIVEN: All lending/returning events in the system
 //	WHEN: BooksLentOut query is executed
 //	THEN: BooksLentOut struct is returned with current lending state
-//	INCLUDES: All books currently lent to readers with lending details
+//	INCLUDES: All books currently lent to readers (BookID, ReaderID, LentAt)
 //	EXCLUDES: Books that have been returned
-//	DETAILS: Includes reader ID, book details, and lending timestamp
 func ProjectBooksLentOut(history core.DomainEvents) BooksLentOut {
-	// Track all books with lending state (unified approach like BooksInCirculation)
+	// Track lending state
 	lendingInfos := make(map[string]*LendingInfo)
 
 	for _, event := range history {
 		switch e := event.(type) {
-		case core.BookCopyAddedToCirculation:
-			// Add the book (only if not already added)
-			if _, exists := lendingInfos[e.BookID]; !exists {
-				lendingInfos[e.BookID] = &LendingInfo{
-					BookID:          e.BookID,
-					Title:           e.Title,
-					Authors:         e.Authors,
-					ISBN:            e.ISBN,
-					Edition:         e.Edition,
-					Publisher:       e.Publisher,
-					PublicationYear: e.PublicationYear,
-					ReaderID:        "", // Initially not lent
-					LentAt:          time.Time{},
-				}
-			}
-
-		case core.BookCopyRemovedFromCirculation:
-			// Remove book from circulation
-			delete(lendingInfos, e.BookID)
-
 		case core.BookCopyLentToReader:
-			// Mark the book as lent and add reader info
-			if info := lendingInfos[e.BookID]; info != nil {
-				info.ReaderID = e.ReaderID
-				info.LentAt = e.OccurredAt
+			// Mark the book as lent
+			lendingInfos[e.BookID] = &LendingInfo{
+				BookID:   e.BookID,
+				ReaderID: e.ReaderID,
+				LentAt:   e.OccurredAt,
 			}
 
 		case core.BookCopyReturnedByReader:
-			// Mark the book as not lent and clear reader info
-			if info := lendingInfos[e.BookID]; info != nil {
-				info.ReaderID = ""
-				info.LentAt = time.Time{}
-			}
+			// Remove the book from lent books
+			delete(lendingInfos, e.BookID)
 		}
 	}
 
-	// Filter to only currently lent books
-	lendings := make([]LendingInfo, 0)
+	// Convert to slice (all books in the map are currently lent)
+	lendings := make([]LendingInfo, 0, len(lendingInfos))
 	for _, info := range lendingInfos {
-		if info.ReaderID != "" { // Book is lent if it has a ReaderID
-			lendings = append(lendings, *info)
-		}
+		lendings = append(lendings, *info)
 	}
 
 	// Sort by LentAt (oldest first)
@@ -81,14 +55,11 @@ func ProjectBooksLentOut(history core.DomainEvents) BooksLentOut {
 	}
 }
 
-// BuildEventFilter creates the filter for querying all book circulation and lending events
-// which are relevant for this query/use-case.
+// BuildEventFilter creates the filter for querying lending and returning events.
 func BuildEventFilter() eventstore.Filter {
 	return eventstore.BuildEventFilter().
 		Matching().
 		AnyEventTypeOf(
-			core.BookCopyAddedToCirculationEventType,
-			core.BookCopyRemovedFromCirculationEventType,
 			core.BookCopyLentToReaderEventType,
 			core.BookCopyReturnedByReaderEventType,
 		).

@@ -91,19 +91,30 @@ func (h CommandHandler) executeCommand(ctx context.Context, command Command) err
 	filter := BuildEventFilter(command.BookID)
 
 	// Query phase
+	queryStart := time.Now()
 	storableEvents, maxSequenceNumber, err := h.eventStore.Query(ctx, filter)
+	queryDuration := time.Since(queryStart)
 	if err != nil {
+		h.recordComponentTiming(ctx, shell.ComponentQuery, shell.StatusError, queryDuration)
 		return err
 	}
+	h.recordComponentTiming(ctx, shell.ComponentQuery, shell.StatusSuccess, queryDuration)
 
 	// Unmarshal phase
+	unmarshalStart := time.Now()
 	history, err := shell.DomainEventsFrom(storableEvents)
+	unmarshalDuration := time.Since(unmarshalStart)
 	if err != nil {
+		h.recordComponentTiming(ctx, shell.ComponentUnmarshal, shell.StatusError, unmarshalDuration)
 		return err
 	}
+	h.recordComponentTiming(ctx, shell.ComponentUnmarshal, shell.StatusSuccess, unmarshalDuration)
 
 	// Business logic phase - delegate to pure core function
+	decideStart := time.Now()
 	result := Decide(history, command)
+	decideDuration := time.Since(decideStart)
+	h.recordComponentTiming(ctx, shell.ComponentDecide, shell.StatusSuccess, decideDuration)
 
 	if !result.HasEventToAppend() {
 		return nil // nothing to do
@@ -118,10 +129,14 @@ func (h CommandHandler) executeCommand(ctx context.Context, command Command) err
 		return marshalErr
 	}
 
+	appendStart := time.Now()
 	appendErr := h.eventStore.Append(ctx, filter, maxSequenceNumber, storableEvent)
+	appendDuration := time.Since(appendStart)
 	if appendErr != nil {
+		h.recordComponentTiming(ctx, shell.ComponentAppend, shell.StatusError, appendDuration)
 		return appendErr
 	}
+	h.recordComponentTiming(ctx, shell.ComponentAppend, shell.StatusSuccess, appendDuration)
 
 	return nil
 }
@@ -182,6 +197,11 @@ func (h CommandHandler) recordCommandError(ctx context.Context, err error, durat
 		return
 	}
 
+	if shell.IsConcurrencyConflictError(err) {
+		h.recordCommandConcurrencyConflict(ctx, err, duration, span)
+		return
+	}
+
 	shell.RecordCommandMetrics(ctx, h.metricsCollector, commandType, shell.StatusError, duration)
 	shell.FinishCommandSpan(h.tracingCollector, span, shell.StatusError, duration, err)
 	shell.LogCommandError(ctx, h.logger, h.contextualLogger, commandType, err)
@@ -199,4 +219,16 @@ func (h CommandHandler) recordCommandTimeout(ctx context.Context, err error, dur
 	shell.RecordCommandMetrics(ctx, h.metricsCollector, commandType, shell.StatusTimeout, duration)
 	shell.FinishCommandSpan(h.tracingCollector, span, shell.StatusTimeout, duration, err)
 	shell.LogCommandError(ctx, h.logger, h.contextualLogger, commandType, err)
+}
+
+// recordCommandConcurrencyConflict records concurrency conflict command execution with observability.
+func (h CommandHandler) recordCommandConcurrencyConflict(ctx context.Context, err error, duration time.Duration, span shell.SpanContext) {
+	shell.RecordCommandMetrics(ctx, h.metricsCollector, commandType, shell.StatusConcurrencyConflict, duration)
+	shell.FinishCommandSpan(h.tracingCollector, span, shell.StatusConcurrencyConflict, duration, err)
+	shell.LogCommandError(ctx, h.logger, h.contextualLogger, commandType, err)
+}
+
+// recordComponentTiming records component-level timing metrics.
+func (h CommandHandler) recordComponentTiming(ctx context.Context, component string, status string, duration time.Duration) {
+	shell.RecordCommandComponentDuration(ctx, h.metricsCollector, commandType, component, status, duration)
 }
