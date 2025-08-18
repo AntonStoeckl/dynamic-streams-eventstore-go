@@ -102,10 +102,6 @@ func project(history core.DomainEvents, bookID string, readerID string) state {
 				s.bookWasNeverAddedToCirculation = false
 			}
 
-		case core.BookCopyRemovedFromCirculation:
-			if e.BookID == bookID {
-			}
-
 		case core.BookCopyLentToReader:
 			if e.BookID == bookID && e.ReaderID == readerID {
 				s.bookWasNeverLentToThisReader = false
@@ -134,7 +130,6 @@ func BuildEventFilter(bookID uuid.UUID, readerID uuid.UUID) eventstore.Filter {
 		Matching().
 		AnyEventTypeOf(
 			core.BookCopyAddedToCirculationEventType,
-			core.BookCopyRemovedFromCirculationEventType,
 			core.BookCopyLentToReaderEventType,
 			core.BookCopyReturnedByReaderEventType,
 			core.ReaderRegisteredEventType,
