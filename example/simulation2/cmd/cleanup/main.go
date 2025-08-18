@@ -121,25 +121,25 @@ func (e *ErrorStats) PrintSummary() {
 		return
 	}
 
-	log.Printf("\n📊 ERROR TYPE BREAKDOWN:")
-	log.Printf("========================")
+	fmt.Printf("\n%s %s\n", StatusIcon("stats"), Header("ERROR TYPE BREAKDOWN"))
+	fmt.Printf("%s\n", Separator("=", 24))
 	if e.Successes > 0 {
-		log.Printf("✅ Successful returns: %d (%.1f%%)", e.Successes, float64(e.Successes)*100.0/float64(total))
+		fmt.Printf("%s %s %s %s\n", Success("✅"), BrightGreen("Successful returns:"), Bold(fmt.Sprintf("%d", e.Successes)), Gray(fmt.Sprintf("(%.1f%%)", float64(e.Successes)*100.0/float64(total))))
 	}
 	if e.BookNeverInCirculation > 0 {
-		log.Printf("❌ Book never in circulation: %d (%.1f%%)", e.BookNeverInCirculation, float64(e.BookNeverInCirculation)*100.0/float64(total))
+		fmt.Printf("%s %s %s %s\n", Error("❌"), BrightRed("Book never in circulation:"), Bold(fmt.Sprintf("%d", e.BookNeverInCirculation)), Gray(fmt.Sprintf("(%.1f%%)", float64(e.BookNeverInCirculation)*100.0/float64(total))))
 	}
 	if e.BookRemovedFromCirculation > 0 {
-		log.Printf("👻 Book removed from circulation: %d (%.1f%%)", e.BookRemovedFromCirculation, float64(e.BookRemovedFromCirculation)*100.0/float64(total))
+		fmt.Printf("%s %s %s %s\n", StatusIcon("ghost"), BrightMagenta("Book removed from circulation:"), Bold(fmt.Sprintf("%d", e.BookRemovedFromCirculation)), Gray(fmt.Sprintf("(%.1f%%)", float64(e.BookRemovedFromCirculation)*100.0/float64(total))))
 	}
 	if e.ReaderNeverRegistered > 0 {
-		log.Printf("🚫 Reader never registered: %d (%.1f%%)", e.ReaderNeverRegistered, float64(e.ReaderNeverRegistered)*100.0/float64(total))
+		fmt.Printf("🚫 %s %s %s\n", BrightRed("Reader never registered:"), Bold(fmt.Sprintf("%d", e.ReaderNeverRegistered)), Gray(fmt.Sprintf("(%.1f%%)", float64(e.ReaderNeverRegistered)*100.0/float64(total))))
 	}
 	if e.BookNotLentToReader > 0 {
-		log.Printf("📖 Book not lent to reader: %d (%.1f%%)", e.BookNotLentToReader, float64(e.BookNotLentToReader)*100.0/float64(total))
+		fmt.Printf("%s %s %s %s\n", StatusIcon("books"), BrightYellow("Book not lent to reader:"), Bold(fmt.Sprintf("%d", e.BookNotLentToReader)), Gray(fmt.Sprintf("(%.1f%%)", float64(e.BookNotLentToReader)*100.0/float64(total))))
 	}
 	if e.OtherErrors > 0 {
-		log.Printf("❓ Other errors: %d (%.1f%%)", e.OtherErrors, float64(e.OtherErrors)*100.0/float64(total))
+		fmt.Printf("❓ %s %s %s\n", BrightRed("Other errors:"), Bold(fmt.Sprintf("%d", e.OtherErrors)), Gray(fmt.Sprintf("(%.1f%%)", float64(e.OtherErrors)*100.0/float64(total))))
 	}
 
 	// Print verbose details if enabled
@@ -172,8 +172,8 @@ func (e *ErrorStats) PrintSummary() {
 
 //nolint:gocognit,gocyclo,funlen // Main function orchestrates entire cleanup workflow - complexity justified for a single-purpose tool
 func main() {
-	log.Printf("🔍 Data Consistency Analysis Tool")
-	log.Printf("=================================")
+	fmt.Printf("%s %s\n", StatusIcon("debug"), Header("Data Consistency Analysis Tool"))
+	fmt.Printf("%s\n", Separator("=", 33))
 
 	cfg := parseFlags()
 
@@ -214,7 +214,7 @@ func main() {
 	}
 
 	// Query all data
-	log.Printf("📊 Querying database state...")
+	fmt.Printf("%s %s\n", StatusIcon("stats"), Info("Querying database state..."))
 
 	// 1. Get all registered readers
 	registeredReadersResult, err := registeredReadersHandler.Handle(ctx)
@@ -235,13 +235,13 @@ func main() {
 	}
 
 	// Analysis
-	log.Printf("\n📈 ANALYSIS RESULTS")
-	log.Printf("==================")
+	fmt.Printf("\n%s %s\n", StatusIcon("stats"), Header("ANALYSIS RESULTS"))
+	fmt.Printf("%s\n", Separator("=", 18))
 
 	// Basic counts
-	log.Printf("📚 Total registered readers: %d", len(registeredReadersResult.Readers))
-	log.Printf("📖 Total books in circulation: %d", len(booksInCirculationResult.Books))
-	log.Printf("🔗 Total open lendings: %d", len(booksLentOutResult.Lendings))
+	fmt.Printf("%s %s %s\n", StatusIcon("readers"), BrightCyan("Total registered readers:"), Bold(fmt.Sprintf("%d", len(registeredReadersResult.Readers))))
+	fmt.Printf("%s %s %s\n", StatusIcon("books"), BrightCyan("Total books in circulation:"), Bold(fmt.Sprintf("%d", len(booksInCirculationResult.Books))))
+	fmt.Printf("🔗 %s %s\n", BrightCyan("Total open lendings:"), Bold(fmt.Sprintf("%d", len(booksLentOutResult.Lendings))))
 
 	// Create lookup maps for analysis
 	registeredReaderMap := make(map[string]bool)
@@ -300,12 +300,12 @@ func main() {
 	}
 
 	// Report findings
-	log.Printf("\n🚨 INCONSISTENCY ANALYSIS")
-	log.Printf("=========================")
-	log.Printf("❌ Orphaned lendings (reader cancelled with open lending): %d", orphanedLendings)
-	log.Printf("   → Affecting %d unique cancelled readers", len(orphanedReaders))
-	log.Printf("👻 Ghost lendings (book removed with open lending): %d", ghostLendings)
-	log.Printf("   → Affecting %d unique removed books", len(ghostBooks))
+	fmt.Printf("\n🚨 %s\n", Header("INCONSISTENCY ANALYSIS"))
+	fmt.Printf("%s\n", Separator("=", 25))
+	fmt.Printf("%s %s %s\n", Error("❌"), BrightRed("Orphaned lendings (reader cancelled with open lending):"), Bold(fmt.Sprintf("%d", orphanedLendings)))
+	fmt.Printf("   %s %s %s %s\n", Gray("→"), Gray("Affecting"), Bold(fmt.Sprintf("%d", len(orphanedReaders))), Gray("unique cancelled readers"))
+	fmt.Printf("%s %s %s\n", StatusIcon("ghost"), BrightMagenta("Ghost lendings (book removed with open lending):"), Bold(fmt.Sprintf("%d", ghostLendings)))
+	fmt.Printf("   %s %s %s %s\n", Gray("→"), Gray("Affecting"), Bold(fmt.Sprintf("%d", len(ghostBooks))), Gray("unique removed books"))
 
 	// Show some examples
 	if len(orphanedReaders) > 0 {
@@ -333,19 +333,27 @@ func main() {
 
 	// Summary
 	totalInconsistencies := orphanedLendings + ghostLendings
-	log.Printf("\n📊 SUMMARY")
-	log.Printf("==========")
-	log.Printf("✅ Consistent lendings: %d", len(booksLentOutResult.Lendings)-totalInconsistencies)
-	log.Printf("❌ Inconsistent lendings: %d", totalInconsistencies)
+	fmt.Printf("\n%s %s\n", StatusIcon("stats"), Header("SUMMARY"))
+	fmt.Printf("%s\n", Separator("=", 10))
+	fmt.Printf("%s %s %s\n", Success("✅"), BrightGreen("Consistent lendings:"), Bold(fmt.Sprintf("%d", len(booksLentOutResult.Lendings)-totalInconsistencies)))
+	fmt.Printf("%s %s %s\n", Error("❌"), BrightRed("Inconsistent lendings:"), Bold(fmt.Sprintf("%d", totalInconsistencies)))
 	if len(booksLentOutResult.Lendings) > 0 {
-		log.Printf("📈 Data consistency: %.1f%%", float64(len(booksLentOutResult.Lendings)-totalInconsistencies)*100.0/float64(len(booksLentOutResult.Lendings)))
+		consistency := float64(len(booksLentOutResult.Lendings)-totalInconsistencies) * 100.0 / float64(len(booksLentOutResult.Lendings))
+		color := BrightGreen
+		if consistency < 95 {
+			color = BrightYellow
+		}
+		if consistency < 90 {
+			color = BrightRed
+		}
+		fmt.Printf("📈 %s %s\n", BrightCyan("Data consistency:"), color(fmt.Sprintf("%.1f%%", consistency)))
 	}
 
 	if totalInconsistencies == 0 {
-		log.Printf("🎉 Database is fully consistent!")
+		fmt.Printf("🎉 %s\n", Success("Database is fully consistent!"))
 		return
 	}
-	log.Printf("⚠️  Database requires cleanup to resolve %d inconsistencies", totalInconsistencies)
+	fmt.Printf("%s %s %s %s\n", Warning("⚠️"), BrightYellow("Database requires cleanup to resolve"), Bold(fmt.Sprintf("%d", totalInconsistencies)), BrightYellow("inconsistencies"))
 
 	// Perform cleanup if requested
 	if !cfg.PerformCleanup {
