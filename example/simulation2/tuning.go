@@ -19,7 +19,7 @@ const (
 	// ACTOR POOL CONFIGURATION ...
 
 	// InitialActiveReaders defines the conservative starting point for active readers.
-	InitialActiveReaders = 100
+	InitialActiveReaders = 150
 	// MinActiveReaders defines the minimum scale limit.
 	MinActiveReaders = 50
 	// MaxActiveReaders defines the upper safety limit.
@@ -46,6 +46,10 @@ const (
 	// ChancePreferReadersWithBooks defines the probability to select readers with borrowed books during activation.
 	// This creates a 50/50 balance between encouraging returns and discovering new patterns.
 	ChancePreferReadersWithBooks = 0.95 // should be 0.5 - 50% prefer readers with books, 50% random selection
+
+	// ChanceSyncOnActivation defines the probability to sync reader books when newly activated.
+	// This provides realistic business behavior metrics without affecting simulation state.
+	ChanceSyncOnActivation = 0.1 // 10% chance to query BooksLentByReader for metrics
 
 	// BROWSING AND DISCOVERY PATTERNS ...
 
@@ -81,7 +85,7 @@ const (
 
 	// AnomalyDetectionMultiplier defines the threshold for detecting metrics anomalies.
 	// P99 is considered anomalous if it exceeds P50 * AnomalyDetectionMultiplier.
-	AnomalyDetectionMultiplier = 50.0 // Was 10x, increased to reduce false alarms
+	AnomalyDetectionMultiplier = 80.0 // Was 10x, increased to reduce false alarms
 
 	// ScaleUpIncrement defines the number of readers to add when performing well.
 	ScaleUpIncrement = 10

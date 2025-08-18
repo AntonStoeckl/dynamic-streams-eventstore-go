@@ -655,9 +655,11 @@ func (as *ActorScheduler) adjustActiveReaderCount(targetCount int) {
 			as.activeReaders = append(as.activeReaders, selectedReader)
 			selectedReader.Lifecycle = AtHome // Ready to visit.
 
-			// Sync newly activated reader's borrowed books
-			if err := as.syncSingleReader(selectedReader); err != nil {
-				log.Printf("⚠️ Failed to sync newly activated reader %s: %v", selectedReader.ID, err)
+			// Sync newly activated reader's borrowed books (10% chance for realistic business behavior metrics)
+			if rand.Float64() < ChanceSyncOnActivation {
+				if err := as.syncSingleReader(selectedReader); err != nil {
+					log.Printf("⚠️ Failed to sync newly activated reader %s: %v", selectedReader.ID, err)
+				}
 			}
 		}
 
