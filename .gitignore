@@ -1,8 +1,9 @@
-# Compiled binary
+# Compiled binaries
 example/simulation/cmd/*
 !example/simulation/cmd/*.go
 example/simulation2/*
 !example/simulation2/*.go
+!example/simulation2/cmd/cleanup/*.go
 
 # IDE and Editor files
 .vscode/
