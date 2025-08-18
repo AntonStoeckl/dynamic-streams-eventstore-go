@@ -31,7 +31,6 @@ type ReaderLocation int
 const (
 	Home ReaderLocation = iota
 	Library
-	OnlinePortal // Browsing catalog from home.
 )
 
 // ReaderActor represents a single library patron with realistic behavior patterns.
@@ -81,10 +80,10 @@ func (r *ReaderActor) ShouldVisitLibrary() bool {
 	// Normal visiting pattern for readers with no books and no wishlist.
 	switch {
 	case decision < ChanceBrowseOnline:
-		// Will browse online during visit for wishlist.
+		// Will browse online during the visit for wishlist.
 		return true
 	case decision < ChanceBrowseOnline+ChanceVisitDirectly:
-		return true // Direct library visit.
+		return true // A direct library visit.
 	default:
 		return false // Stay home today.
 	}
@@ -169,7 +168,7 @@ func (r *ReaderActor) returnBooks(ctx context.Context, handlers *HandlerBundle) 
 
 // browseAndBorrow handles book selection and borrowing.
 func (r *ReaderActor) browseAndBorrow(ctx context.Context, handlers *HandlerBundle) error {
-	// Don't borrow if a reader has too many books already
+	// Don't borrow if the reader has too many books already
 	availableSlots := MaxBooksPerReader - len(r.BorrowedBooks)
 	if availableSlots <= 0 {
 		return nil
@@ -198,7 +197,7 @@ func (r *ReaderActor) browseAndBorrow(ctx context.Context, handlers *HandlerBund
 			break
 		}
 
-		// Check if wishlist book is still available.
+		// Check if the wishlist book is still available.
 		if state.IsBookAvailable(bookID) {
 			booksToBorrow = append(booksToBorrow, bookID)
 		}
@@ -249,7 +248,7 @@ func (r *ReaderActor) ShouldCancelContract() bool {
 		return false
 	}
 
-	// Only cancel if no books borrowed
+	// Only cancel if no books are borrowed
 	if len(r.BorrowedBooks) > 0 {
 		return false
 	}
@@ -329,7 +328,7 @@ func (l *LibrarianActor) addBooks(ctx context.Context, handlers *HandlerBundle, 
 	for i := 0; i < count; i++ {
 		bookID := uuid.New()
 
-		// Execute add book command
+		// Execute the add book command
 		if err := handlers.ExecuteAddBook(ctx, bookID); err != nil {
 			return fmt.Errorf("failed to add book %s: %w", bookID, err)
 		}
@@ -359,7 +358,7 @@ func (l *LibrarianActor) removeBooks(ctx context.Context, handlers *HandlerBundl
 		randomIndex := rand.Intn(len(availableBooks)) //nolint:gosec // Weak random OK for simulation
 		bookID := availableBooks[randomIndex]
 
-		// Execute remove book command.
+		// Execute the remove book command.
 		if err := handlers.ExecuteRemoveBook(ctx, bookID); err != nil {
 			return fmt.Errorf("failed to remove book %s: %w", bookID, err)
 		}

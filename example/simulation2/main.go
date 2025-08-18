@@ -56,7 +56,7 @@ func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Setup signal handling for graceful shutdown.
+	// Set up signal handling for graceful shutdown.
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
@@ -102,7 +102,7 @@ func run() error {
 		log.Printf("📢 Received signal %v, initiating graceful shutdown...", sig)
 		simulationCancel()
 	case <-simulationCtx.Done():
-		log.Printf("📢 Simulation context cancelled")
+		log.Printf("📢 Simulation context canceled")
 	}
 
 	// Graceful shutdown.
@@ -158,7 +158,7 @@ func initializePGXEventStore(ctx context.Context, cfg Config) (*postgresengine.E
 		return nil, fmt.Errorf("failed to connect to replica database: %w", pingReplicaErr)
 	}
 
-	// Setup EventStore observability options if enabled.
+	// Set up EventStore observability options if enabled.
 	var eventStoreOptions []postgresengine.Option
 	if cfg.ObservabilityEnabled {
 		obsConfig := cfg.NewObservabilityConfig() //nolint:contextcheck // Initialization code, context created internally

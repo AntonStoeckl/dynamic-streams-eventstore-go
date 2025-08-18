@@ -33,7 +33,7 @@ type ActorScheduler struct {
 	handlers   *HandlerBundle
 
 	// Actor pools.
-	activeReaders   []*ReaderActor    // Currently visiting library (100-1000).
+	activeReaders   []*ReaderActor    // Currently visiting the library (100-1000).
 	inactiveReaders []*ReaderActor    // At home, not visiting today (~13,000+).
 	librarians      []*LibrarianActor // Always active (2).
 
@@ -308,20 +308,20 @@ func (as *ActorScheduler) processActiveReaders() {
 	case <-done:
 		// Normal completion
 	case <-time.After(30 * time.Second):
-		log.Printf("🚨 TIMEOUT: Batch processing exceeded 30s with %d readers - cancelling batch", len(activeReaders))
+		log.Printf("🚨 TIMEOUT: Batch processing exceeded 30s with %d readers - canceling batch", len(activeReaders))
 		batchCancel() // CRITICAL: Cancel the batch context!
 		// This will cause all operations to fail with context.Canceled
 	}
 
-	// Clean up cancelled readers from active pool
-	as.cleanupCancelledReaders()
+	// Clean up canceled readers from active pool
+	as.cleanupCanceledReaders()
 
 	// Update statistics.
 	duration := time.Since(start)
 	as.stats.LastBatchDuration = duration
 	as.stats.BatchesProcessed++
 
-	// Log every batch round for visibility during normalization phase.
+	// Log every batch round for visibility during the normalization phase.
 	{
 		// Get book statistics from internal state
 		stateStats := as.state.GetStats()
@@ -343,7 +343,7 @@ func (as *ActorScheduler) processReaderBatch(ctx context.Context, readers []*Rea
 	operationsThisBatch := 0
 	for _, reader := range readers {
 		if ctx.Err() != nil { // Check batch context, not as.ctx
-			return operationsThisBatch // Context cancelled or timeout
+			return operationsThisBatch // Context canceled or timeout
 		}
 
 		// Let reader decide if they want to do something.
@@ -352,7 +352,7 @@ func (as *ActorScheduler) processReaderBatch(ctx context.Context, readers []*Rea
 			if err := reader.VisitLibrary(ctx, as.handlers); err != nil {
 				// Check if it was a timeout or cancellation
 				if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-					log.Printf("⏱️ Reader %s timed out or cancelled", reader.ID)
+					log.Printf("⏱️ Reader %s timed out or canceled", reader.ID)
 					return operationsThisBatch // Stop processing this batch
 				}
 				// Log error but continue with other readers.
@@ -373,12 +373,12 @@ func (as *ActorScheduler) processReaderBatch(ctx context.Context, readers []*Rea
 	return operationsThisBatch
 }
 
-// cleanupCancelledReaders removes cancelled readers from the active pool.
-func (as *ActorScheduler) cleanupCancelledReaders() {
+// cleanupCanceledReaders removes canceled readers from the active pool.
+func (as *ActorScheduler) cleanupCanceledReaders() {
 	as.mu.Lock()
 	defer as.mu.Unlock()
 
-	// Filter out cancelled readers from active pool
+	// Filter out canceled readers from active pool
 	activeReaders := make([]*ReaderActor, 0, len(as.activeReaders))
 	for _, reader := range as.activeReaders {
 		if reader.Lifecycle != Canceled {
@@ -391,7 +391,7 @@ func (as *ActorScheduler) cleanupCancelledReaders() {
 	as.activeReaders = activeReaders
 
 	if removedCount > 0 {
-		log.Printf("🧹 Cleaned up %d cancelled readers from active pool", removedCount)
+		log.Printf("🧹 Cleaned up %d canceled readers from active pool", removedCount)
 	}
 }
 
@@ -545,7 +545,7 @@ func (as *ActorScheduler) adjustPopulations() {
 		// Too many readers - cancel some.
 		readersToCancel := min(5, totalReaders-MaxReaders)
 		as.cancelExcessReaders(readersToCancel)
-		log.Printf("📉 Cancelled %d readers (total: %d)", readersToCancel, totalReaders-readersToCancel)
+		log.Printf("📉 Canceled %d readers (total: %d)", readersToCancel, totalReaders-readersToCancel)
 	}
 }
 
@@ -566,7 +566,7 @@ func (as *ActorScheduler) handleReaderCancellation(reader *ReaderActor) {
 		return
 	}
 
-	// Mark as cancelled but don't remove from active pool immediately
+	// Mark as canceled but don't remove from active pool immediately
 	// Let the batch processing finish, then remove during next adjustment
 	reader.Lifecycle = Canceled
 
@@ -576,10 +576,10 @@ func (as *ActorScheduler) handleReaderCancellation(reader *ReaderActor) {
 
 // cancelExcessReaders removes readers when above maximum.
 func (as *ActorScheduler) cancelExcessReaders(count int) {
-	cancelled := 0
+	canceled := 0
 
 	// Cancel from inactive readers first (they're not currently using the system).
-	for i := len(as.inactiveReaders) - 1; i >= 0 && cancelled < count; i-- {
+	for i := len(as.inactiveReaders) - 1; i >= 0 && canceled < count; i-- {
 		reader := as.inactiveReaders[i]
 
 		// Only cancel readers with no borrowed books.
@@ -595,7 +595,7 @@ func (as *ActorScheduler) cancelExcessReaders(count int) {
 			as.inactiveReaders = append(as.inactiveReaders[:i], as.inactiveReaders[i+1:]...)
 			as.state.CancelReader(reader.ID)
 			reader.Lifecycle = Canceled
-			cancelled++
+			canceled++
 		}
 	}
 }
@@ -615,7 +615,7 @@ func (as *ActorScheduler) AdjustActiveReaderCount(newCount int) {
 
 // adjustActiveReaderCount actually moves readers between active/inactive pools.
 //
-//nolint:gocognit
+//nolint:gocognit,funlen // Complex pool management logic with smart selection requires length
 func (as *ActorScheduler) adjustActiveReaderCount(targetCount int) {
 	currentCount := len(as.activeReaders)
 
@@ -661,7 +661,7 @@ func (as *ActorScheduler) adjustActiveReaderCount(targetCount int) {
 			selectedReader.Lifecycle = AtHome // Ready to visit.
 
 			// Sync newly activated reader's borrowed books (10% chance for realistic business behavior metrics)
-			if rand.Float64() < ChanceSyncOnActivation {
+			if rand.Float64() < ChanceSyncOnActivation { //nolint:gosec // fine for the simulation
 				if err := as.syncSingleReader(selectedReader); err != nil {
 					log.Printf("⚠️ Failed to sync newly activated reader %s: %v", selectedReader.ID, err)
 				}
@@ -750,89 +750,6 @@ func (as *ActorScheduler) syncSingleReader(actor *ReaderActor) error {
 	return nil
 }
 
-// synchronizeAllActorBorrowedBooksFromLentOut populates ALL actor BorrowedBooks using single BooksLentOut query.
-// Used only at startup for efficiency (one query vs thousands).
-//
-//nolint:funlen
-func (as *ActorScheduler) synchronizeAllActorBorrowedBooksFromLentOut() error {
-	// Query all lending relationships at once
-	lentBooksResult, err := as.handlers.QueryBooksLentOut(as.ctx)
-	if err != nil {
-		return fmt.Errorf("failed to query books lent out: %w", err)
-	}
-
-	// Create map for fast lookup: readerID -> []bookID
-	readerBooksMap := make(map[uuid.UUID][]uuid.UUID)
-
-	// Track unique books to detect duplicates
-	uniqueBooks := make(map[uuid.UUID]bool)
-
-	for _, lending := range lentBooksResult.Lendings {
-		readerID, err := uuid.Parse(lending.ReaderID)
-		if err != nil {
-			continue // Skip invalid UUIDs
-		}
-
-		bookID, err := uuid.Parse(lending.BookID)
-		if err != nil {
-			continue // Skip invalid UUIDs
-		}
-
-		// Check for duplicate books
-		if uniqueBooks[bookID] {
-			log.Printf("⚠️  DUPLICATE BOOK FOUND: %s is lent to multiple readers!", bookID)
-		}
-		uniqueBooks[bookID] = true
-
-		if readerBooksMap[readerID] == nil {
-			readerBooksMap[readerID] = make([]uuid.UUID, 0)
-		}
-		readerBooksMap[readerID] = append(readerBooksMap[readerID], bookID)
-	}
-
-	// Take snapshots to avoid race condition
-	as.mu.RLock()
-	activeSnapshot := make([]*ReaderActor, len(as.activeReaders))
-	copy(activeSnapshot, as.activeReaders)
-	inactiveSnapshot := make([]*ReaderActor, len(as.inactiveReaders))
-	copy(inactiveSnapshot, as.inactiveReaders)
-	as.mu.RUnlock()
-
-	syncCount := 0
-	readersWithBooks := 0
-
-	// Update all active readers
-	for _, actor := range activeSnapshot {
-		if borrowedBooks, exists := readerBooksMap[actor.ID]; exists {
-			actor.BorrowedBooks = make([]uuid.UUID, len(borrowedBooks))
-			copy(actor.BorrowedBooks, borrowedBooks)
-			syncCount += len(borrowedBooks)
-			readersWithBooks++
-		} else {
-			actor.BorrowedBooks = nil // Ensure empty if no books
-		}
-	}
-
-	// Update all inactive readers
-	for _, actor := range inactiveSnapshot {
-		if borrowedBooks, exists := readerBooksMap[actor.ID]; exists {
-			actor.BorrowedBooks = make([]uuid.UUID, len(borrowedBooks))
-			copy(actor.BorrowedBooks, borrowedBooks)
-			syncCount += len(borrowedBooks)
-			readersWithBooks++
-		} else {
-			actor.BorrowedBooks = nil // Ensure empty if no books
-		}
-	}
-
-	fmt.Printf("🔗 %s %s %s %s %s %s\n",
-		Info("Actor sync:"), Bold(fmt.Sprintf("%d", syncCount)),
-		Info("books lent out across"), Bold(fmt.Sprintf("%d", readersWithBooks)),
-		Info("readers"), Gray("(BooksLentOut query)"))
-
-	return nil
-}
-
 // synchronizeActorBorrowedBooksFromLoadedState populates ALL actor BorrowedBooks using already-loaded state.
 // This is more efficient than querying the database since state is already loaded.
 func (as *ActorScheduler) synchronizeActorBorrowedBooksFromLoadedState() {
@@ -847,7 +764,9 @@ func (as *ActorScheduler) synchronizeActorBorrowedBooksFromLoadedState() {
 	totalActorsPopulated := 0
 	totalBooksAssigned := 0
 
-	allReaders := append(as.activeReaders, as.inactiveReaders...)
+	allReaders := make([]*ReaderActor, 0, len(as.activeReaders)+len(as.inactiveReaders))
+	allReaders = append(allReaders, as.activeReaders...)
+	allReaders = append(allReaders, as.inactiveReaders...)
 	for _, actor := range allReaders {
 		if bookIDs, exists := readerBooksMap[actor.ID]; exists {
 			actor.BorrowedBooks = make([]uuid.UUID, len(bookIDs))
@@ -861,30 +780,4 @@ func (as *ActorScheduler) synchronizeActorBorrowedBooksFromLoadedState() {
 		Info("Actor sync:"), Bold(fmt.Sprintf("%d", totalLentBooks)),
 		BrightYellow("books lent out across"), Bold(fmt.Sprintf("%d", totalActorsPopulated)),
 		BrightCyan("readers"), Gray("from loaded state"))
-}
-
-// =================================================================
-// HELPER FUNCTIONS
-// =================================================================
-
-// getExistingReaders queries the database for existing registered readers.
-func (as *ActorScheduler) getExistingReaders(ctx context.Context) ([]uuid.UUID, error) {
-	readersResult, err := as.handlers.QueryRegisteredReaders(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	readerIDs := make([]uuid.UUID, 0, len(readersResult.Readers))
-	skippedReaders := 0
-	for _, reader := range readersResult.Readers {
-		readerID, parseErr := uuid.Parse(reader.ReaderID)
-		if parseErr != nil {
-			skippedReaders++
-			log.Printf("⚠️  Skipping reader with invalid UUID: %s (error: %v)", reader.ReaderID, parseErr)
-			continue // Skip invalid UUIDs
-		}
-		readerIDs = append(readerIDs, readerID)
-	}
-
-	return readerIDs, nil
 }

@@ -165,7 +165,7 @@ func (hb *HandlerBundle) recordMetrics(ctx context.Context, start time.Time, err
 	case errors.Is(err, context.DeadlineExceeded):
 		log.Printf("⏱️ TIMEOUT: Operation exceeded deadline after %v", duration)
 	case errors.Is(err, context.Canceled):
-		log.Printf("🚫 CANCELLED: Operation cancelled after %v", duration)
+		log.Printf("🚫 CANCELED: Operation canceled after %v", duration)
 	case duration > 5*time.Second:
 		log.Printf("🐌 SLOW: Operation took %v (no timeout)", duration)
 	}
@@ -333,30 +333,6 @@ func (hb *HandlerBundle) QueryBooksLentOut(ctx context.Context) (bookslentout.Bo
 
 // QueryRegisteredReaders returns all currently registered readers.
 func (hb *HandlerBundle) QueryRegisteredReaders(ctx context.Context) (registeredreaders.RegisteredReaders, error) {
-	start := time.Now()
-	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(RegisteredReadersQueryTimeoutSeconds*float64(time.Second)))
-	defer cancel()
-	result, err := hb.registeredReadersHandler.Handle(timeoutCtx)
-	hb.recordMetrics(timeoutCtx, start, err)
-	return result, err
-}
-
-// =================================================================
-// STATE REFRESH QUERIES - For periodic state synchronization
-// =================================================================
-
-// QueryBooksInCirculationForState returns all books for state refresh.
-func (hb *HandlerBundle) QueryBooksInCirculationForState(ctx context.Context) (booksincirculation.BooksInCirculation, error) {
-	start := time.Now()
-	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(BooksInCirculationQueryTimeoutSeconds*float64(time.Second)))
-	defer cancel()
-	result, err := hb.booksInCirculationHandler.Handle(timeoutCtx)
-	hb.recordMetrics(timeoutCtx, start, err)
-	return result, err
-}
-
-// QueryRegisteredReadersForState returns all readers for state refresh.
-func (hb *HandlerBundle) QueryRegisteredReadersForState(ctx context.Context) (registeredreaders.RegisteredReaders, error) {
 	start := time.Now()
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(RegisteredReadersQueryTimeoutSeconds*float64(time.Second)))
 	defer cancel()

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -371,6 +370,8 @@ func (s *SimulationState) ShouldRefresh() bool {
 }
 
 // RefreshFromEventStore updates the in-memory state from EventStore truth.
+//
+//nolint:funlen // Complex state loading logic requires many statements
 func (s *SimulationState) RefreshFromEventStore(ctx context.Context, handlers *HandlerBundle) error {
 	s.mu.Lock()
 	s.refreshInProgress = true
@@ -386,7 +387,7 @@ func (s *SimulationState) RefreshFromEventStore(ctx context.Context, handlers *H
 	// Load books from database on first initialization, skip on subsequent refreshes
 	var booksResult booksincirculation.BooksInCirculation
 	if !s.isInitialized {
-		result, err := handlers.QueryBooksInCirculationForState(ctx)
+		result, err := handlers.QueryBooksInCirculation(ctx)
 		if err != nil {
 			log.Printf("⚠️ Initial state load failed (BooksInCirculation query): %v", err)
 			return err // Fail startup if we can't load initial books
@@ -398,7 +399,7 @@ func (s *SimulationState) RefreshFromEventStore(ctx context.Context, handlers *H
 	// Load readers from database on first initialization, skip on subsequent refreshes
 	var readersResult registeredreaders.RegisteredReaders
 	if !s.isInitialized {
-		result, err := handlers.QueryRegisteredReadersForState(ctx)
+		result, err := handlers.QueryRegisteredReaders(ctx)
 		if err != nil {
 			log.Printf("⚠️ Initial state load failed (RegisteredReaders query): %v", err)
 			return err // Fail startup if we can't load initial readers
@@ -543,72 +544,6 @@ func (s *SimulationState) rebuildReadersFromQuery(readersResult registeredreader
 		s.readers[readerID] = readerState
 		s.registeredReaders = append(s.registeredReaders, readerID)
 	}
-}
-
-// initializeLendingStateFromDatabase populates the lending maps from database at startup.
-// This is required because SimulationState starts with empty lending maps.
-func (s *SimulationState) initializeLendingStateFromDatabase(ctx context.Context, handlers *HandlerBundle) error {
-	// Query all lending relationships
-	lentBooksResult, err := handlers.QueryBooksLentOut(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to query books lent out for state initialization: %w", err)
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Initialize lending maps if they don't exist
-	if s.lendingMap == nil {
-		s.lendingMap = make(map[uuid.UUID]uuid.UUID)
-	}
-	if s.readerBooksMap == nil {
-		s.readerBooksMap = make(map[uuid.UUID][]uuid.UUID)
-	}
-
-	// Populate lending state from query
-	for _, lending := range lentBooksResult.Lendings {
-		bookID, err := uuid.Parse(lending.BookID)
-		if err != nil {
-			continue // Skip invalid UUIDs
-		}
-
-		readerID, err := uuid.Parse(lending.ReaderID)
-		if err != nil {
-			continue // Skip invalid UUIDs
-		}
-
-		// Update lending map
-		s.lendingMap[bookID] = readerID
-
-		// Update reader books map
-		if s.readerBooksMap[readerID] == nil {
-			s.readerBooksMap[readerID] = make([]uuid.UUID, 0)
-		}
-		s.readerBooksMap[readerID] = append(s.readerBooksMap[readerID], bookID)
-
-		// Update book state if it exists
-		if book, exists := s.books[bookID]; exists {
-			book.Available = false
-			book.LentTo = readerID
-			// Remove from available books
-			s.availableBookIDs = removeFromSlice(s.availableBookIDs, bookID)
-		}
-
-		// Update reader state if it exists
-		if reader, exists := s.readers[readerID]; exists {
-			reader.BorrowedBooks = append(reader.BorrowedBooks, bookID)
-		}
-	}
-
-	// Update counters
-	s.totalActiveLendings = len(lentBooksResult.Lendings)
-	s.stats.BooksLentOut = s.totalActiveLendings
-	s.stats.ActiveLendings = s.totalActiveLendings
-
-	log.Printf("📊 SimulationState lending initialized: %d books lent out across %d readers",
-		s.totalActiveLendings, len(s.readerBooksMap))
-
-	return nil
 }
 
 // initializeLendingFromQuery populates lending maps from a BooksLentOut query result.

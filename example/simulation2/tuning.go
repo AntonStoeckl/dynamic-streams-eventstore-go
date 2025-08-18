@@ -19,11 +19,11 @@ const (
 	// ACTOR POOL CONFIGURATION ...
 
 	// InitialActiveReaders defines the conservative starting point for active readers.
-	InitialActiveReaders = 150
+	InitialActiveReaders = 50
 	// MinActiveReaders defines the minimum scale limit.
-	MinActiveReaders = 50
+	MinActiveReaders = 30
 	// MaxActiveReaders defines the upper safety limit.
-	MaxActiveReaders = 350
+	MaxActiveReaders = 500
 
 	// LibrarianCount defines the number of librarian staff (Acquisitions and Maintenance roles).
 	LibrarianCount = 4
@@ -48,7 +48,7 @@ const (
 	ChancePreferReadersWithBooks = 0.95 // should be 0.5 - 50% prefer readers with books, 50% random selection
 
 	// ChanceSyncOnActivation defines the probability to sync reader books when newly activated.
-	// This provides realistic business behavior metrics without affecting simulation state.
+	// This provides realistic business behavior metrics without affecting the simulation state.
 	ChanceSyncOnActivation = 0.1 // 10% chance to query BooksLentByReader for metrics
 
 	// BROWSING AND DISCOVERY PATTERNS ...
@@ -81,7 +81,7 @@ const (
 	// TargetP99LatencyMs defines the maximum acceptable latency in milliseconds.
 	TargetP99LatencyMs = 800
 	// MaxTimeoutRate defines the timeout threshold as a percentage.
-	MaxTimeoutRate = 0.005 // should be 0.01
+	MaxTimeoutRate = 0.005
 
 	// AnomalyDetectionMultiplier defines the threshold for detecting metrics anomalies.
 	// P99 is considered anomalous if it exceeds P50 * AnomalyDetectionMultiplier.
@@ -114,17 +114,25 @@ const (
 	// SIMULATION TIMING ...
 
 	// SetupPhaseDelaySeconds defines the initial setup time for visibility.
-	SetupPhaseDelaySeconds = 10
+	SetupPhaseDelaySeconds = 5
 
 	// TIMEOUT CONFIGURATION - Operation timeout durations ...
 
 	// CommandTimeoutSeconds defines timeout for command operations (ExecuteLendBook, ExecuteReturnBook, etc.)
 	// These are fast, transactional operations that should complete quickly.
-	CommandTimeoutSeconds = 2
+	CommandTimeoutSeconds = 2.0
 
-	// QueryTimeoutSeconds defines timeout for all query operations (QueryBooksInCirculation, state refresh, etc.)
-	// With proper error handling, we can use a reasonable timeout for all queries.
-	QueryTimeoutSeconds = 45
+	// BooksInCirculationQueryTimeoutSeconds defines the timeout for this (relatively slow) query.
+	BooksInCirculationQueryTimeoutSeconds = 45.0
+
+	// BooksLentOutQueryTimeoutSeconds defines the timeout for this (relatively slow) query.
+	BooksLentOutQueryTimeoutSeconds = 20.0
+
+	// RegisteredReadersQueryTimeoutSeconds defines the timeout for this (relatively slow) query.
+	RegisteredReadersQueryTimeoutSeconds = 5.0
+
+	// BooksLentByReaderQueryTimeoutSeconds defines the timeout for this (fast) query.
+	BooksLentByReaderQueryTimeoutSeconds = 0.2 // 200 ms
 
 	// V1 SIMPLIFICATIONS - Advanced behavior patterns (not implemented in v1)!
 
