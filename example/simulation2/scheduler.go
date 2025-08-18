@@ -81,8 +81,23 @@ func NewActorScheduler(ctx context.Context, eventStore *postgresengine.EventStor
 }
 
 // initializeActorPools creates the initial reader and librarian populations.
+//
+//nolint:funlen
 func (as *ActorScheduler) initializeActorPools(ctx context.Context) {
-	log.Printf("🎭 Initializing actor pools...")
+	fmt.Printf("%s %s\n", StatusIcon("working"), Info("Initializing actor pools..."))
+
+	// CRITICAL: Load all state from database FIRST before creating actors
+	log.Printf("📚 Loading complete simulation state from EventStore...")
+	if err := as.state.RefreshFromEventStore(ctx, as.handlers); err != nil {
+		log.Printf("⚠️  Warning: Failed to load simulation state: %v", err)
+	} else {
+		stats := as.state.GetStats()
+		fmt.Printf("%s %s %s %s, %s %s, %s %s\n",
+			Success("✅"), BrightGreen("Complete state loaded:"),
+			Bold(fmt.Sprintf("%d", stats.TotalBooks)), Info("total books"),
+			Bold(fmt.Sprintf("%d", stats.AvailableBooks)), BrightGreen("available"),
+			Bold(fmt.Sprintf("%d", stats.BooksLentOut)), BrightYellow("lent out"))
+	}
 
 	// Create librarians (always active) based on LibrarianCount.
 	librarianRoles := []LibrarianRole{Acquisitions, Maintenance}
@@ -92,15 +107,10 @@ func (as *ActorScheduler) initializeActorPools(ctx context.Context) {
 		as.librarians = append(as.librarians, librarian)
 	}
 
-	// Query existing readers from the database first
-	existingReaders, err := as.getExistingReaders(ctx)
-	if err != nil {
-		log.Printf("⚠️  Failed to query existing readers, starting fresh: %v", err)
-		existingReaders = []uuid.UUID{}
-	}
-
+	// Get existing readers from already-loaded state (no database query needed)
+	existingReaders := as.state.GetRegisteredReaders()
 	totalExistingReaders := len(existingReaders)
-	log.Printf("📚 Found %d existing readers in database", totalExistingReaders)
+	fmt.Printf("%s %s %s %s\n", StatusIcon("books"), Info("Found"), Bold(fmt.Sprintf("%d", totalExistingReaders)), Info("existing readers from loaded state"))
 
 	// Create actors for existing readers
 	actorsCreatedCount := 0
@@ -142,13 +152,11 @@ func (as *ActorScheduler) initializeActorPools(ctx context.Context) {
 		}
 	}
 
-	// Move some readers to the active pool.
-	as.adjustActiveReaderCount(as.targetActiveCount)
+	// Critical: Populate ALL actor BorrowedBooks from already-loaded state (no database query needed)
+	as.synchronizeActorBorrowedBooksFromLoadedState()
 
-	// Critical: Populate ALL actor BorrowedBooks from database state using efficient BooksLentOut query
-	if err := as.synchronizeAllActorBorrowedBooksFromLentOut(); err != nil {
-		log.Printf("⚠️  Warning: Failed to synchronize actor borrowed books: %v", err)
-	}
+	// Move some readers to the active pool AFTER sync (so smart selection can work properly)
+	as.adjustActiveReaderCount(as.targetActiveCount)
 
 	// Show actual reader distribution after sync
 	activeWithBooks := 0
@@ -163,18 +171,11 @@ func (as *ActorScheduler) initializeActorPools(ctx context.Context) {
 			inactiveWithBooks++
 		}
 	}
-	log.Printf("📚 Reader distribution after sync: %d/%d active have books, %d/%d inactive have books",
-		activeWithBooks, len(as.activeReaders), inactiveWithBooks, len(as.inactiveReaders))
+	fmt.Printf("%s %s %s/%s %s, %s/%s %s\n", StatusIcon("books"), Info("Final reader distribution:"),
+		Bold(fmt.Sprintf("%d", activeWithBooks)), fmt.Sprintf("%d", len(as.activeReaders)), BrightGreen("active have books"),
+		Bold(fmt.Sprintf("%d", inactiveWithBooks)), fmt.Sprintf("%d", len(as.inactiveReaders)), BrightCyan("inactive have books"))
 
-	// CRITICAL: Load initial state before actors start working
-	log.Printf("📚 Loading simulation state from EventStore...")
-	if err := as.state.RefreshFromEventStore(ctx, as.handlers); err != nil {
-		log.Printf("⚠️  Warning: Failed to load simulation state: %v", err)
-	} else {
-		stats := as.state.GetStats()
-		log.Printf("✅ Simulation state loaded: %d total books, %d available, %d lent out",
-			stats.TotalBooks, stats.AvailableBooks, stats.BooksLentOut)
-	}
+	// State already loaded at beginning - no need to reload
 
 	as.currentActiveCount = len(as.activeReaders)
 	log.Printf("👥 Actor pools initialized: %d active readers, %d inactive readers, %d librarians",
@@ -186,11 +187,12 @@ func (as *ActorScheduler) Start() error {
 	log.Printf("🚀 Starting actor scheduler...")
 
 	// Start batch processing goroutines.
-	as.wg.Add(4)
+	as.wg.Add(5)
 	go as.processReaderBatches()
 	go as.processLibrarians()
 	go as.managePopulation()
 	go as.refreshState()
+	go as.verifyLibrarianState()
 
 	log.Printf("✅ Actor scheduler started with %d active readers", as.currentActiveCount)
 	return nil
@@ -244,6 +246,8 @@ func (as *ActorScheduler) processReaderBatches() {
 }
 
 // processActiveReaders processes all active readers in batches.
+//
+//nolint:funlen
 func (as *ActorScheduler) processActiveReaders() {
 	start := time.Now()
 
@@ -314,17 +318,18 @@ func (as *ActorScheduler) processActiveReaders() {
 
 	// Log every batch round for visibility during normalization phase.
 	{
-		// Calculate average time per operation for clarity
-		avgOpTime := "N/A"
-		if totalOperations > 0 {
-			avgOpTime = fmt.Sprintf("%.0fms", float64(duration.Milliseconds())/float64(totalOperations))
-		}
-
 		// Get book statistics from internal state
 		stateStats := as.state.GetStats()
 
-		log.Printf("📊 Batch round #%d: %d operations in %v total (avg: %s/op with overhead), %d active readers | Books: %d total, %d lent out",
-			as.stats.BatchesProcessed, totalOperations, duration, avgOpTime, len(activeReaders), stateStats.TotalBooks, stateStats.BooksLentOut)
+		// Format message based on whether operations occurred
+		if totalOperations > 0 {
+			avgOpTime := fmt.Sprintf("%.0fms", float64(duration.Milliseconds())/float64(totalOperations))
+			log.Printf("📊 Batch round #%d: %d operations in %v total (avg: %s/op with overhead), %d active readers | Books: %d total, %d lent out",
+				as.stats.BatchesProcessed, totalOperations, duration, avgOpTime, len(activeReaders), stateStats.TotalBooks, stateStats.BooksLentOut)
+		} else {
+			log.Printf("📊 Batch round #%d: %d operations in %v total, %d active readers | Books: %d total, %d lent out",
+				as.stats.BatchesProcessed, totalOperations, duration, len(activeReaders), stateStats.TotalBooks, stateStats.BooksLentOut)
+		}
 	}
 }
 
@@ -411,10 +416,55 @@ func (as *ActorScheduler) processLibrarianWork() {
 			return
 		}
 
-		if err := librarian.Work(as.ctx, as.handlers); err != nil {
+		if err := librarian.Work(as.ctx, as.handlers, as.state); err != nil {
 			log.Printf("⚠️  Librarian %s work failed: %v", librarian.ID, err)
 		}
 		as.stats.TotalActorOperations++
+	}
+}
+
+// verifyLibrarianState periodically queries the database to verify librarian state consistency.
+// This runs independently from regular librarian work and uses the expensive query only for verification.
+func (as *ActorScheduler) verifyLibrarianState() {
+	defer as.wg.Done()
+
+	ticker := time.NewTicker(60 * time.Second) // Every 60 seconds
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-as.stopChan:
+			return
+		case <-as.ctx.Done():
+			return
+		case <-ticker.C:
+			as.performLibrarianStateVerification()
+		}
+	}
+}
+
+// performLibrarianStateVerification queries the database and compares with memory state.
+func (as *ActorScheduler) performLibrarianStateVerification() {
+	// Use extended timeout for this verification query
+	ctx, cancel := context.WithTimeout(as.ctx, time.Duration(QueryTimeoutSeconds)*time.Second)
+	defer cancel()
+
+	// Query actual database state
+	booksResult, err := as.handlers.QueryBooksInCirculation(ctx)
+	if err != nil {
+		log.Printf("⚠️  Librarian state verification failed: %v", err)
+		return
+	}
+
+	// Compare with memory state
+	memoryBooks := as.state.GetStats().TotalBooks
+	databaseBooks := len(booksResult.Books)
+
+	if memoryBooks != databaseBooks {
+		log.Printf("📊 State verification: Memory=%d books, Database=%d books (diff=%d)",
+			memoryBooks, databaseBooks, databaseBooks-memoryBooks)
+	} else {
+		log.Printf("✅ Librarian state verified: %d books match between memory and database", memoryBooks)
 	}
 }
 
@@ -559,6 +609,8 @@ func (as *ActorScheduler) AdjustActiveReaderCount(newCount int) {
 }
 
 // adjustActiveReaderCount actually moves readers between active/inactive pools.
+//
+//nolint:gocognit
 func (as *ActorScheduler) adjustActiveReaderCount(targetCount int) {
 	currentCount := len(as.activeReaders)
 
@@ -569,9 +621,34 @@ func (as *ActorScheduler) adjustActiveReaderCount(targetCount int) {
 		toActivate := min(needed, available)
 
 		for i := 0; i < toActivate && len(as.inactiveReaders) > 0; i++ {
-			// Simple random selection - let natural probabilities handle behavior
-			randomIndex := rand.Intn(len(as.inactiveReaders)) //nolint:gosec // Weak random OK for simulation
-			selectedReader := as.inactiveReaders[randomIndex]
+			// Smart reader selection: 50/50 strategy for encouraging returns vs. exploration
+			preferReadersWithBooks := rand.Float32() < ChancePreferReadersWithBooks //nolint:gosec // Weak random OK for simulation
+
+			var selectedReader *ReaderActor
+			var randomIndex int
+
+			if preferReadersWithBooks {
+				// Build list of inactive readers with books
+				readersWithBooks := make([]int, 0, len(as.inactiveReaders))
+				for idx, reader := range as.inactiveReaders {
+					if len(reader.BorrowedBooks) > 0 {
+						readersWithBooks = append(readersWithBooks, idx)
+					}
+				}
+
+				// If we found readers with books, select from them
+				if len(readersWithBooks) > 0 {
+					selectedIdx := readersWithBooks[rand.Intn(len(readersWithBooks))] //nolint:gosec // Weak random OK for simulation
+					randomIndex = selectedIdx
+					selectedReader = as.inactiveReaders[randomIndex]
+				}
+			}
+
+			// Fallback to random selection if no preference or no readers with books
+			if selectedReader == nil {
+				randomIndex = rand.Intn(len(as.inactiveReaders)) //nolint:gosec // Weak random OK for simulation
+				selectedReader = as.inactiveReaders[randomIndex]
+			}
 
 			// Move the selected reader from inactive to active
 			as.inactiveReaders = append(as.inactiveReaders[:randomIndex], as.inactiveReaders[randomIndex+1:]...)
@@ -614,9 +691,9 @@ func (as *ActorScheduler) adjustActiveReaderCount(targetCount int) {
 		excess := currentCount - targetCount
 
 		for i := 0; i < excess; i++ {
-			// Move the reader from active to inactive.
-			reader := as.activeReaders[len(as.activeReaders)-1]
-			as.activeReaders = as.activeReaders[:len(as.activeReaders)-1]
+			// Move the reader from active to inactive - FIFO (oldest first)
+			reader := as.activeReaders[0]
+			as.activeReaders = as.activeReaders[1:]
 			as.inactiveReaders = append(as.inactiveReaders, reader)
 			reader.Lifecycle = AtHome // At home, inactive.
 		}
@@ -655,6 +732,7 @@ func (as *ActorScheduler) syncSingleReader(actor *ReaderActor) error {
 	for _, book := range readerBooks.Books {
 		bookID, err := uuid.Parse(book.BookID)
 		if err != nil {
+			log.Printf("⚠️ Invalid BookID '%s' for reader %s", book.BookID, actor.ID)
 			continue // Skip invalid UUIDs
 		}
 		borrowedBooks = append(borrowedBooks, bookID)
@@ -667,6 +745,8 @@ func (as *ActorScheduler) syncSingleReader(actor *ReaderActor) error {
 
 // synchronizeAllActorBorrowedBooksFromLentOut populates ALL actor BorrowedBooks using single BooksLentOut query.
 // Used only at startup for efficiency (one query vs thousands).
+//
+//nolint:funlen
 func (as *ActorScheduler) synchronizeAllActorBorrowedBooksFromLentOut() error {
 	// Query all lending relationships at once
 	lentBooksResult, err := as.handlers.QueryBooksLentOut(as.ctx)
@@ -713,7 +793,6 @@ func (as *ActorScheduler) synchronizeAllActorBorrowedBooksFromLentOut() error {
 
 	syncCount := 0
 	readersWithBooks := 0
-	missingReaders := 0
 
 	// Update all active readers
 	for _, actor := range activeSnapshot {
@@ -739,59 +818,42 @@ func (as *ActorScheduler) synchronizeAllActorBorrowedBooksFromLentOut() error {
 		}
 	}
 
-	// Debug: Check for readers in lendings but not in actors
-	for readerID := range readerBooksMap {
-		found := false
-		// Check active actors
-		for _, actor := range activeSnapshot {
-			if actor.ID == readerID {
-				found = true
-				break
-			}
-		}
-		// Check inactive actors if not found in active
-		if !found {
-			for _, actor := range inactiveSnapshot {
-				if actor.ID == readerID {
-					found = true
-					break
-				}
-			}
-		}
-		if !found {
-			missingReaders++
-		}
-	}
-
-	log.Printf("🔗 Actor sync: %d books lent out across %d readers (BooksLentOut query)",
-		syncCount, readersWithBooks)
-
-	if missingReaders > 0 {
-		booksFromMissingReaders := 0
-		for readerID, books := range readerBooksMap {
-			found := false
-			// Quick check if this reader exists in snapshots
-			for _, actor := range activeSnapshot {
-				if actor.ID == readerID {
-					found = true
-					break
-				}
-			}
-			if !found {
-				for _, actor := range inactiveSnapshot {
-					if actor.ID == readerID {
-						found = true
-						break
-					}
-				}
-			}
-			if !found {
-				booksFromMissingReaders += len(books)
-			}
-		}
-	}
+	fmt.Printf("🔗 %s %s %s %s %s %s\n",
+		Info("Actor sync:"), Bold(fmt.Sprintf("%d", syncCount)),
+		Info("books lent out across"), Bold(fmt.Sprintf("%d", readersWithBooks)),
+		Info("readers"), Gray("(BooksLentOut query)"))
 
 	return nil
+}
+
+// synchronizeActorBorrowedBooksFromLoadedState populates ALL actor BorrowedBooks using already-loaded state.
+// This is more efficient than querying the database since state is already loaded.
+func (as *ActorScheduler) synchronizeActorBorrowedBooksFromLoadedState() {
+	// Get lending data from already-loaded simulation state
+	stats := as.state.GetStats()
+	totalLentBooks := stats.BooksLentOut
+
+	// Access the reader-books mapping from state
+	readerBooksMap := as.state.GetReaderBooksMap()
+
+	// Populate actor BorrowedBooks from the loaded state
+	totalActorsPopulated := 0
+	totalBooksAssigned := 0
+
+	allReaders := append(as.activeReaders, as.inactiveReaders...)
+	for _, actor := range allReaders {
+		if bookIDs, exists := readerBooksMap[actor.ID]; exists {
+			actor.BorrowedBooks = make([]uuid.UUID, len(bookIDs))
+			copy(actor.BorrowedBooks, bookIDs)
+			totalBooksAssigned += len(bookIDs)
+			totalActorsPopulated++
+		}
+	}
+
+	fmt.Printf("🔗 %s %s %s %s %s (%s)\n",
+		Info("Actor sync:"), Bold(fmt.Sprintf("%d", totalLentBooks)),
+		BrightYellow("books lent out across"), Bold(fmt.Sprintf("%d", totalActorsPopulated)),
+		BrightCyan("readers"), Gray("from loaded state"))
 }
 
 // =================================================================

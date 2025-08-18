@@ -19,11 +19,11 @@ const (
 	// ACTOR POOL CONFIGURATION ...
 
 	// InitialActiveReaders defines the conservative starting point for active readers.
-	InitialActiveReaders = 50
+	InitialActiveReaders = 100
 	// MinActiveReaders defines the minimum scale limit.
-	MinActiveReaders = 25
+	MinActiveReaders = 50
 	// MaxActiveReaders defines the upper safety limit.
-	MaxActiveReaders = 120 // should be 300 ... I just want to reduce my system load for the moment
+	MaxActiveReaders = 300
 
 	// LibrarianCount defines the number of librarian staff (Acquisitions and Maintenance roles).
 	LibrarianCount = 4
@@ -41,17 +41,21 @@ const (
 	ChanceReturnAll = 0.99 // Natural behavior: 80% return all, 20% keep 1-2 books -> should be 0.8
 
 	// ChanceBorrowAfterReturn defines the probability to browse/borrow books after returning.
-	ChanceBorrowAfterReturn = 0.2 // Natural behavior: 50% browse after returning books -> should be 0.7?
+	ChanceBorrowAfterReturn = 0.1 // Natural behavior: 50% browse after returning books -> should be 0.7?
+
+	// ChancePreferReadersWithBooks defines the probability to select readers with borrowed books during activation.
+	// This creates a 50/50 balance between encouraging returns and discovering new patterns.
+	ChancePreferReadersWithBooks = 0.95 // should be 0.5 - 50% prefer readers with books, 50% random selection
 
 	// BROWSING AND DISCOVERY PATTERNS ...
 
 	// ChanceBrowseOnline defines the probability that readers browse online catalog first.
-	ChanceBrowseOnline = 0.1
+	ChanceBrowseOnline = 0.05 // should be 0.1
 	// ChanceVisitDirectly defines the probability that readers visit the library directly.
-	ChanceVisitDirectly = 0.4 // should be 0.6
+	ChanceVisitDirectly = 0.2 // should be 0.6
 
 	// OnlineWishlistSize defines the maximum items in online wishlist.
-	OnlineWishlistSize = 3
+	OnlineWishlistSize = 2 // should be 3
 
 	// POPULATION DYNAMICS ...
 
@@ -71,9 +75,13 @@ const (
 	// TargetP50LatencyMs defines the acceptable average response time in milliseconds.
 	TargetP50LatencyMs = 80
 	// TargetP99LatencyMs defines the maximum acceptable latency in milliseconds.
-	TargetP99LatencyMs = 250
+	TargetP99LatencyMs = 800
 	// MaxTimeoutRate defines the timeout threshold as a percentage.
 	MaxTimeoutRate = 0.005 // should be 0.01
+
+	// AnomalyDetectionMultiplier defines the threshold for detecting metrics anomalies.
+	// P99 is considered anomalous if it exceeds P50 * AnomalyDetectionMultiplier.
+	AnomalyDetectionMultiplier = 50.0 // Was 10x, increased to reduce false alarms
 
 	// ScaleUpIncrement defines the number of readers to add when performing well.
 	ScaleUpIncrement = 10

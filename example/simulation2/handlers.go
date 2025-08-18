@@ -47,6 +47,8 @@ type HandlerBundle struct {
 }
 
 // NewHandlerBundle creates all command handlers with optional observability.
+//
+//nolint:funlen
 func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*HandlerBundle, error) {
 	// Get observability config once if enabled.
 	var obsConfig ObservabilityConfig
@@ -191,6 +193,12 @@ func (hb *HandlerBundle) ExecuteAddBook(ctx context.Context, bookID uuid.UUID) e
 	)
 	err := hb.addBookCopyHandler.Handle(timeoutCtx, command)
 	hb.recordMetrics(timeoutCtx, start, err)
+
+	// Update simulation state after successful book addition
+	if err == nil && hb.simulationState != nil {
+		hb.simulationState.AddBook(bookID)
+	}
+
 	return err
 }
 
@@ -203,6 +211,12 @@ func (hb *HandlerBundle) ExecuteRemoveBook(ctx context.Context, bookID uuid.UUID
 	command := removebookcopy.BuildCommand(bookID, time.Now())
 	err := hb.removeBookCopyHandler.Handle(timeoutCtx, command)
 	hb.recordMetrics(timeoutCtx, start, err)
+
+	// Update simulation state after successful book removal
+	if err == nil && hb.simulationState != nil {
+		hb.simulationState.RemoveBook(bookID)
+	}
+
 	return err
 }
 
@@ -219,6 +233,12 @@ func (hb *HandlerBundle) ExecuteRegisterReader(ctx context.Context, readerID uui
 	)
 	err := hb.registerReaderHandler.Handle(timeoutCtx, command)
 	hb.recordMetrics(timeoutCtx, start, err)
+
+	// Update simulation state after successful reader registration
+	if err == nil && hb.simulationState != nil {
+		hb.simulationState.RegisterReader(readerID)
+	}
+
 	return err
 }
 
@@ -231,6 +251,12 @@ func (hb *HandlerBundle) ExecuteCancelReader(ctx context.Context, readerID uuid.
 	command := cancelreadercontract.BuildCommand(readerID, time.Now())
 	err := hb.cancelReaderHandler.Handle(timeoutCtx, command)
 	hb.recordMetrics(timeoutCtx, start, err)
+
+	// Update simulation state after successful reader cancellation
+	if err == nil && hb.simulationState != nil {
+		hb.simulationState.CancelReader(readerID)
+	}
+
 	return err
 }
 
@@ -243,6 +269,12 @@ func (hb *HandlerBundle) ExecuteLendBook(ctx context.Context, bookID, readerID u
 	command := lendbookcopytoreader.BuildCommand(bookID, readerID, time.Now())
 	err := hb.lendBookCopyHandler.Handle(timeoutCtx, command)
 	hb.recordMetrics(timeoutCtx, start, err)
+
+	// Update simulation state after successful lending
+	if err == nil && hb.simulationState != nil {
+		hb.simulationState.LendBook(bookID, readerID)
+	}
+
 	return err
 }
 
@@ -255,6 +287,12 @@ func (hb *HandlerBundle) ExecuteReturnBook(ctx context.Context, bookID, readerID
 	command := returnbookcopyfromreader.BuildCommand(bookID, readerID, time.Now())
 	err := hb.returnBookCopyHandler.Handle(timeoutCtx, command)
 	hb.recordMetrics(timeoutCtx, start, err)
+
+	// Update simulation state after successful return
+	if err == nil && hb.simulationState != nil {
+		hb.simulationState.ReturnBook(bookID, readerID)
+	}
+
 	return err
 }
 

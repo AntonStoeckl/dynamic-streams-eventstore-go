@@ -276,26 +276,22 @@ func NewLibrarianActor(role LibrarianRole) *LibrarianActor {
 	}
 }
 
-// Work performs librarian duties based on their role and current state.
-func (l *LibrarianActor) Work(ctx context.Context, handlers *HandlerBundle) error {
+// Work performs librarian duties based on their role and current state using memory state for fast operations.
+func (l *LibrarianActor) Work(ctx context.Context, handlers *HandlerBundle, state *SimulationState) error {
 	switch l.Role {
 	case Acquisitions:
-		return l.manageBookAdditions(ctx, handlers)
+		return l.manageBookAdditions(ctx, handlers, state)
 	case Maintenance:
-		return l.manageBookRemovals(ctx, handlers)
+		return l.manageBookRemovals(ctx, handlers, state)
 	default:
 		return nil
 	}
 }
 
-// manageBookAdditions adds new books to the collection when needed.
-func (l *LibrarianActor) manageBookAdditions(ctx context.Context, handlers *HandlerBundle) error {
-	// Get the current book count from query handlers
-	booksResult, err := handlers.QueryBooksInCirculation(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to query books in circulation: %w", err)
-	}
-	currentBooks := len(booksResult.Books)
+// manageBookAdditions adds new books to the collection when needed using fast memory state.
+func (l *LibrarianActor) manageBookAdditions(ctx context.Context, handlers *HandlerBundle, state *SimulationState) error {
+	// Get the current book count from memory state (fast operation)
+	currentBooks := state.GetStats().TotalBooks
 
 	if currentBooks < MinBooks {
 		// Urgent: Add books quickly to reach minimum
@@ -310,14 +306,10 @@ func (l *LibrarianActor) manageBookAdditions(ctx context.Context, handlers *Hand
 	return nil
 }
 
-// manageBookRemovals removes old/damaged books when above maximum.
-func (l *LibrarianActor) manageBookRemovals(ctx context.Context, handlers *HandlerBundle) error {
-	// Get the current book count from query handlers
-	booksResult, err := handlers.QueryBooksInCirculation(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to query books in circulation: %w", err)
-	}
-	currentBooks := len(booksResult.Books)
+// manageBookRemovals removes old/damaged books when above maximum using fast memory state.
+func (l *LibrarianActor) manageBookRemovals(ctx context.Context, handlers *HandlerBundle, state *SimulationState) error {
+	// Get the current book count from memory state (fast operation)
+	currentBooks := state.GetStats().TotalBooks
 
 	if currentBooks > MaxBooks {
 		// Need to reduce inventory

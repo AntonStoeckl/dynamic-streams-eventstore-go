@@ -296,9 +296,9 @@ func (lc *LoadController) evaluateAndAdjust() {
 	lc.updateStats(currentActiveReaders)
 
 	// Validate metrics sanity and warn about anomalies
-	if lc.currentP99 > 0 && lc.currentP50 > 0 && lc.currentP99 > 10*lc.currentP50 {
-		log.Printf("⚠️  Metrics anomaly detected: P99=%v is >10x P50=%v (likely outlier)",
-			lc.currentP99, lc.currentP50)
+	if lc.currentP99 > 0 && lc.currentP50 > 0 && lc.currentP99 > AnomalyDetectionMultiplier*lc.currentP50 {
+		log.Printf("⚠️  Metrics anomaly detected: P99=%v is >%.1fx P50=%v (likely outlier)",
+			lc.currentP99, AnomalyDetectionMultiplier, lc.currentP50)
 	}
 
 	// Log performance occasionally
