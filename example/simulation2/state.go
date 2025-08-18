@@ -388,7 +388,7 @@ func (s *SimulationState) RefreshFromEventStore(ctx context.Context, handlers *H
 	if !s.isInitialized {
 		result, err := handlers.QueryBooksInCirculationForState(ctx)
 		if err != nil {
-			log.Printf("⚠️ Initial state load failed (books query): %v", err)
+			log.Printf("⚠️ Initial state load failed (BooksInCirculation query): %v", err)
 			return err // Fail startup if we can't load initial books
 		}
 		booksResult = result
@@ -400,7 +400,7 @@ func (s *SimulationState) RefreshFromEventStore(ctx context.Context, handlers *H
 	if !s.isInitialized {
 		result, err := handlers.QueryRegisteredReadersForState(ctx)
 		if err != nil {
-			log.Printf("⚠️ Initial state load failed (readers query): %v", err)
+			log.Printf("⚠️ Initial state load failed (RegisteredReaders query): %v", err)
 			return err // Fail startup if we can't load initial readers
 		}
 		readersResult = result
@@ -412,7 +412,7 @@ func (s *SimulationState) RefreshFromEventStore(ctx context.Context, handlers *H
 	if !s.isInitialized {
 		result, err := handlers.QueryBooksLentOut(ctx)
 		if err != nil {
-			log.Printf("⚠️ Initial state load failed (lending query): %v", err)
+			log.Printf("⚠️ Initial state load failed (BooksLentOut query): %v", err)
 			return err // Fail startup if we can't load initial lending state
 		}
 		lentBooksResult = result

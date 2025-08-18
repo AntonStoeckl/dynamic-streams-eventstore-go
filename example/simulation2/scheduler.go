@@ -56,7 +56,7 @@ type SchedulerStats struct {
 }
 
 // NewActorScheduler creates a new actor scheduler with initial populations.
-func NewActorScheduler(ctx context.Context, eventStore *postgresengine.EventStore, state *SimulationState, handlers *HandlerBundle) *ActorScheduler {
+func NewActorScheduler(ctx context.Context, eventStore *postgresengine.EventStore, state *SimulationState, handlers *HandlerBundle) (*ActorScheduler, error) {
 	schedulerCtx, cancel := context.WithCancel(ctx)
 
 	scheduler := &ActorScheduler{
@@ -75,29 +75,32 @@ func NewActorScheduler(ctx context.Context, eventStore *postgresengine.EventStor
 	}
 
 	// Initialize actor populations.
-	scheduler.initializeActorPools(schedulerCtx)
+	if err := scheduler.initializeActorPools(schedulerCtx); err != nil {
+		cancel() // Clean up context
+		return nil, fmt.Errorf("failed to initialize actor pools: %w", err)
+	}
 
-	return scheduler
+	return scheduler, nil
 }
 
 // initializeActorPools creates the initial reader and librarian populations.
 //
 //nolint:funlen
-func (as *ActorScheduler) initializeActorPools(ctx context.Context) {
+func (as *ActorScheduler) initializeActorPools(ctx context.Context) error {
 	fmt.Printf("%s %s\n", StatusIcon("working"), Info("Initializing actor pools..."))
 
 	// CRITICAL: Load all state from database FIRST before creating actors
 	log.Printf("📚 Loading complete simulation state from EventStore...")
 	if err := as.state.RefreshFromEventStore(ctx, as.handlers); err != nil {
-		log.Printf("⚠️  Warning: Failed to load simulation state: %v", err)
-	} else {
-		stats := as.state.GetStats()
-		fmt.Printf("%s %s %s %s, %s %s, %s %s\n",
-			Success("✅"), BrightGreen("Complete state loaded:"),
-			Bold(fmt.Sprintf("%d", stats.TotalBooks)), Info("total books"),
-			Bold(fmt.Sprintf("%d", stats.AvailableBooks)), BrightGreen("available"),
-			Bold(fmt.Sprintf("%d", stats.BooksLentOut)), BrightYellow("lent out"))
+		return fmt.Errorf("failed to load initial state from EventStore: %w", err)
 	}
+
+	stats := as.state.GetStats()
+	fmt.Printf("%s %s %s %s, %s %s, %s %s\n",
+		Success("✅"), BrightGreen("Complete state loaded:"),
+		Bold(fmt.Sprintf("%d", stats.TotalBooks)), Info("total books"),
+		Bold(fmt.Sprintf("%d", stats.AvailableBooks)), BrightGreen("available"),
+		Bold(fmt.Sprintf("%d", stats.BooksLentOut)), BrightYellow("lent out"))
 
 	// Create librarians (always active) based on LibrarianCount.
 	librarianRoles := []LibrarianRole{Acquisitions, Maintenance}
@@ -180,6 +183,8 @@ func (as *ActorScheduler) initializeActorPools(ctx context.Context) {
 	as.currentActiveCount = len(as.activeReaders)
 	log.Printf("👥 Actor pools initialized: %d active readers, %d inactive readers, %d librarians",
 		len(as.activeReaders), len(as.inactiveReaders), len(as.librarians))
+
+	return nil
 }
 
 // Start begins the actor scheduling and batch processing.
@@ -446,7 +451,7 @@ func (as *ActorScheduler) verifyLibrarianState() {
 // performLibrarianStateVerification queries the database and compares with memory state.
 func (as *ActorScheduler) performLibrarianStateVerification() {
 	// Use extended timeout for this verification query
-	ctx, cancel := context.WithTimeout(as.ctx, time.Duration(QueryTimeoutSeconds)*time.Second)
+	ctx, cancel := context.WithTimeout(as.ctx, time.Duration(BooksInCirculationQueryTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 
 	// Query actual database state

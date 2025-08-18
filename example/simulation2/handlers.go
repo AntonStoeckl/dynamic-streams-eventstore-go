@@ -178,7 +178,7 @@ func (hb *HandlerBundle) recordMetrics(ctx context.Context, start time.Time, err
 // ExecuteAddBook adds a book to circulation via command handler.
 func (hb *HandlerBundle) ExecuteAddBook(ctx context.Context, bookID uuid.UUID) error {
 	start := time.Now()
-	timeoutCtx, cancel := context.WithTimeout(ctx, CommandTimeoutSeconds*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(CommandTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 
 	command := addbookcopy.BuildCommand(
@@ -205,7 +205,7 @@ func (hb *HandlerBundle) ExecuteAddBook(ctx context.Context, bookID uuid.UUID) e
 // ExecuteRemoveBook removes a book from circulation via command handler.
 func (hb *HandlerBundle) ExecuteRemoveBook(ctx context.Context, bookID uuid.UUID) error {
 	start := time.Now()
-	timeoutCtx, cancel := context.WithTimeout(ctx, CommandTimeoutSeconds*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(CommandTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 
 	command := removebookcopy.BuildCommand(bookID, time.Now())
@@ -223,7 +223,7 @@ func (hb *HandlerBundle) ExecuteRemoveBook(ctx context.Context, bookID uuid.UUID
 // ExecuteRegisterReader registers a new reader via command handler.
 func (hb *HandlerBundle) ExecuteRegisterReader(ctx context.Context, readerID uuid.UUID) error {
 	start := time.Now()
-	timeoutCtx, cancel := context.WithTimeout(ctx, CommandTimeoutSeconds*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(CommandTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 
 	command := registerreader.BuildCommand(
@@ -245,7 +245,7 @@ func (hb *HandlerBundle) ExecuteRegisterReader(ctx context.Context, readerID uui
 // ExecuteCancelReader cancels a reader contract via command handler.
 func (hb *HandlerBundle) ExecuteCancelReader(ctx context.Context, readerID uuid.UUID) error {
 	start := time.Now()
-	timeoutCtx, cancel := context.WithTimeout(ctx, CommandTimeoutSeconds*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(CommandTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 
 	command := cancelreadercontract.BuildCommand(readerID, time.Now())
@@ -263,7 +263,7 @@ func (hb *HandlerBundle) ExecuteCancelReader(ctx context.Context, readerID uuid.
 // ExecuteLendBook lends a book to a reader via command handler.
 func (hb *HandlerBundle) ExecuteLendBook(ctx context.Context, bookID, readerID uuid.UUID) error {
 	start := time.Now()
-	timeoutCtx, cancel := context.WithTimeout(ctx, CommandTimeoutSeconds*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(CommandTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 
 	command := lendbookcopytoreader.BuildCommand(bookID, readerID, time.Now())
@@ -281,7 +281,7 @@ func (hb *HandlerBundle) ExecuteLendBook(ctx context.Context, bookID, readerID u
 // ExecuteReturnBook returns a book from a reader via command handler.
 func (hb *HandlerBundle) ExecuteReturnBook(ctx context.Context, bookID, readerID uuid.UUID) error {
 	start := time.Now()
-	timeoutCtx, cancel := context.WithTimeout(ctx, CommandTimeoutSeconds*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(CommandTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 
 	command := returnbookcopyfromreader.BuildCommand(bookID, readerID, time.Now())
@@ -302,31 +302,43 @@ func (hb *HandlerBundle) ExecuteReturnBook(ctx context.Context, bookID, readerID
 
 // QueryBooksInCirculation returns all books currently in circulation.
 func (hb *HandlerBundle) QueryBooksInCirculation(ctx context.Context) (booksincirculation.BooksInCirculation, error) {
-	timeoutCtx, cancel := context.WithTimeout(ctx, QueryTimeoutSeconds*time.Second)
+	start := time.Now()
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(BooksInCirculationQueryTimeoutSeconds*float64(time.Second)))
 	defer cancel()
-	return hb.booksInCirculationHandler.Handle(timeoutCtx)
+	result, err := hb.booksInCirculationHandler.Handle(timeoutCtx)
+	hb.recordMetrics(timeoutCtx, start, err)
+	return result, err
 }
 
 // QueryBooksLentByReader returns all books currently lent to a specific reader.
 func (hb *HandlerBundle) QueryBooksLentByReader(ctx context.Context, readerID uuid.UUID) (bookslentbyreader.BooksCurrentlyLent, error) {
-	timeoutCtx, cancel := context.WithTimeout(ctx, QueryTimeoutSeconds*time.Second)
+	start := time.Now()
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(BooksLentByReaderQueryTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 	query := bookslentbyreader.Query{ReaderID: readerID}
-	return hb.booksLentByReaderHandler.Handle(timeoutCtx, query)
+	result, err := hb.booksLentByReaderHandler.Handle(timeoutCtx, query)
+	hb.recordMetrics(timeoutCtx, start, err)
+	return result, err
 }
 
 // QueryBooksLentOut returns all books currently lent out.
 func (hb *HandlerBundle) QueryBooksLentOut(ctx context.Context) (bookslentout.BooksLentOut, error) {
-	timeoutCtx, cancel := context.WithTimeout(ctx, QueryTimeoutSeconds*time.Second)
+	start := time.Now()
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(BooksLentOutQueryTimeoutSeconds*float64(time.Second)))
 	defer cancel()
-	return hb.booksLentOutHandler.Handle(timeoutCtx)
+	result, err := hb.booksLentOutHandler.Handle(timeoutCtx)
+	hb.recordMetrics(timeoutCtx, start, err)
+	return result, err
 }
 
 // QueryRegisteredReaders returns all currently registered readers.
 func (hb *HandlerBundle) QueryRegisteredReaders(ctx context.Context) (registeredreaders.RegisteredReaders, error) {
-	timeoutCtx, cancel := context.WithTimeout(ctx, QueryTimeoutSeconds*time.Second)
+	start := time.Now()
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(RegisteredReadersQueryTimeoutSeconds*float64(time.Second)))
 	defer cancel()
-	return hb.registeredReadersHandler.Handle(timeoutCtx)
+	result, err := hb.registeredReadersHandler.Handle(timeoutCtx)
+	hb.recordMetrics(timeoutCtx, start, err)
+	return result, err
 }
 
 // =================================================================
@@ -335,16 +347,22 @@ func (hb *HandlerBundle) QueryRegisteredReaders(ctx context.Context) (registered
 
 // QueryBooksInCirculationForState returns all books for state refresh.
 func (hb *HandlerBundle) QueryBooksInCirculationForState(ctx context.Context) (booksincirculation.BooksInCirculation, error) {
-	timeoutCtx, cancel := context.WithTimeout(ctx, QueryTimeoutSeconds*time.Second)
+	start := time.Now()
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(BooksInCirculationQueryTimeoutSeconds*float64(time.Second)))
 	defer cancel()
-	return hb.booksInCirculationHandler.Handle(timeoutCtx)
+	result, err := hb.booksInCirculationHandler.Handle(timeoutCtx)
+	hb.recordMetrics(timeoutCtx, start, err)
+	return result, err
 }
 
 // QueryRegisteredReadersForState returns all readers for state refresh.
 func (hb *HandlerBundle) QueryRegisteredReadersForState(ctx context.Context) (registeredreaders.RegisteredReaders, error) {
-	timeoutCtx, cancel := context.WithTimeout(ctx, QueryTimeoutSeconds*time.Second)
+	start := time.Now()
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(RegisteredReadersQueryTimeoutSeconds*float64(time.Second)))
 	defer cancel()
-	return hb.registeredReadersHandler.Handle(timeoutCtx)
+	result, err := hb.registeredReadersHandler.Handle(timeoutCtx)
+	hb.recordMetrics(timeoutCtx, start, err)
+	return result, err
 }
 
 // =================================================================

@@ -239,7 +239,10 @@ func initializeSimulationComponents(ctx context.Context, eventStore *postgreseng
 	state := NewSimulationState()
 
 	// Create the actor scheduler with batch processing.
-	scheduler := NewActorScheduler(ctx, eventStore, state, handlers)
+	scheduler, err := NewActorScheduler(ctx, eventStore, state, handlers)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to create actor scheduler: %w", err)
+	}
 
 	// Create load controller for auto-tuning.
 	loadController := NewLoadController(ctx, scheduler, state)
