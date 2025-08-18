@@ -128,11 +128,19 @@ const (
 	// StatusConcurrencyConflict indicates the operation failed due to optimistic concurrency control.
 	StatusConcurrencyConflict = "concurrency_conflict"
 
-	// Component names for timing metrics.
-	ComponentQuery      = "query"
-	ComponentUnmarshal  = "unmarshal"
-	ComponentDecide     = "decide"
-	ComponentAppend     = "append"
+	// ComponentQuery identifies the query phase in timing metrics.
+	ComponentQuery = "query"
+
+	// ComponentUnmarshal identifies the unmarshal phase in timing metrics.
+	ComponentUnmarshal = "unmarshal"
+
+	// ComponentDecide identifies the decide phase in timing metrics.
+	ComponentDecide = "decide"
+
+	// ComponentAppend identifies the append phase in timing metrics.
+	ComponentAppend = "append"
+
+	// ComponentProjection identifies the projection phase in timing metrics.
 	ComponentProjection = "projection"
 
 	// LogMsgCommandStarted is logged when command processing begins.
