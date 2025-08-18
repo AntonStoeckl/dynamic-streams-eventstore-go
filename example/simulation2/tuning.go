@@ -23,7 +23,7 @@ const (
 	// MinActiveReaders defines the minimum scale limit.
 	MinActiveReaders = 50
 	// MaxActiveReaders defines the upper safety limit.
-	MaxActiveReaders = 300
+	MaxActiveReaders = 350
 
 	// LibrarianCount defines the number of librarian staff (Acquisitions and Maintenance roles).
 	LibrarianCount = 4
