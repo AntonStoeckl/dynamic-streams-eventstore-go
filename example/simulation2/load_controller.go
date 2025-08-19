@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sort"
 	"sync"
@@ -86,7 +87,7 @@ func NewLoadController(ctx context.Context, scheduler *ActorScheduler, state *Si
 
 // Start begins the auto-tuning process.
 func (lc *LoadController) Start() error {
-	log.Printf("🧠 Starting load controller auto-tuning...")
+	log.Printf("%s %s", AutoTune("🧠"), AutoTune("Starting load controller auto-tuning..."))
 	log.Printf("🎯 Targets: P50<%dms, P99<%dms, timeouts<%.1f%%",
 		TargetP50LatencyMs, TargetP99LatencyMs, MaxTimeoutRate*100)
 
@@ -254,7 +255,7 @@ func (lc *LoadController) tuningLoop() {
 	ticker := time.NewTicker(time.Duration(TuningIntervalSeconds) * time.Second)
 	defer ticker.Stop()
 
-	log.Printf("🔄 Auto-tuning loop started (adjusts every %ds)", TuningIntervalSeconds)
+	log.Printf("%s %s", AutoTune("🔄"), AutoTune(fmt.Sprintf("Auto-tuning loop started (adjusts every %ds)", TuningIntervalSeconds)))
 
 	for {
 		select {
@@ -306,9 +307,11 @@ func (lc *LoadController) evaluateAndAdjust() {
 		// Get book statistics for comprehensive system overview
 		stateStats := lc.state.GetStats()
 
-		log.Printf("🎯 Performance: P50=%dms, P99=%dms, timeouts=%.1f%%, throughput=%.1f ops/s, active=%d readers | Books: %d total, %d lent out",
-			lc.stats.CurrentP50Ms, lc.stats.CurrentP99Ms, lc.stats.TimeoutRate*100,
-			lc.stats.Throughput, currentActiveReaders, stateStats.TotalBooks, stateStats.BooksLentOut)
+		log.Printf("%s %s",
+			Performance("🎯"),
+			Performance(fmt.Sprintf("Performance: P50=%dms, P99=%dms, timeouts=%.1f%%, throughput=%.1f ops/s, active=%d readers | Books: %d total, %d lent out",
+				lc.stats.CurrentP50Ms, lc.stats.CurrentP99Ms, lc.stats.TimeoutRate*100,
+				lc.stats.Throughput, currentActiveReaders, stateStats.TotalBooks, stateStats.BooksLentOut)))
 	}
 }
 
@@ -442,10 +445,10 @@ func (lc *LoadController) applyAdjustment(adjustment int, reason string, current
 
 		if adjustment > 0 {
 			lc.stats.ScaleUpEvents++
-			log.Printf("📈 AUTO-TUNE: Scaled UP to %d active readers (%s)", newActiveCount, reason)
+			log.Printf("%s %s", AutoTune("📈"), AutoTune(fmt.Sprintf("AUTO-TUNE: Scaled UP to %d active readers (%s)", newActiveCount, reason)))
 		} else {
 			lc.stats.ScaleDownEvents++
-			log.Printf("📉 AUTO-TUNE: Scaled DOWN to %d active readers (%s)", newActiveCount, reason)
+			log.Printf("%s %s", AutoTune("📉"), AutoTune(fmt.Sprintf("AUTO-TUNE: Scaled DOWN to %d active readers (%s)", newActiveCount, reason)))
 		}
 
 		lc.stats.TotalAdjustments++

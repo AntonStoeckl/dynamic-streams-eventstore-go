@@ -189,7 +189,7 @@ func (as *ActorScheduler) initializeActorPools(ctx context.Context) error {
 
 // Start begins the actor scheduling and batch processing.
 func (as *ActorScheduler) Start() error {
-	log.Printf("🚀 Starting actor scheduler...")
+	log.Printf("%s %s", Success("🚀"), Success("Starting actor scheduler..."))
 
 	// Start batch processing goroutines.
 	as.wg.Add(5)
@@ -308,7 +308,7 @@ func (as *ActorScheduler) processActiveReaders() {
 	case <-done:
 		// Normal completion
 	case <-time.After(30 * time.Second):
-		log.Printf("🚨 TIMEOUT: Batch processing exceeded 30s with %d readers - canceling batch", len(activeReaders))
+		log.Printf("%s %s", CriticalError("🚨"), CriticalError(fmt.Sprintf("TIMEOUT: Batch processing exceeded 30s with %d readers - canceling batch", len(activeReaders))))
 		batchCancel() // CRITICAL: Cancel the batch context!
 		// This will cause all operations to fail with context.Canceled
 	}
@@ -457,7 +457,7 @@ func (as *ActorScheduler) performLibrarianStateVerification() {
 	// Query actual database state
 	booksResult, err := as.handlers.QueryBooksInCirculation(ctx)
 	if err != nil {
-		log.Printf("⚠️  Librarian state verification failed: %v", err)
+		log.Printf("%s Librarian state verification failed: %s", SystemError("⚠️"), SystemError(err.Error()))
 		return
 	}
 
@@ -562,7 +562,7 @@ func (as *ActorScheduler) handleReaderCancellation(reader *ReaderActor) {
 
 	// Execute the actual CancelReaderContract command
 	if err := as.handlers.ExecuteCancelReader(as.ctx, reader.ID); err != nil {
-		log.Printf("⚠️  Failed to cancel reader contract %s: %v", reader.ID, err)
+		log.Printf("%s Failed to cancel reader contract %s: %s", BusinessError("⚠️"), reader.ID, BusinessError(err.Error()))
 		return
 	}
 
@@ -587,7 +587,7 @@ func (as *ActorScheduler) cancelExcessReaders(count int) {
 		if len(borrowedBooks) == 0 {
 			// Execute the actual CancelReaderContract command
 			if err := as.handlers.ExecuteCancelReader(as.ctx, reader.ID); err != nil {
-				log.Printf("⚠️  Failed to cancel reader contract %s: %v", reader.ID, err)
+				log.Printf("%s Failed to cancel reader contract %s: %s", BusinessError("⚠️"), reader.ID, BusinessError(err.Error()))
 				continue
 			}
 
@@ -687,8 +687,8 @@ func (as *ActorScheduler) adjustActiveReaderCount(targetCount int) {
 			// Get book statistics for context
 			stateStats := as.state.GetStats()
 
-			log.Printf("📈 Activated %d readers (%d -> %d active)",
-				toActivate, currentCount, as.currentActiveCount)
+			log.Printf("%s %s", AutoTune("📈"), AutoTune(fmt.Sprintf("Activated %d readers (%d -> %d active)",
+				toActivate, currentCount, as.currentActiveCount)))
 			log.Printf("📚 Reader distribution: %d/%d active have books, %d/%d inactive have books | Books: %d total, %d lent out",
 				activeWithBooks, len(as.activeReaders), inactiveWithBooks, len(as.inactiveReaders), stateStats.TotalBooks, stateStats.BooksLentOut)
 		}

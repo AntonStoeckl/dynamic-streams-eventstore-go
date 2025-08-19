@@ -42,7 +42,7 @@ func main() {
 }
 
 func run() error {
-	log.Printf("🎭 Starting Actor-Based Library Simulation v2")
+	log.Printf("%s %s", Success("🎭"), Success("Starting Actor-Based Library Simulation v2"))
 
 	cfg := parseFlags()
 
@@ -51,7 +51,7 @@ func run() error {
 	if adapterType == "" {
 		adapterType = "pgx"
 	}
-	log.Printf("🔧 Using database adapter: %s", adapterType)
+	log.Printf("%s Using database adapter: %s", Info("🔧"), Info(adapterType))
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -130,7 +130,7 @@ func parseFlags() Config {
 
 // initializePGXEventStore creates EventStore using pgx.Pool adapters with observability.
 func initializePGXEventStore(ctx context.Context, cfg Config) (*postgresengine.EventStore, error) {
-	log.Printf("🔧 Initializing PGX adapter with connection pools")
+	log.Printf("%s %s", Info("🔧"), Info("Initializing PGX adapter with connection pools"))
 
 	// Initialize primary connection.
 	pgxPoolPrimary, primaryErr := pgxpool.NewWithConfig(ctx, config.PostgresPGXPoolPrimaryConfig())
