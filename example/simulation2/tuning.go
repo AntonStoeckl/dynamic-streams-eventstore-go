@@ -126,7 +126,7 @@ const (
 	BooksInCirculationQueryTimeoutSeconds = 45.0
 
 	// BooksLentOutQueryTimeoutSeconds defines the timeout for this (relatively slow) query.
-	BooksLentOutQueryTimeoutSeconds = 20.0
+	BooksLentOutQueryTimeoutSeconds = 30.0
 
 	// RegisteredReadersQueryTimeoutSeconds defines the timeout for this (relatively slow) query.
 	RegisteredReadersQueryTimeoutSeconds = 5.0
