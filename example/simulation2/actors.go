@@ -39,7 +39,6 @@ type ReaderActor struct {
 	Lifecycle     ReaderLifecycle
 	Location      ReaderLocation
 	BorrowedBooks []uuid.UUID // Currently borrowed books (max 10).
-	Wishlist      []uuid.UUID // Books discovered during online browsing.
 	LastActivity  time.Time   // When this reader last did something.
 
 	// Persona characteristics (future enhancement).
@@ -53,7 +52,6 @@ func NewReaderActor(persona ReaderPersona) *ReaderActor {
 		Lifecycle:     NotRegistered, // Starts unregistered.
 		Location:      Home,
 		BorrowedBooks: make([]uuid.UUID, 0, MaxBooksPerReader),
-		Wishlist:      make([]uuid.UUID, 0, OnlineWishlistSize),
 		LastActivity:  time.Now(),
 		Persona:       persona,
 	}
@@ -72,35 +70,27 @@ func (r *ReaderActor) ShouldVisitLibrary() bool {
 		return decision < 0.9 // 90% chance if they have books to return.
 	}
 
-	// Secondary: Readers are more likely to visit if they have a wishlist.
-	if len(r.Wishlist) > 0 {
-		return decision < 0.8 // 80% chance if they have books in mind.
-	}
-
-	// Normal visiting pattern for readers with no books and no wishlist.
-	switch {
-	case decision < ChanceBrowseOnline:
-		return true // Will browse online during the visit for a wishlist.
-	case decision < ChanceBrowseOnline+ChanceVisitDirectly:
-		return true // A direct library visit.
-	default:
-		return false // Stay home today.
-	}
+	// Normal visiting pattern for readers without books to return.
+	return decision < ChanceVisitDirectly // Direct library visit to browse books.
 }
 
 // VisitLibrary simulates a complete library visit with natural flow.
-func (r *ReaderActor) VisitLibrary(ctx context.Context, handlers *HandlerBundle) error {
+// Returns the number of operations performed and any error.
+func (r *ReaderActor) VisitLibrary(ctx context.Context, handlers *HandlerBundle) (int, error) {
 	r.Location = Library
 	r.Lifecycle = Active
 	r.LastActivity = time.Now()
 
+	totalOperations := 0
 	hadBooksToReturn := len(r.BorrowedBooks) > 0
 
 	// Phase 1: Return books if any (natural behavior - people return their books)
 	if hadBooksToReturn {
-		if err := r.returnBooks(ctx, handlers); err != nil {
-			return err
+		returnOps, err := r.returnBooks(ctx, handlers)
+		if err != nil {
+			return 0, err
 		}
+		totalOperations += returnOps
 	}
 
 	// Phase 2: Decide whether to browse for new books (natural probabilities)
@@ -109,15 +99,16 @@ func (r *ReaderActor) VisitLibrary(ctx context.Context, handlers *HandlerBundle)
 		// After returning books, many people browse for new ones (natural tendency)
 		shouldBrowse = rand.Float64() < ChanceBorrowAfterReturn //nolint:gosec // Weak random OK for simulation
 	} else {
-		// Readers without books came to browse - normal browsing behavior
-		browseChance := ChanceBrowseOnline + ChanceVisitDirectly // Normal browsing rate
-		shouldBrowse = rand.Float64() < browseChance             //nolint:gosec // Weak random OK for simulation
+		// Readers without books came to browse - they definitely want to browse
+		shouldBrowse = true
 	}
 
 	if shouldBrowse {
-		if err := r.browseAndBorrow(ctx, handlers); err != nil {
-			return err
+		borrowOps, err := r.browseAndBorrow(ctx, handlers)
+		if err != nil {
+			return totalOperations, err
 		}
+		totalOperations += borrowOps
 	}
 
 	// Phase 3: Leave the library
@@ -125,13 +116,14 @@ func (r *ReaderActor) VisitLibrary(ctx context.Context, handlers *HandlerBundle)
 	r.Lifecycle = AtHome
 	r.LastActivity = time.Now()
 
-	return nil
+	return totalOperations, nil
 }
 
 // returnBooks handles returning all or some of the reader's borrowed books.
-func (r *ReaderActor) returnBooks(ctx context.Context, handlers *HandlerBundle) error {
+// Returns the number of operations performed and any error.
+func (r *ReaderActor) returnBooks(ctx context.Context, handlers *HandlerBundle) (int, error) {
 	if len(r.BorrowedBooks) == 0 {
-		return nil
+		return 0, nil
 	}
 
 	// Decide how many books to return (fuzzy realistic behavior)
@@ -146,7 +138,7 @@ func (r *ReaderActor) returnBooks(ctx context.Context, handlers *HandlerBundle) 
 		// Keep 1-2 books, return the rest
 		keepCount := 1 + rand.Intn(2) //nolint:gosec // Weak random OK for simulation - Keep 1 or 2
 		if keepCount >= len(r.BorrowedBooks) {
-			return nil // Keep all books
+			return 0, nil // Keep all books
 		}
 
 		returnCount := len(r.BorrowedBooks) - keepCount
@@ -156,21 +148,24 @@ func (r *ReaderActor) returnBooks(ctx context.Context, handlers *HandlerBundle) 
 	}
 
 	// Execute return commands through command handlers
+	operationCount := 0
 	for _, bookID := range booksToReturn {
 		if err := handlers.ExecuteReturnBook(ctx, bookID, r.ID); err != nil {
-			return fmt.Errorf("failed to return book %s: %w", bookID, err)
+			return operationCount, fmt.Errorf("failed to return book %s: %w", bookID, err)
 		}
+		operationCount++
 	}
 
-	return nil
+	return operationCount, nil
 }
 
 // browseAndBorrow handles book selection and borrowing.
-func (r *ReaderActor) browseAndBorrow(ctx context.Context, handlers *HandlerBundle) error {
+// Returns the number of operations performed and any error.
+func (r *ReaderActor) browseAndBorrow(ctx context.Context, handlers *HandlerBundle) (int, error) {
 	// Don't borrow if the reader has too many books already
 	availableSlots := MaxBooksPerReader - len(r.BorrowedBooks)
 	if availableSlots <= 0 {
-		return nil
+		return 0, nil
 	}
 
 	// Decide how many books to borrow
@@ -182,27 +177,15 @@ func (r *ReaderActor) browseAndBorrow(ctx context.Context, handlers *HandlerBund
 	// Get current available books from the simulation state.
 	state := handlers.GetSimulationState()
 	if state == nil {
-		return nil // No state available, can't borrow books.
+		return 0, nil // No state available, can't borrow books.
 	}
 
 	availableBooks := state.GetAvailableBooks()
 	if len(availableBooks) == 0 {
-		return nil // No books available to borrow.
+		return 0, nil // No books available to borrow.
 	}
 
-	// First, try to get wishlist books if they're still available.
-	for _, bookID := range r.Wishlist {
-		if len(booksToBorrow) >= targetBooks {
-			break
-		}
-
-		// Check if the wishlist book is still available.
-		if state.IsBookAvailable(bookID) {
-			booksToBorrow = append(booksToBorrow, bookID)
-		}
-	}
-
-	// If we need more books, browse the shelves.
+	// Browse the shelves for interesting books.
 	for len(booksToBorrow) < targetBooks && len(availableBooks) > 0 {
 		// Randomly select from available books.
 		randomIndex := rand.Intn(len(availableBooks)) //nolint:gosec // Weak random OK for simulation
@@ -225,20 +208,19 @@ func (r *ReaderActor) browseAndBorrow(ctx context.Context, handlers *HandlerBund
 		availableBooks = append(availableBooks[:randomIndex], availableBooks[randomIndex+1:]...)
 	}
 
-	// Clear the wishlist after attempting to get those books
-	r.Wishlist = r.Wishlist[:0]
-
 	// Execute borrow commands through command handlers
+	operationCount := 0
 	for _, bookID := range booksToBorrow {
 		if err := handlers.ExecuteLendBook(ctx, bookID, r.ID); err != nil {
-			return fmt.Errorf("failed to borrow book %s: %w", bookID, err)
+			return operationCount, fmt.Errorf("failed to borrow book %s: %w", bookID, err)
 		}
+		operationCount++
 
 		// Optimistically add to borrowed books (will be corrected by state updates)
 		r.BorrowedBooks = append(r.BorrowedBooks, bookID)
 	}
 
-	return nil
+	return operationCount, nil
 }
 
 // ShouldCancelContract determines if this reader wants to cancel their library contract.
@@ -275,19 +257,21 @@ func NewLibrarianActor(role LibrarianRole) *LibrarianActor {
 }
 
 // Work performs librarian duties based on their role and current state using memory state for fast operations.
-func (l *LibrarianActor) Work(ctx context.Context, handlers *HandlerBundle, state *SimulationState) error {
+// Returns the number of operations performed and any error.
+func (l *LibrarianActor) Work(ctx context.Context, handlers *HandlerBundle, state *SimulationState) (int, error) {
 	switch l.Role {
 	case Acquisitions:
 		return l.manageBookAdditions(ctx, handlers, state)
 	case Maintenance:
 		return l.manageBookRemovals(ctx, handlers, state)
 	default:
-		return nil
+		return 0, nil
 	}
 }
 
 // manageBookAdditions adds new books to the collection when needed using fast memory state.
-func (l *LibrarianActor) manageBookAdditions(ctx context.Context, handlers *HandlerBundle, state *SimulationState) error {
+// Returns the number of operations performed and any error.
+func (l *LibrarianActor) manageBookAdditions(ctx context.Context, handlers *HandlerBundle, state *SimulationState) (int, error) {
 	// Get the current book count from memory state (fast operation)
 	currentBooks := state.GetStats().TotalBooks
 
@@ -301,11 +285,12 @@ func (l *LibrarianActor) manageBookAdditions(ctx context.Context, handlers *Hand
 		}
 	}
 
-	return nil
+	return 0, nil
 }
 
 // manageBookRemovals removes old/damaged books when above maximum using the fast memory state.
-func (l *LibrarianActor) manageBookRemovals(ctx context.Context, handlers *HandlerBundle, state *SimulationState) error {
+// Returns the number of operations performed and any error.
+func (l *LibrarianActor) manageBookRemovals(ctx context.Context, handlers *HandlerBundle, state *SimulationState) (int, error) {
 	// Get the current book count from memory state (fast operation)
 	currentBooks := state.GetStats().TotalBooks
 
@@ -319,39 +304,44 @@ func (l *LibrarianActor) manageBookRemovals(ctx context.Context, handlers *Handl
 		}
 	}
 
-	return nil
+	return 0, nil
 }
 
 // addBooks adds the specified number of books to the collection.
-func (l *LibrarianActor) addBooks(ctx context.Context, handlers *HandlerBundle, count int) error {
+// Returns the number of operations performed and any error.
+func (l *LibrarianActor) addBooks(ctx context.Context, handlers *HandlerBundle, count int) (int, error) {
+	operationCount := 0
 	for i := 0; i < count; i++ {
 		bookID := uuid.New()
 
 		// Execute the add book command
 		if err := handlers.ExecuteAddBook(ctx, bookID); err != nil {
-			return fmt.Errorf("failed to add book %s: %w", bookID, err)
+			return operationCount, fmt.Errorf("failed to add book %s: %w", bookID, err)
 		}
+		operationCount++
 	}
 
-	return nil
+	return operationCount, nil
 }
 
 // removeBooks removes the specified number of available books.
-func (l *LibrarianActor) removeBooks(ctx context.Context, handlers *HandlerBundle, count int) error {
+// Returns the number of operations performed and any error.
+func (l *LibrarianActor) removeBooks(ctx context.Context, handlers *HandlerBundle, count int) (int, error) {
 	// Get available (not lent) books from the simulation state.
 	state := handlers.GetSimulationState()
 	if state == nil {
-		return fmt.Errorf("no simulation state available for book removal")
+		return 0, fmt.Errorf("no simulation state available for book removal")
 	}
 
 	availableBooks := state.GetAvailableBooks()
 	if len(availableBooks) == 0 {
-		return nil // No available books to remove.
+		return 0, nil // No available books to remove.
 	}
 
 	// Remove up to the requested count but don't exceed available books.
 	actualCount := min(count, len(availableBooks))
 
+	operationCount := 0
 	for i := 0; i < actualCount; i++ {
 		// Select a random available book to remove.
 		randomIndex := rand.Intn(len(availableBooks)) //nolint:gosec // Weak random OK for simulation
@@ -359,12 +349,13 @@ func (l *LibrarianActor) removeBooks(ctx context.Context, handlers *HandlerBundl
 
 		// Execute the remove book command.
 		if err := handlers.ExecuteRemoveBook(ctx, bookID); err != nil {
-			return fmt.Errorf("failed to remove book %s: %w", bookID, err)
+			return operationCount, fmt.Errorf("failed to remove book %s: %w", bookID, err)
 		}
+		operationCount++
 
 		// Remove from the local list to avoid selecting it again.
 		availableBooks = append(availableBooks[:randomIndex], availableBooks[randomIndex+1:]...)
 	}
 
-	return nil
+	return operationCount, nil
 }

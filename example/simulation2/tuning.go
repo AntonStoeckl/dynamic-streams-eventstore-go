@@ -21,7 +21,7 @@ const (
 	// ACTOR POOL CONFIGURATION ...
 
 	// InitialActiveReaders defines the conservative starting point for active readers.
-	InitialActiveReaders = 150
+	InitialActiveReaders = 170
 
 	// MinActiveReaders defines the minimum scale limit.
 	MinActiveReaders = 50
@@ -38,13 +38,13 @@ const (
 	MinBooksPerVisit = 1
 
 	// MaxBooksPerVisit defines the maximum books borrowed per visit.
-	MaxBooksPerVisit = 5
+	MaxBooksPerVisit = 7
 
 	// MaxBooksPerReader defines the business rule limit per reader.
 	MaxBooksPerReader = 10
 
 	// ChanceReturnAll defines the probability that readers return all borrowed books.
-	ChanceReturnAll = 0.8 // Natural behavior: 80% return all, 20% keep 1-2 books
+	ChanceReturnAll = 0.7 // Natural behavior: 70% return all, 30% keep 1-2 books
 
 	// ChanceBorrowAfterReturn defines the probability to browse/borrow books after returning.
 	ChanceBorrowAfterReturn = 0.7 // Natural behavior: 70% browse after returning books
@@ -59,14 +59,8 @@ const (
 
 	// BROWSING AND DISCOVERY PATTERNS ...
 
-	// ChanceBrowseOnline defines the probability that readers browse online catalog first.
-	ChanceBrowseOnline = 0.1
-
 	// ChanceVisitDirectly defines the probability that readers visit the library directly.
 	ChanceVisitDirectly = 0.8
-
-	// OnlineWishlistSize defines the maximum items in online wishlist.
-	OnlineWishlistSize = 3
 
 	// POPULATION DYNAMICS ...
 
@@ -85,10 +79,10 @@ const (
 	// AUTO-TUNING SYSTEM ...
 
 	// TargetP50LatencyMs defines the acceptable average response time in milliseconds.
-	TargetP50LatencyMs = 80
+	TargetP50LatencyMs = 70
 
 	// TargetP99LatencyMs defines the maximum acceptable latency in milliseconds.
-	TargetP99LatencyMs = 800
+	TargetP99LatencyMs = 180
 
 	// MaxTimeoutRate defines the timeout threshold as a percentage.
 	MaxTimeoutRate = 0.005
@@ -109,7 +103,7 @@ const (
 	// BATCH PROCESSING CONFIGURATION ...
 
 	// ActorBatchSize defines the number of actors processed per goroutine to avoid 14k goroutines.
-	ActorBatchSize = 50
+	ActorBatchSize = 25
 
 	// BatchProcessingDelayMs defines the delay between batch processing rounds.
 	BatchProcessingDelayMs = 100
@@ -118,11 +112,11 @@ const (
 
 	// StateRefreshIntervalMs defines how often to refresh a cached state.
 	// Increased to reduce database pressure with 60K books + 15K readers queries.
-	StateRefreshIntervalMs = 2000
+	StateRefreshIntervalMs = 500
 
 	// MetricsWindowSize defines the number of operations for metrics calculation.
-	// Balanced at 500 ops for stable auto-tuning (~15-20s window at 30 ops/s).
-	MetricsWindowSize = 500
+	// Set to 250 to capture a full 30-second batch timeout window for accurate P99 metrics.
+	MetricsWindowSize = 250
 
 	// SIMULATION TIMING ...
 

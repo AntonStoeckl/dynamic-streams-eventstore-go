@@ -42,6 +42,10 @@ type ActorScheduler struct {
 	currentActiveCount int
 	targetActiveCount  int
 
+	// Batch processing control.
+	batchInProgress bool
+	batchMutex      sync.Mutex
+
 	// Statistics.
 	stats SchedulerStats
 }
@@ -59,6 +63,8 @@ type SchedulerStats struct {
 	InactiveReaderCount  int
 	BatchesProcessed     int64
 	LastBatchDuration    time.Duration
+	BatchesSkipped       int64         // Batches skipped due to overlap
+	TotalBatchWaitTime   time.Duration // Time spent waiting between batches
 }
 
 // NewActorScheduler creates a new actor scheduler with initial populations.
@@ -237,12 +243,10 @@ func (as *ActorScheduler) Stop() error {
 // BATCH PROCESSING - Core scheduling logic
 // =================================================================
 
-// processReaderBatches processes active readers in batches to avoid goroutine explosion.
+// processReaderBatches processes active readers sequentially to prevent pile-up.
+// Each batch completes before the next one starts, with adaptive delays.
 func (as *ActorScheduler) processReaderBatches() {
 	defer as.wg.Done()
-
-	ticker := time.NewTicker(time.Duration(BatchProcessingDelayMs) * time.Millisecond)
-	defer ticker.Stop()
 
 	for {
 		select {
@@ -250,8 +254,37 @@ func (as *ActorScheduler) processReaderBatches() {
 			return
 		case <-as.ctx.Done():
 			return
-		case <-ticker.C:
+		default:
+			// Check if a batch is already in progress
+			as.batchMutex.Lock()
+			if as.batchInProgress {
+				// Skip this cycle if batch is still running
+				as.stats.BatchesSkipped++
+				as.batchMutex.Unlock()
+				time.Sleep(50 * time.Millisecond) // Short wait before checking again
+				continue
+			}
+			as.batchInProgress = true
+			as.batchMutex.Unlock()
+
+			// Process the batch and measure timing for adaptive delays
+			batchStart := time.Now()
 			as.processActiveReaders()
+			batchDuration := time.Since(batchStart)
+
+			// Mark batch as completed
+			as.batchMutex.Lock()
+			as.batchInProgress = false
+			as.batchMutex.Unlock()
+
+			// Adaptive delay: If batch completed quickly, wait the remainder
+			minInterval := time.Duration(BatchProcessingDelayMs) * time.Millisecond
+			if batchDuration < minInterval {
+				remainingDelay := minInterval - batchDuration
+				as.stats.TotalBatchWaitTime += remainingDelay
+				time.Sleep(remainingDelay)
+			}
+			// If batch took longer than minimum interval, proceed immediately
 		}
 	}
 }
@@ -341,14 +374,24 @@ func (as *ActorScheduler) processActiveReaders() {
 			for _, d := range allOperationDurations {
 				totalOpTime += d
 			}
-			avgOpTime := totalOpTime / time.Duration(len(allOperationDurations))
+			avgOpTime := time.Duration(int64(totalOpTime) / int64(len(allOperationDurations)))
 
 			throughput := float64(totalOperations) / duration.Seconds()
-			log.Printf("📊 Batch round #%d: %d operations in %v total (avg: %v/op, throughput: %.1f ops/sec), %d active readers | Books: %d total, %d lent out",
-				as.stats.BatchesProcessed, totalOperations, duration, avgOpTime.Round(time.Millisecond), throughput, len(activeReaders), stateStats.TotalBooks, stateStats.BooksLentOut)
+
+			// Add batch coordination info
+			skippedInfo := ""
+			if as.stats.BatchesSkipped > 0 {
+				skippedInfo = fmt.Sprintf(" (skipped: %d)", as.stats.BatchesSkipped)
+			}
+
+			log.Printf("📊 Batch #%d: %d ops in %v (avg: %v/op, %.1f ops/sec), %d readers%s | Books: %d total, %d lent out",
+				as.stats.BatchesProcessed, totalOperations, duration.Round(time.Millisecond),
+				avgOpTime.Round(time.Millisecond), throughput, len(activeReaders), skippedInfo,
+				stateStats.TotalBooks, stateStats.BooksLentOut)
 		} else {
-			log.Printf("📊 Batch round #%d: %d operations in %v total, %d active readers | Books: %d total, %d lent out",
-				as.stats.BatchesProcessed, totalOperations, duration, len(activeReaders), stateStats.TotalBooks, stateStats.BooksLentOut)
+			log.Printf("📊 Batch #%d: %d operations in %v, %d readers | Books: %d total, %d lent out",
+				as.stats.BatchesProcessed, totalOperations, duration.Round(time.Millisecond),
+				len(activeReaders), stateStats.TotalBooks, stateStats.BooksLentOut)
 		}
 	}
 }
@@ -370,7 +413,8 @@ func (as *ActorScheduler) processReaderBatch(ctx context.Context, readers []*Rea
 			operationStart := time.Now()
 
 			// Pass batch context, not as.ctx
-			if err := reader.VisitLibrary(ctx, as.handlers); err != nil {
+			operationCount, err := reader.VisitLibrary(ctx, as.handlers)
+			if err != nil {
 				// Check if it was a timeout or cancellation
 				if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 					log.Printf("⏱️ Reader %s timed out or canceled", reader.ID)
@@ -379,11 +423,16 @@ func (as *ActorScheduler) processReaderBatch(ctx context.Context, readers []*Rea
 				// Log error but continue with other readers.
 				log.Printf("⚠️  Reader %s library visit failed: %v", reader.ID, err)
 			} else {
-				// Record successful operation duration
+				// Record successful operation duration and count actual operations
 				operationDuration := time.Since(operationStart)
-				result.OperationDurations = append(result.OperationDurations, operationDuration)
-				result.OperationCount++
-				as.stats.TotalActorOperations++
+
+				// Add one timing entry for each actual operation performed
+				for i := 0; i < operationCount; i++ {
+					result.OperationDurations = append(result.OperationDurations, operationDuration/time.Duration(operationCount))
+				}
+
+				result.OperationCount += operationCount
+				as.stats.TotalActorOperations += int64(operationCount)
 			}
 		}
 
@@ -444,10 +493,11 @@ func (as *ActorScheduler) processLibrarianWork() {
 			return
 		}
 
-		if err := librarian.Work(as.ctx, as.handlers, as.state); err != nil {
+		operationCount, err := librarian.Work(as.ctx, as.handlers, as.state)
+		if err != nil {
 			log.Printf("⚠️  Librarian %s work failed: %v", librarian.ID, err)
 		}
-		as.stats.TotalActorOperations++
+		as.stats.TotalActorOperations += int64(operationCount)
 	}
 }
 
