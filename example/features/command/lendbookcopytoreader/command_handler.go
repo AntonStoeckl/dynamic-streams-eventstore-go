@@ -72,10 +72,10 @@ func (h CommandHandler) Handle(ctx context.Context, command Command) error {
 		retryOptions = append(
 			retryOptions,
 			shell.WithMetrics(h.metricsCollector, commandType),
-			// only setting the options below to use all options once ;-)
+			// only setting the (default) values below to use all options once ;-)
 			shell.WithMaxAttempts(6),
-			shell.WithBaseDelay(2*time.Millisecond),
-			shell.WithJitterFactor(0.2),
+			shell.WithBaseDelay(10*time.Millisecond),
+			shell.WithJitterFactor(0.3),
 		)
 	}
 
