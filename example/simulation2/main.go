@@ -106,7 +106,7 @@ func run() error {
 	}
 
 	// Graceful shutdown.
-	gracefulShutdown(loadController, scheduler)
+	gracefulShutdown(loadController, scheduler, handlers)
 
 	return nil
 }
@@ -250,6 +250,9 @@ func initializeSimulationComponents(ctx context.Context, eventStore *postgreseng
 	// Connect load controller to handlers for metrics collection.
 	handlers.SetLoadController(loadController)
 
+	// Start async metrics processing now that load controller is connected.
+	handlers.StartAsyncMetrics()
+
 	// Connect simulation state to handlers for actor decisions.
 	handlers.SetSimulationState(state)
 
@@ -257,7 +260,7 @@ func initializeSimulationComponents(ctx context.Context, eventStore *postgreseng
 }
 
 // gracefulShutdown stops simulation components in reverse order.
-func gracefulShutdown(loadController *LoadController, scheduler *ActorScheduler) {
+func gracefulShutdown(loadController *LoadController, scheduler *ActorScheduler, handlers *HandlerBundle) {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 
@@ -267,6 +270,9 @@ func gracefulShutdown(loadController *LoadController, scheduler *ActorScheduler)
 	if err := loadController.Stop(); err != nil {
 		log.Printf("⚠️  Error stopping load controller: %v", err)
 	}
+
+	// Stop async metrics processing.
+	handlers.StopAsyncMetrics()
 
 	if err := scheduler.Stop(); err != nil {
 		log.Printf("⚠️  Error stopping scheduler: %v", err)

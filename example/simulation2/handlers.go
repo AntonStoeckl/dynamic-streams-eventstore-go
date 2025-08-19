@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,6 +23,12 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/bookslentout"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/registeredreaders"
 )
+
+// metricsRecord holds metrics data for async processing.
+type metricsRecord struct {
+	duration time.Duration
+	timedOut bool
+}
 
 // HandlerBundle contains all command and query handlers for the simulation.
 type HandlerBundle struct {
@@ -44,6 +51,12 @@ type HandlerBundle struct {
 
 	// State access for actor decisions.
 	simulationState *SimulationState
+
+	// Async metrics recording.
+	metricsChannel chan metricsRecord
+	metricsWg      sync.WaitGroup
+	metricsCtx     context.Context
+	metricsCancel  context.CancelFunc
 }
 
 // NewHandlerBundle creates all command handlers with optional observability.
@@ -122,7 +135,10 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 		return nil, fmt.Errorf("failed to create RegisteredReaders handler: %w", err)
 	}
 
-	return &HandlerBundle{
+	// Create async metrics infrastructure
+	metricsCtx, metricsCancel := context.WithCancel(context.Background())
+
+	bundle := &HandlerBundle{
 		addBookCopyHandler:        addBookCopyHandler,
 		removeBookCopyHandler:     removeBookCopyHandler,
 		registerReaderHandler:     registerReaderHandler,
@@ -133,12 +149,56 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 		booksLentByReaderHandler:  booksLentByReaderHandler,
 		booksLentOutHandler:       booksLentOutHandler,
 		registeredReadersHandler:  registeredReadersHandler,
-	}, nil
+		metricsChannel:            make(chan metricsRecord, 1000), // Buffered channel for high concurrency
+		metricsCtx:                metricsCtx,
+		metricsCancel:             metricsCancel,
+	}
+
+	return bundle, nil
 }
 
 // SetLoadController sets the load controller for performance monitoring.
 func (hb *HandlerBundle) SetLoadController(lc *LoadController) {
 	hb.loadController = lc
+}
+
+// StartAsyncMetrics starts the background metrics processing goroutine.
+func (hb *HandlerBundle) StartAsyncMetrics() {
+	hb.metricsWg.Add(1)
+	go hb.processMetricsAsync()
+}
+
+// StopAsyncMetrics stops the background metrics processing and waits for completion.
+func (hb *HandlerBundle) StopAsyncMetrics() {
+	hb.metricsCancel()
+	hb.metricsWg.Wait()
+}
+
+// processMetricsAsync processes metrics records in the background without blocking.
+func (hb *HandlerBundle) processMetricsAsync() {
+	defer hb.metricsWg.Done()
+
+	for {
+		select {
+		case record := <-hb.metricsChannel:
+			// Process the metrics record synchronously in the background
+			if hb.loadController != nil {
+				hb.loadController.RecordLatency(record.duration)
+				hb.loadController.RecordTimeout(record.timedOut)
+			}
+
+		case <-hb.metricsCtx.Done():
+			// Process any remaining metrics before shutdown
+			for len(hb.metricsChannel) > 0 {
+				record := <-hb.metricsChannel
+				if hb.loadController != nil {
+					hb.loadController.RecordLatency(record.duration)
+					hb.loadController.RecordTimeout(record.timedOut)
+				}
+			}
+			return
+		}
+	}
 }
 
 // SetSimulationState sets the simulation state for actor decisions.
@@ -152,15 +212,15 @@ func (hb *HandlerBundle) GetSimulationState() *SimulationState {
 }
 
 // recordMetrics records operation metrics for load controller if available.
+// This is now non-blocking and sends metrics to a background processor.
 func (hb *HandlerBundle) recordMetrics(ctx context.Context, start time.Time, err error) {
 	if hb.loadController == nil {
 		return
 	}
 
 	duration := time.Since(start)
-	hb.loadController.RecordLatency(duration)
 
-	// Log timeout/cancellation specifically for debugging
+	// Log timeout/cancellation specifically for debugging (keep this synchronous)
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
 		log.Printf("⏱️ TIMEOUT: Operation exceeded deadline after %v", duration)
@@ -172,7 +232,20 @@ func (hb *HandlerBundle) recordMetrics(ctx context.Context, start time.Time, err
 
 	// Check for timeout error (both context and error parameters).
 	timedOut := ctx.Err() != nil || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
-	hb.loadController.RecordTimeout(timedOut)
+
+	// Send metrics to the background processor (non-blocking)
+	record := metricsRecord{
+		duration: duration,
+		timedOut: timedOut,
+	}
+
+	select {
+	case hb.metricsChannel <- record:
+		// Successfully queued for background processing
+	default:
+		// Channel full - drop metrics rather than block
+		// This prevents backpressure from affecting operation performance
+	}
 }
 
 // ExecuteAddBook adds a book to circulation via command handler.
@@ -194,7 +267,7 @@ func (hb *HandlerBundle) ExecuteAddBook(ctx context.Context, bookID uuid.UUID) e
 	err := hb.addBookCopyHandler.Handle(timeoutCtx, command)
 	hb.recordMetrics(timeoutCtx, start, err)
 
-	// Update simulation state after successful book addition
+	// Update simulation state after a successful book addition
 	if err == nil && hb.simulationState != nil {
 		hb.simulationState.AddBook(bookID)
 	}
@@ -301,43 +374,45 @@ func (hb *HandlerBundle) ExecuteReturnBook(ctx context.Context, bookID, readerID
 // =================================================================
 
 // QueryBooksInCirculation returns all books currently in circulation.
+// Without metrics reporting, as this query is slow.
 func (hb *HandlerBundle) QueryBooksInCirculation(ctx context.Context) (booksincirculation.BooksInCirculation, error) {
-	// start := time.Now() // DISABLED: Not needed when metrics recording disabled
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(BooksInCirculationQueryTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 	result, err := hb.booksInCirculationHandler.Handle(timeoutCtx)
-	// hb.recordMetrics(timeoutCtx, start, err) // DISABLED: Causes concurrency bottleneck with 150+ readers
+
 	return result, err
 }
 
 // QueryBooksLentByReader returns all books currently lent to a specific reader.
+// With metrics reporting, as this query is fast.
 func (hb *HandlerBundle) QueryBooksLentByReader(ctx context.Context, readerID uuid.UUID) (bookslentbyreader.BooksCurrentlyLent, error) {
-	// start := time.Now() // DISABLED: Not needed when metrics recording disabled
+	start := time.Now()
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(BooksLentByReaderQueryTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 	query := bookslentbyreader.Query{ReaderID: readerID}
 	result, err := hb.booksLentByReaderHandler.Handle(timeoutCtx, query)
-	// hb.recordMetrics(timeoutCtx, start, err) // DISABLED: Causes concurrency bottleneck with 150+ readers
+	hb.recordMetrics(timeoutCtx, start, err)
+
 	return result, err
 }
 
 // QueryBooksLentOut returns all books currently lent out.
+// Without metrics reporting, as this query is slow.
 func (hb *HandlerBundle) QueryBooksLentOut(ctx context.Context) (bookslentout.BooksLentOut, error) {
-	// start := time.Now() // DISABLED: Not needed when metrics recording disabled
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(BooksLentOutQueryTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 	result, err := hb.booksLentOutHandler.Handle(timeoutCtx)
-	// hb.recordMetrics(timeoutCtx, start, err) // DISABLED: Causes concurrency bottleneck with 150+ readers
+
 	return result, err
 }
 
 // QueryRegisteredReaders returns all currently registered readers.
+// Without metrics reporting, as this query is slow.
 func (hb *HandlerBundle) QueryRegisteredReaders(ctx context.Context) (registeredreaders.RegisteredReaders, error) {
-	// start := time.Now() // DISABLED: Not needed when metrics recording disabled
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(RegisteredReadersQueryTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 	result, err := hb.registeredReadersHandler.Handle(timeoutCtx)
-	// hb.recordMetrics(timeoutCtx, start, err) // DISABLED: Causes concurrency bottleneck with 150+ readers
+
 	return result, err
 }
 

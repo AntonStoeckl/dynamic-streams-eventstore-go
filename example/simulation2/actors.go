@@ -80,7 +80,7 @@ func (r *ReaderActor) ShouldVisitLibrary() bool {
 	// Normal visiting pattern for readers with no books and no wishlist.
 	switch {
 	case decision < ChanceBrowseOnline:
-		// Will browse online during the visit for wishlist.
+		// Will browse online during the visit for a wishlist.
 		return true
 	case decision < ChanceBrowseOnline+ChanceVisitDirectly:
 		return true // A direct library visit.
@@ -180,7 +180,7 @@ func (r *ReaderActor) browseAndBorrow(ctx context.Context, handlers *HandlerBund
 
 	booksToBorrow := make([]uuid.UUID, 0, targetBooks)
 
-	// Get current available books from simulation state.
+	// Get current available books from the simulation state.
 	state := handlers.GetSimulationState()
 	if state == nil {
 		return nil // No state available, can't borrow books.
@@ -222,7 +222,7 @@ func (r *ReaderActor) browseAndBorrow(ctx context.Context, handlers *HandlerBund
 			booksToBorrow = append(booksToBorrow, bookID)
 		}
 
-		// Remove from available list to avoid re-selecting.
+		// Remove from the available list to avoid re-selecting.
 		availableBooks = append(availableBooks[:randomIndex], availableBooks[randomIndex+1:]...)
 	}
 
@@ -305,7 +305,7 @@ func (l *LibrarianActor) manageBookAdditions(ctx context.Context, handlers *Hand
 	return nil
 }
 
-// manageBookRemovals removes old/damaged books when above maximum using fast memory state.
+// manageBookRemovals removes old/damaged books when above maximum using the fast memory state.
 func (l *LibrarianActor) manageBookRemovals(ctx context.Context, handlers *HandlerBundle, state *SimulationState) error {
 	// Get the current book count from memory state (fast operation)
 	currentBooks := state.GetStats().TotalBooks
@@ -339,7 +339,7 @@ func (l *LibrarianActor) addBooks(ctx context.Context, handlers *HandlerBundle, 
 
 // removeBooks removes the specified number of available books.
 func (l *LibrarianActor) removeBooks(ctx context.Context, handlers *HandlerBundle, count int) error {
-	// Get available (not lent) books from simulation state.
+	// Get available (not lent) books from the simulation state.
 	state := handlers.GetSimulationState()
 	if state == nil {
 		return fmt.Errorf("no simulation state available for book removal")
@@ -350,7 +350,7 @@ func (l *LibrarianActor) removeBooks(ctx context.Context, handlers *HandlerBundl
 		return nil // No available books to remove.
 	}
 
-	// Remove up to the requested count, but don't exceed available books.
+	// Remove up to the requested count but don't exceed available books.
 	actualCount := min(count, len(availableBooks))
 
 	for i := 0; i < actualCount; i++ {
@@ -363,7 +363,7 @@ func (l *LibrarianActor) removeBooks(ctx context.Context, handlers *HandlerBundl
 			return fmt.Errorf("failed to remove book %s: %w", bookID, err)
 		}
 
-		// Remove from local list to avoid selecting it again.
+		// Remove from the local list to avoid selecting it again.
 		availableBooks = append(availableBooks[:randomIndex], availableBooks[randomIndex+1:]...)
 	}
 
