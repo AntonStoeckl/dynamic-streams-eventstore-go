@@ -302,42 +302,42 @@ func (hb *HandlerBundle) ExecuteReturnBook(ctx context.Context, bookID, readerID
 
 // QueryBooksInCirculation returns all books currently in circulation.
 func (hb *HandlerBundle) QueryBooksInCirculation(ctx context.Context) (booksincirculation.BooksInCirculation, error) {
-	start := time.Now()
+	// start := time.Now() // DISABLED: Not needed when metrics recording disabled
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(BooksInCirculationQueryTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 	result, err := hb.booksInCirculationHandler.Handle(timeoutCtx)
-	hb.recordMetrics(timeoutCtx, start, err)
+	// hb.recordMetrics(timeoutCtx, start, err) // DISABLED: Causes concurrency bottleneck with 150+ readers
 	return result, err
 }
 
 // QueryBooksLentByReader returns all books currently lent to a specific reader.
 func (hb *HandlerBundle) QueryBooksLentByReader(ctx context.Context, readerID uuid.UUID) (bookslentbyreader.BooksCurrentlyLent, error) {
-	start := time.Now()
+	// start := time.Now() // DISABLED: Not needed when metrics recording disabled
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(BooksLentByReaderQueryTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 	query := bookslentbyreader.Query{ReaderID: readerID}
 	result, err := hb.booksLentByReaderHandler.Handle(timeoutCtx, query)
-	hb.recordMetrics(timeoutCtx, start, err)
+	// hb.recordMetrics(timeoutCtx, start, err) // DISABLED: Causes concurrency bottleneck with 150+ readers
 	return result, err
 }
 
 // QueryBooksLentOut returns all books currently lent out.
 func (hb *HandlerBundle) QueryBooksLentOut(ctx context.Context) (bookslentout.BooksLentOut, error) {
-	start := time.Now()
+	// start := time.Now() // DISABLED: Not needed when metrics recording disabled
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(BooksLentOutQueryTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 	result, err := hb.booksLentOutHandler.Handle(timeoutCtx)
-	hb.recordMetrics(timeoutCtx, start, err)
+	// hb.recordMetrics(timeoutCtx, start, err) // DISABLED: Causes concurrency bottleneck with 150+ readers
 	return result, err
 }
 
 // QueryRegisteredReaders returns all currently registered readers.
 func (hb *HandlerBundle) QueryRegisteredReaders(ctx context.Context) (registeredreaders.RegisteredReaders, error) {
-	start := time.Now()
+	// start := time.Now() // DISABLED: Not needed when metrics recording disabled
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(RegisteredReadersQueryTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 	result, err := hb.registeredReadersHandler.Handle(timeoutCtx)
-	hb.recordMetrics(timeoutCtx, start, err)
+	// hb.recordMetrics(timeoutCtx, start, err) // DISABLED: Causes concurrency bottleneck with 150+ readers
 	return result, err
 }
 

@@ -19,7 +19,7 @@ const (
 	// ACTOR POOL CONFIGURATION ...
 
 	// InitialActiveReaders defines the conservative starting point for active readers.
-	InitialActiveReaders = 50
+	InitialActiveReaders = 150
 	// MinActiveReaders defines the minimum scale limit.
 	MinActiveReaders = 30
 	// MaxActiveReaders defines the upper safety limit.
