@@ -299,6 +299,9 @@ func (as *ActorScheduler) processActiveReaders() {
 	batchCtx, batchCancel := context.WithTimeout(as.ctx, 35*time.Second)
 	defer batchCancel()
 
+	// Rotate active readers to ensure all readers get a chance to participate
+	as.rotateActiveReaders()
+
 	as.mu.RLock()
 	activeReaders := make([]*ReaderActor, len(as.activeReaders))
 	copy(activeReaders, as.activeReaders)
@@ -825,6 +828,87 @@ func (as *ActorScheduler) GetStats() SchedulerStats {
 	stats.InactiveReaderCount = len(as.inactiveReaders)
 
 	return stats
+}
+
+// rotateActiveReaders swaps ALL active readers with inactive ones to ensure fair participation.
+// This gives all 14,000 readers a chance to visit the library and return books.
+func (as *ActorScheduler) rotateActiveReaders() {
+	as.mu.Lock()
+	defer as.mu.Unlock()
+
+	targetCount := len(as.activeReaders)
+	if targetCount == 0 || len(as.inactiveReaders) == 0 {
+		return // Nothing to rotate
+	}
+
+	// Move all current active readers back to inactive pool
+	as.inactiveReaders = append(as.inactiveReaders, as.activeReaders...)
+	as.activeReaders = as.activeReaders[:0] // Clear active pool
+
+	// Select new active readers using smart selection (same logic as adjustActiveReaderCount)
+	for i := 0; i < targetCount && len(as.inactiveReaders) > 0; i++ {
+		// Smart reader selection: 50/50 strategy for encouraging returns vs. exploration
+		preferReadersWithBooks := rand.Float32() < ChancePreferReadersWithBooks //nolint:gosec // Weak random OK for simulation
+
+		var selectedReader *ReaderActor
+		var randomIndex int
+
+		if preferReadersWithBooks {
+			// Build list of inactive readers with books
+			readersWithBooks := make([]int, 0, len(as.inactiveReaders))
+			for idx, reader := range as.inactiveReaders {
+				if len(reader.BorrowedBooks) > 0 {
+					readersWithBooks = append(readersWithBooks, idx)
+				}
+			}
+
+			// If we found readers with books, select from them
+			if len(readersWithBooks) > 0 {
+				selectedIdx := readersWithBooks[rand.Intn(len(readersWithBooks))] //nolint:gosec // Weak random OK for simulation
+				randomIndex = selectedIdx
+				selectedReader = as.inactiveReaders[randomIndex]
+			}
+		}
+
+		// Fallback to random selection if no preference or no readers with books
+		if selectedReader == nil {
+			randomIndex = rand.Intn(len(as.inactiveReaders)) //nolint:gosec // Weak random OK for simulation
+			selectedReader = as.inactiveReaders[randomIndex]
+		}
+
+		// Move the selected reader from inactive to active
+		as.inactiveReaders = append(as.inactiveReaders[:randomIndex], as.inactiveReaders[randomIndex+1:]...)
+		as.activeReaders = append(as.activeReaders, selectedReader)
+		selectedReader.Lifecycle = AtHome // Ready to visit.
+
+		// Sync newly activated reader's borrowed books (10% chance for realistic business behavior metrics)
+		if rand.Float64() < ChanceSyncOnActivation { //nolint:gosec // fine for the simulation
+			if err := as.syncSingleReader(selectedReader); err != nil {
+				log.Printf("⚠️ Failed to sync rotated reader %s: %v", selectedReader.ID, err)
+			}
+		}
+	}
+
+	// Log reader distribution after rotation
+	activeWithBooks := 0
+	inactiveWithBooks := 0
+	for _, reader := range as.activeReaders {
+		if len(reader.BorrowedBooks) > 0 {
+			activeWithBooks++
+		}
+	}
+	for _, reader := range as.inactiveReaders {
+		if len(reader.BorrowedBooks) > 0 {
+			inactiveWithBooks++
+		}
+	}
+
+	// Get book statistics for context
+	stateStats := as.state.GetStats()
+
+	log.Printf("📚 Reader distribution: %d/%d active have books, %d/%d inactive have books | Books: %d total, %d lent out",
+		activeWithBooks, len(as.activeReaders), inactiveWithBooks, len(as.inactiveReaders),
+		stateStats.TotalBooks, stateStats.BooksLentOut)
 }
 
 // =================================================================
