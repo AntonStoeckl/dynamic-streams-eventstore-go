@@ -8,11 +8,13 @@ const (
 
 	// MinReaders defines the minimum active borrowers to maintain based on München Stadtbibliothek research.
 	MinReaders = 14000
+
 	// MaxReaders defines the maximum readers before stopping registrations.
 	MaxReaders = 15000
 
 	// MinBooks defines the minimum books in circulation per branch.
 	MinBooks = 60000
+
 	// MaxBooks defines the maximum books before removal.
 	MaxBooks = 65000
 
@@ -20,8 +22,10 @@ const (
 
 	// InitialActiveReaders defines the conservative starting point for active readers.
 	InitialActiveReaders = 150
+
 	// MinActiveReaders defines the minimum scale limit.
 	MinActiveReaders = 50
+
 	// MaxActiveReaders defines the upper safety limit.
 	MaxActiveReaders = 600
 
@@ -32,8 +36,10 @@ const (
 
 	// MinBooksPerVisit defines the minimum books borrowed per visit.
 	MinBooksPerVisit = 1
+
 	// MaxBooksPerVisit defines the maximum books borrowed per visit.
 	MaxBooksPerVisit = 5
+
 	// MaxBooksPerReader defines the business rule limit per reader.
 	MaxBooksPerReader = 10
 
@@ -55,6 +61,7 @@ const (
 
 	// ChanceBrowseOnline defines the probability that readers browse online catalog first.
 	ChanceBrowseOnline = 0.1
+
 	// ChanceVisitDirectly defines the probability that readers visit the library directly.
 	ChanceVisitDirectly = 0.8
 
@@ -68,6 +75,7 @@ const (
 
 	// BookAdditionBatchSize defines the number of books added when below the minimum.
 	BookAdditionBatchSize = 10
+
 	// BookRemovalBatchSize defines the number of books removed when above the maximum.
 	BookRemovalBatchSize = 5
 
@@ -78,8 +86,10 @@ const (
 
 	// TargetP50LatencyMs defines the acceptable average response time in milliseconds.
 	TargetP50LatencyMs = 80
+
 	// TargetP99LatencyMs defines the maximum acceptable latency in milliseconds.
 	TargetP99LatencyMs = 800
+
 	// MaxTimeoutRate defines the timeout threshold as a percentage.
 	MaxTimeoutRate = 0.005
 
@@ -89,6 +99,7 @@ const (
 
 	// ScaleUpIncrement defines the number of readers to add when performing well.
 	ScaleUpIncrement = 10
+
 	// ScaleDownIncrement defines the number of readers to remove when overloaded.
 	ScaleDownIncrement = 20
 
@@ -99,6 +110,7 @@ const (
 
 	// ActorBatchSize defines the number of actors processed per goroutine to avoid 14k goroutines.
 	ActorBatchSize = 50
+
 	// BatchProcessingDelayMs defines the delay between batch processing rounds.
 	BatchProcessingDelayMs = 100
 
@@ -107,6 +119,7 @@ const (
 	// StateRefreshIntervalMs defines how often to refresh a cached state.
 	// Increased to reduce database pressure with 60K books + 15K readers queries.
 	StateRefreshIntervalMs = 2000
+
 	// MetricsWindowSize defines the number of operations for metrics calculation.
 	// Balanced at 500 ops for stable auto-tuning (~15-20s window at 30 ops/s).
 	MetricsWindowSize = 500
