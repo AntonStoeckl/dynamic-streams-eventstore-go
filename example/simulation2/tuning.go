@@ -120,7 +120,7 @@ const (
 
 	// CommandTimeoutSeconds defines timeout for command operations (ExecuteLendBook, ExecuteReturnBook, etc.)
 	// These are fast, transactional operations that should complete quickly.
-	CommandTimeoutSeconds = 2.0
+	CommandTimeoutSeconds = 5.0
 
 	// BooksInCirculationQueryTimeoutSeconds defines the timeout for this (relatively slow) query.
 	BooksInCirculationQueryTimeoutSeconds = 45.0
@@ -132,7 +132,7 @@ const (
 	RegisteredReadersQueryTimeoutSeconds = 5.0
 
 	// BooksLentByReaderQueryTimeoutSeconds defines the timeout for this (fast) query.
-	BooksLentByReaderQueryTimeoutSeconds = 0.2 // 200 ms
+	BooksLentByReaderQueryTimeoutSeconds = 0.5 // 500 ms
 
 	// V1 SIMPLIFICATIONS - Advanced behavior patterns (not implemented in v1)!
 
