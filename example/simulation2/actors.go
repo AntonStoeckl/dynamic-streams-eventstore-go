@@ -80,8 +80,7 @@ func (r *ReaderActor) ShouldVisitLibrary() bool {
 	// Normal visiting pattern for readers with no books and no wishlist.
 	switch {
 	case decision < ChanceBrowseOnline:
-		// Will browse online during the visit for a wishlist.
-		return true
+		return true // Will browse online during the visit for a wishlist.
 	case decision < ChanceBrowseOnline+ChanceVisitDirectly:
 		return true // A direct library visit.
 	default:
