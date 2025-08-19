@@ -19,11 +19,11 @@ const (
 	// ACTOR POOL CONFIGURATION ...
 
 	// InitialActiveReaders defines the conservative starting point for active readers.
-	InitialActiveReaders = 50
+	InitialActiveReaders = 150
 	// MinActiveReaders defines the minimum scale limit.
-	MinActiveReaders = 30
+	MinActiveReaders = 50
 	// MaxActiveReaders defines the upper safety limit.
-	MaxActiveReaders = 500
+	MaxActiveReaders = 600
 
 	// LibrarianCount defines the number of librarian staff (Acquisitions and Maintenance roles).
 	LibrarianCount = 4
@@ -33,19 +33,19 @@ const (
 	// MinBooksPerVisit defines the minimum books borrowed per visit.
 	MinBooksPerVisit = 1
 	// MaxBooksPerVisit defines the maximum books borrowed per visit.
-	MaxBooksPerVisit = 2 // should be 5
+	MaxBooksPerVisit = 5
 	// MaxBooksPerReader defines the business rule limit per reader.
-	MaxBooksPerReader = 5 // should be 10
+	MaxBooksPerReader = 10
 
 	// ChanceReturnAll defines the probability that readers return all borrowed books.
-	ChanceReturnAll = 0.99 // Natural behavior: 80% return all, 20% keep 1-2 books -> should be 0.8
+	ChanceReturnAll = 0.8 // Natural behavior: 80% return all, 20% keep 1-2 books
 
 	// ChanceBorrowAfterReturn defines the probability to browse/borrow books after returning.
-	ChanceBorrowAfterReturn = 0.1 // Natural behavior: 50% browse after returning books -> should be 0.7?
+	ChanceBorrowAfterReturn = 0.7 // Natural behavior: 70% browse after returning books
 
 	// ChancePreferReadersWithBooks defines the probability to select readers with borrowed books during activation.
 	// This creates a 50/50 balance between encouraging returns and discovering new patterns.
-	ChancePreferReadersWithBooks = 0.95 // should be 0.5 - 50% prefer readers with books, 50% random selection
+	ChancePreferReadersWithBooks = 0.5 // 50% prefer readers with books, 50% random selection
 
 	// ChanceSyncOnActivation defines the probability to sync reader books when newly activated.
 	// This provides realistic business behavior metrics without affecting the simulation state.
@@ -54,12 +54,12 @@ const (
 	// BROWSING AND DISCOVERY PATTERNS ...
 
 	// ChanceBrowseOnline defines the probability that readers browse online catalog first.
-	ChanceBrowseOnline = 0.05 // should be 0.1
+	ChanceBrowseOnline = 0.1
 	// ChanceVisitDirectly defines the probability that readers visit the library directly.
-	ChanceVisitDirectly = 0.2 // should be 0.6
+	ChanceVisitDirectly = 0.8
 
 	// OnlineWishlistSize defines the maximum items in online wishlist.
-	OnlineWishlistSize = 2 // should be 3
+	OnlineWishlistSize = 3
 
 	// POPULATION DYNAMICS ...
 
@@ -123,7 +123,7 @@ const (
 	CommandTimeoutSeconds = 5.0
 
 	// BooksInCirculationQueryTimeoutSeconds defines the timeout for this (relatively slow) query.
-	BooksInCirculationQueryTimeoutSeconds = 45.0
+	BooksInCirculationQueryTimeoutSeconds = 60.0
 
 	// BooksLentOutQueryTimeoutSeconds defines the timeout for this (relatively slow) query.
 	BooksLentOutQueryTimeoutSeconds = 30.0
