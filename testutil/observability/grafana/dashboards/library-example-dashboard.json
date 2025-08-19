@@ -5,7 +5,7 @@
   "timezone": "browser",
   "refresh": "5s",
   "schemaVersion": 27,
-  "version": 8,
+  "version": 19,
   "time": {
     "from": "now-5m",
     "to": "now"
@@ -152,6 +152,152 @@
       }
     },
     {
+      "id": 24,
+      "title": "Command Duration Percentiles (ms)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "sort(histogram_quantile(0.50, sum by (command_type, le) (rate(commandhandler_handle_duration_seconds_bucket{status=\"success\"}[1m])))) * 1000",
+          "legendFormat": "{{command_type}} P50",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "sort(histogram_quantile(0.90, sum by (command_type, le) (rate(commandhandler_handle_duration_seconds_bucket{status=\"success\"}[1m])))) * 1000",
+          "legendFormat": "{{command_type}} P90",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "sort(histogram_quantile(0.95, sum by (command_type, le) (rate(commandhandler_handle_duration_seconds_bucket{status=\"success\"}[1m])))) * 1000",
+          "legendFormat": "{{command_type}} P95",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "sort(histogram_quantile(0.99, sum by (command_type, le) (rate(commandhandler_handle_duration_seconds_bucket{status=\"success\"}[1m])))) * 1000",
+          "legendFormat": "{{command_type}} P99",
+          "refId": "D"
+        }
+      ],
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 0,
+        "y": 11
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "unit": "ms"
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "sortBy": "name",
+          "sortDesc": false,
+          "width": 0,
+          "maxHeight": 200
+        }
+      }
+    },
+    {
+      "id": 25,
+      "title": "Query Duration Percentiles (ms)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PBFA97CFB590B2093"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "sort(histogram_quantile(0.50, sum by (query_type, le) (rate(queryhandler_handle_duration_seconds_bucket{status=\"success\"}[1m])))) * 1000",
+          "legendFormat": "{{query_type}} P50",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "sort(histogram_quantile(0.90, sum by (query_type, le) (rate(queryhandler_handle_duration_seconds_bucket{status=\"success\"}[1m])))) * 1000",
+          "legendFormat": "{{query_type}} P90",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "sort(histogram_quantile(0.95, sum by (query_type, le) (rate(queryhandler_handle_duration_seconds_bucket{status=\"success\"}[1m])))) * 1000",
+          "legendFormat": "{{query_type}} P95",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PBFA97CFB590B2093"
+          },
+          "expr": "sort(histogram_quantile(0.99, sum by (query_type, le) (rate(queryhandler_handle_duration_seconds_bucket{status=\"success\"}[1m])))) * 1000",
+          "legendFormat": "{{query_type}} P99",
+          "refId": "D"
+        }
+      ],
+      "gridPos": {
+        "h": 10,
+        "w": 12,
+        "x": 12,
+        "y": 11
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "min": 0,
+          "unit": "ms"
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "sortBy": "name",
+          "sortDesc": false,
+          "width": 0,
+          "maxHeight": 200
+        }
+      }
+    },
+    {
       "id": 22,
       "title": "Command Component Timing Breakdown",
       "type": "timeseries",
@@ -171,10 +317,10 @@
         }
       ],
       "gridPos": {
-        "h": 6,
+        "h": 10,
         "w": 12,
         "x": 0,
-        "y": 10
+        "y": 21
       },
       "fieldConfig": {
         "defaults": {
@@ -183,6 +329,17 @@
           },
           "min": 1,
           "unit": "µs"
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "sortBy": "name",
+          "sortDesc": false,
+          "width": 0,
+          "maxHeight": 200
         }
       }
     },
@@ -206,10 +363,10 @@
         }
       ],
       "gridPos": {
-        "h": 6,
+        "h": 10,
         "w": 12,
         "x": 12,
-        "y": 10
+        "y": 21
       },
       "fieldConfig": {
         "defaults": {
@@ -218,6 +375,17 @@
           },
           "min": 1,
           "unit": "µs"
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true,
+          "sortBy": "name",
+          "sortDesc": false,
+          "width": 0,
+          "maxHeight": 200
         }
       }
     },
@@ -244,7 +412,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 16
+        "y": 31
       },
       "fieldConfig": {
         "defaults": {
@@ -279,7 +447,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 16
+        "y": 31
       },
       "fieldConfig": {
         "defaults": {
@@ -314,7 +482,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 21
+        "y": 37
       },
       "fieldConfig": {
         "defaults": {
@@ -349,7 +517,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 21
+        "y": 37
       },
       "fieldConfig": {
         "defaults": {
@@ -384,7 +552,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 26
+        "y": 43
       },
       "fieldConfig": {
         "defaults": {
@@ -419,7 +587,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 26
+        "y": 43
       },
       "fieldConfig": {
         "defaults": {
@@ -454,7 +622,7 @@
         "h": 6,
         "w": 12,
         "x": 0,
-        "y": 31
+        "y": 49
       },
       "fieldConfig": {
         "defaults": {
@@ -489,7 +657,7 @@
         "h": 6,
         "w": 12,
         "x": 12,
-        "y": 31
+        "y": 49
       },
       "fieldConfig": {
         "defaults": {
@@ -524,7 +692,7 @@
         "h": 6,
         "w": 8,
         "x": 0,
-        "y": 36
+        "y": 55
       },
       "fieldConfig": {
         "defaults": {
@@ -559,7 +727,7 @@
         "h": 6,
         "w": 8,
         "x": 8,
-        "y": 36
+        "y": 55
       },
       "fieldConfig": {
         "defaults": {
@@ -594,7 +762,7 @@
         "h": 6,
         "w": 8,
         "x": 16,
-        "y": 36
+        "y": 55
       },
       "fieldConfig": {
         "defaults": {

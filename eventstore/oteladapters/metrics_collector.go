@@ -149,10 +149,18 @@ func (m *MetricsCollector) getOrCreateHistogram(name string) metric.Float64Histo
 		return histogram
 	}
 
+	// Custom histogram buckets optimized for both fast commands (1-100ms) and slow queries (up to 60s)
+	// Buckets in seconds: 1ms, 5ms, 10ms, 20ms, 50ms, 100ms, 250ms, 500ms, 1s, 2s, 5s, 10s, 20s, 30s, 45s, 60s, 120s
+	buckets := []float64{
+		0.001, 0.005, 0.010, 0.020, 0.050, 0.100, 0.250, 0.500,
+		1.000, 2.000, 5.000, 10.000, 20.000, 30.000, 45.000, 60.000, 120.000,
+	}
+
 	histogram, err := m.meter.Float64Histogram(
 		name,
 		metric.WithDescription("EventStore operation duration"),
 		metric.WithUnit("s"), // seconds
+		metric.WithExplicitBucketBoundaries(buckets...),
 	)
 	if err != nil {
 		// In production, you might want to log this error
