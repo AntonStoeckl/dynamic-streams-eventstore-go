@@ -308,6 +308,13 @@ func (as *ActorScheduler) processActiveReaders() {
 		return
 	}
 
+	// Get book statistics for start logging
+	stateStats := as.state.GetStats()
+
+	// Log batch start
+	log.Printf("📊 Batch #%d started: %d readers | Books: %d total, %d lent out",
+		as.stats.BatchesProcessed+1, len(activeReaders), stateStats.TotalBooks, stateStats.BooksLentOut)
+
 	totalOperations := 0
 	var allOperationDurations []time.Duration
 
@@ -365,7 +372,11 @@ func (as *ActorScheduler) processActiveReaders() {
 	// Log every batch round for visibility during the normalization phase.
 	{
 		// Get book statistics from internal state
-		stateStats := as.state.GetStats()
+		stateStatsFinish := as.state.GetStats()
+
+		// Check if book statistics changed during batch processing
+		booksChanged := (stateStatsFinish.TotalBooks != stateStats.TotalBooks) ||
+			(stateStatsFinish.BooksLentOut != stateStats.BooksLentOut)
 
 		// Format message based on whether operations occurred
 		if totalOperations > 0 {
@@ -384,14 +395,29 @@ func (as *ActorScheduler) processActiveReaders() {
 				skippedInfo = fmt.Sprintf(" (skipped: %d)", as.stats.BatchesSkipped)
 			}
 
-			log.Printf("📊 Batch #%d: %d ops in %v (avg: %v/op, %.1f ops/sec), %d readers%s | Books: %d total, %d lent out",
-				as.stats.BatchesProcessed, totalOperations, duration.Round(time.Millisecond),
-				avgOpTime.Round(time.Millisecond), throughput, len(activeReaders), skippedInfo,
-				stateStats.TotalBooks, stateStats.BooksLentOut)
+			if booksChanged {
+				log.Printf("📊 Batch #%d finished: %d ops in %v (avg: %v/op, %.1f ops/sec), %d readers%s | Books: %s total, %s lent out",
+					as.stats.BatchesProcessed, totalOperations, duration.Round(time.Millisecond),
+					avgOpTime.Round(time.Millisecond), throughput, len(activeReaders), skippedInfo,
+					BrightYellow(fmt.Sprintf("%d", stateStatsFinish.TotalBooks)),
+					BrightYellow(fmt.Sprintf("%d", stateStatsFinish.BooksLentOut)))
+			} else {
+				log.Printf("📊 Batch #%d finished: %d ops in %v (avg: %v/op, %.1f ops/sec), %d readers%s",
+					as.stats.BatchesProcessed, totalOperations, duration.Round(time.Millisecond),
+					avgOpTime.Round(time.Millisecond), throughput, len(activeReaders), skippedInfo)
+			}
 		} else {
-			log.Printf("📊 Batch #%d: %d operations in %v, %d readers | Books: %d total, %d lent out",
-				as.stats.BatchesProcessed, totalOperations, duration.Round(time.Millisecond),
-				len(activeReaders), stateStats.TotalBooks, stateStats.BooksLentOut)
+			if booksChanged {
+				log.Printf("📊 Batch #%d finished: %d operations in %v, %d readers | Books: %s total, %s lent out",
+					as.stats.BatchesProcessed, totalOperations, duration.Round(time.Millisecond),
+					len(activeReaders),
+					BrightYellow(fmt.Sprintf("%d", stateStatsFinish.TotalBooks)),
+					BrightYellow(fmt.Sprintf("%d", stateStatsFinish.BooksLentOut)))
+			} else {
+				log.Printf("📊 Batch #%d finished: %d operations in %v, %d readers",
+					as.stats.BatchesProcessed, totalOperations, duration.Round(time.Millisecond),
+					len(activeReaders))
+			}
 		}
 	}
 }

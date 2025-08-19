@@ -387,35 +387,57 @@ func (s *SimulationState) RefreshFromEventStore(ctx context.Context, handlers *H
 	// Load books from database on first initialization, skip on subsequent refreshes
 	var booksResult booksincirculation.BooksInCirculation
 	if !s.isInitialized {
+		log.Printf("📚 Querying BooksInCirculation...")
+		startTime := time.Now()
 		result, err := handlers.QueryBooksInCirculation(ctx)
 		if err != nil {
 			log.Printf("⚠️ Initial state load failed (BooksInCirculation query): %v", err)
 			return err // Fail startup if we can't load initial books
 		}
+		elapsed := time.Since(startTime)
+		log.Printf("📚 Querying BooksInCirculation... took %v", elapsed)
 		booksResult = result
+
+		// Check for cancellation between queries
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 	}
 	// Otherwise: Skip expensive BooksInCirculation query - use consistent memory state
 
 	// Load readers from database on first initialization, skip on subsequent refreshes
 	var readersResult registeredreaders.RegisteredReaders
 	if !s.isInitialized {
+		log.Printf("👥 Querying RegisteredReaders...")
+		startTime := time.Now()
 		result, err := handlers.QueryRegisteredReaders(ctx)
 		if err != nil {
 			log.Printf("⚠️ Initial state load failed (RegisteredReaders query): %v", err)
 			return err // Fail startup if we can't load initial readers
 		}
+		elapsed := time.Since(startTime)
+		log.Printf("👥 Querying RegisteredReaders... took %v", elapsed)
 		readersResult = result
+
+		// Check for cancellation between queries
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 	}
 	// Otherwise: Skip expensive RegisteredReaders query - use consistent memory state
 
 	// Load lending relationships on first initialization, skip on subsequent refreshes
 	var lentBooksResult bookslentout.BooksLentOut
 	if !s.isInitialized {
+		log.Printf("📖 Querying BooksLentOut...")
+		startTime := time.Now()
 		result, err := handlers.QueryBooksLentOut(ctx)
 		if err != nil {
 			log.Printf("⚠️ Initial state load failed (BooksLentOut query): %v", err)
 			return err // Fail startup if we can't load initial lending state
 		}
+		elapsed := time.Since(startTime)
+		log.Printf("📖 Querying BooksLentOut... took %v", elapsed)
 		lentBooksResult = result
 	}
 	// Otherwise: Skip expensive BooksLentOut query - use consistent memory state

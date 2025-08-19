@@ -302,17 +302,15 @@ func (lc *LoadController) evaluateAndAdjust() {
 			lc.currentP99, AnomalyDetectionMultiplier, lc.currentP50)
 	}
 
-	// Log performance occasionally
-	if lc.stats.TotalAdjustments%5 == 0 || adjustment != 0 {
-		// Get book statistics for comprehensive system overview
-		stateStats := lc.state.GetStats()
+	// Log performance every evaluation (every 5 seconds)
+	// Get book statistics for comprehensive system overview
+	stateStats := lc.state.GetStats()
 
-		log.Printf("%s %s",
-			Performance("🎯"),
-			Performance(fmt.Sprintf("Performance: P50=%dms, P99=%dms, timeouts=%.1f%%, throughput=%.1f ops/s, active=%d readers | Books: %d total, %d lent out",
-				lc.stats.CurrentP50Ms, lc.stats.CurrentP99Ms, lc.stats.TimeoutRate*100,
-				lc.stats.Throughput, currentActiveReaders, stateStats.TotalBooks, stateStats.BooksLentOut)))
-	}
+	log.Printf("%s %s",
+		Performance("🎯"),
+		Performance(fmt.Sprintf("Performance: P50=%dms, P99=%dms, timeouts=%.1f%%, throughput=%.1f ops/s, active=%d readers | Books: %d total, %d lent out",
+			lc.stats.CurrentP50Ms, lc.stats.CurrentP99Ms, lc.stats.TimeoutRate*100,
+			lc.stats.Throughput, currentActiveReaders, stateStats.TotalBooks, stateStats.BooksLentOut)))
 }
 
 // isPerformanceGood determines if the current performance meets targets.
