@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	defaultMaxAttempts  = 5
+	defaultMaxAttempts  = 6
 	defaultBaseDelay    = 10 * time.Millisecond
 	defaultJitterFactor = 0.3
 )
