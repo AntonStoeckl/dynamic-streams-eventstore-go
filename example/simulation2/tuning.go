@@ -38,20 +38,20 @@ const (
 	MinBooksPerVisit = 1
 
 	// MaxBooksPerVisit defines the maximum books borrowed per visit.
-	MaxBooksPerVisit = 7
+	MaxBooksPerVisit = 5
 
 	// MaxBooksPerReader defines the business rule limit per reader.
 	MaxBooksPerReader = 10
 
 	// ChanceReturnAll defines the probability that readers return all borrowed books.
-	ChanceReturnAll = 0.7 // Natural behavior: 70% return all, 30% keep 1-2 books
+	ChanceReturnAll = 0.8 // Natural behavior: 80% return all, 20% keep 1-2 books
 
 	// ChanceBorrowAfterReturn defines the probability to browse/borrow books after returning.
 	ChanceBorrowAfterReturn = 0.7 // Natural behavior: 70% browse after returning books
 
 	// ChancePreferReadersWithBooks defines the probability to select readers with borrowed books during activation.
 	// This creates a 50/50 balance between encouraging returns and discovering new patterns.
-	ChancePreferReadersWithBooks = 0.5 // 50% prefer readers with books, 50% random selection
+	ChancePreferReadersWithBooks = 0.7 // 70% prefer readers with books, 30% random selection
 
 	// ChanceSyncOnActivation defines the probability to sync reader books when newly activated.
 	// This provides realistic business behavior metrics without affecting the simulation state.
