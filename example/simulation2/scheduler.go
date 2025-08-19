@@ -46,6 +46,12 @@ type ActorScheduler struct {
 	stats SchedulerStats
 }
 
+// BatchResult contains timing information for batch operations.
+type BatchResult struct {
+	OperationCount     int
+	OperationDurations []time.Duration
+}
+
 // SchedulerStats tracks scheduler performance metrics.
 type SchedulerStats struct {
 	TotalActorOperations int64
@@ -270,10 +276,11 @@ func (as *ActorScheduler) processActiveReaders() {
 	}
 
 	totalOperations := 0
+	var allOperationDurations []time.Duration
 
 	// Process readers in batches to control goroutine count.
 	var batchWg sync.WaitGroup
-	var operationsMu sync.Mutex
+	var resultsMu sync.Mutex
 
 	for i := 0; i < len(activeReaders); i += ActorBatchSize {
 		end := min(i+ActorBatchSize, len(activeReaders))
@@ -289,11 +296,12 @@ func (as *ActorScheduler) processActiveReaders() {
 			}()
 
 			// Pass batch context instead of as.ctx
-			batchOps := as.processReaderBatch(ctx, readers)
+			batchResult := as.processReaderBatch(ctx, readers)
 
-			operationsMu.Lock()
-			totalOperations += batchOps
-			operationsMu.Unlock()
+			resultsMu.Lock()
+			totalOperations += batchResult.OperationCount
+			allOperationDurations = append(allOperationDurations, batchResult.OperationDurations...)
+			resultsMu.Unlock()
 		}(batch, batchCtx) // Pass batchCtx here
 	}
 
@@ -328,9 +336,16 @@ func (as *ActorScheduler) processActiveReaders() {
 
 		// Format message based on whether operations occurred
 		if totalOperations > 0 {
-			avgOpTime := fmt.Sprintf("%.0fms", float64(duration.Milliseconds())/float64(totalOperations))
-			log.Printf("📊 Batch round #%d: %d operations in %v total (avg: %s/op with overhead), %d active readers | Books: %d total, %d lent out",
-				as.stats.BatchesProcessed, totalOperations, duration, avgOpTime, len(activeReaders), stateStats.TotalBooks, stateStats.BooksLentOut)
+			// Calculate actual average operation time from individual durations
+			var totalOpTime time.Duration
+			for _, d := range allOperationDurations {
+				totalOpTime += d
+			}
+			avgOpTime := totalOpTime / time.Duration(len(allOperationDurations))
+
+			throughput := float64(totalOperations) / duration.Seconds()
+			log.Printf("📊 Batch round #%d: %d operations in %v total (avg: %v/op, throughput: %.1f ops/sec), %d active readers | Books: %d total, %d lent out",
+				as.stats.BatchesProcessed, totalOperations, duration, avgOpTime.Round(time.Millisecond), throughput, len(activeReaders), stateStats.TotalBooks, stateStats.BooksLentOut)
 		} else {
 			log.Printf("📊 Batch round #%d: %d operations in %v total, %d active readers | Books: %d total, %d lent out",
 				as.stats.BatchesProcessed, totalOperations, duration, len(activeReaders), stateStats.TotalBooks, stateStats.BooksLentOut)
@@ -339,27 +354,35 @@ func (as *ActorScheduler) processActiveReaders() {
 }
 
 // processReaderBatch processes a single batch of readers.
-func (as *ActorScheduler) processReaderBatch(ctx context.Context, readers []*ReaderActor) int {
-	operationsThisBatch := 0
+func (as *ActorScheduler) processReaderBatch(ctx context.Context, readers []*ReaderActor) BatchResult {
+	result := BatchResult{
+		OperationDurations: make([]time.Duration, 0, len(readers)),
+	}
+
 	for _, reader := range readers {
 		if ctx.Err() != nil { // Check batch context, not as.ctx
-			return operationsThisBatch // Context canceled or timeout
+			return result // Context canceled or timeout
 		}
 
 		// Let reader decide if they want to do something.
 		if reader.ShouldVisitLibrary() {
+			// Track individual operation timing
+			operationStart := time.Now()
+
 			// Pass batch context, not as.ctx
 			if err := reader.VisitLibrary(ctx, as.handlers); err != nil {
 				// Check if it was a timeout or cancellation
 				if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 					log.Printf("⏱️ Reader %s timed out or canceled", reader.ID)
-					return operationsThisBatch // Stop processing this batch
+					return result // Stop processing this batch
 				}
 				// Log error but continue with other readers.
 				log.Printf("⚠️  Reader %s library visit failed: %v", reader.ID, err)
 			} else {
-				// Only count successful visits as operations
-				operationsThisBatch++
+				// Record successful operation duration
+				operationDuration := time.Since(operationStart)
+				result.OperationDurations = append(result.OperationDurations, operationDuration)
+				result.OperationCount++
 				as.stats.TotalActorOperations++
 			}
 		}
@@ -370,7 +393,7 @@ func (as *ActorScheduler) processReaderBatch(ctx context.Context, readers []*Rea
 		}
 	}
 
-	return operationsThisBatch
+	return result
 }
 
 // cleanupCanceledReaders removes canceled readers from the active pool.
