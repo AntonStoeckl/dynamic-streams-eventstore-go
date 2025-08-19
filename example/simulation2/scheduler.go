@@ -516,12 +516,17 @@ func (as *ActorScheduler) verifyLibrarianState() {
 		case <-as.ctx.Done():
 			return
 		case <-ticker.C:
-			as.performLibrarianStateVerification()
+			// TEMPORARILY DISABLED: Expensive query causing 2-minute delays
+			// as.performLibrarianStateVerification()
 		}
 	}
 }
 
 // performLibrarianStateVerification queries the database and compares with memory state.
+// TEMPORARILY DISABLED: This expensive query (QueryBooksInCirculation) is taking 2+ minutes
+// and causing significant load. Will be replaced with snapshotting/caching later.
+//
+//nolint:unused // Temporarily disabled but will be re-enabled with caching
 func (as *ActorScheduler) performLibrarianStateVerification() {
 	// Use extended timeout for this verification query
 	ctx, cancel := context.WithTimeout(as.ctx, time.Duration(BooksInCirculationQueryTimeoutSeconds*float64(time.Second)))

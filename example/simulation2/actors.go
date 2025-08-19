@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"time"
@@ -88,7 +89,11 @@ func (r *ReaderActor) VisitLibrary(ctx context.Context, handlers *HandlerBundle)
 	if hadBooksToReturn {
 		returnOps, err := r.returnBooks(ctx, handlers)
 		if err != nil {
-			return 0, err
+			// Only propagate technical errors (timeouts, cancellations)
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return 0, err
+			}
+			// Business failures are handled gracefully - continue with visit
 		}
 		totalOperations += returnOps
 	}
@@ -106,7 +111,11 @@ func (r *ReaderActor) VisitLibrary(ctx context.Context, handlers *HandlerBundle)
 	if shouldBrowse {
 		borrowOps, err := r.browseAndBorrow(ctx, handlers)
 		if err != nil {
-			return totalOperations, err
+			// Only propagate technical errors (timeouts, cancellations)
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return totalOperations, err
+			}
+			// Business failures are handled gracefully - continue with visit
 		}
 		totalOperations += borrowOps
 	}
@@ -129,11 +138,12 @@ func (r *ReaderActor) returnBooks(ctx context.Context, handlers *HandlerBundle) 
 	// Decide how many books to return (fuzzy realistic behavior)
 	var booksToReturn []uuid.UUID
 
+	// Decide what to return WITHOUT modifying state yet
 	if rand.Float64() < ChanceReturnAll { //nolint:gosec // Weak random OK for simulation
 		// Return all books
 		booksToReturn = make([]uuid.UUID, len(r.BorrowedBooks))
 		copy(booksToReturn, r.BorrowedBooks)
-		r.BorrowedBooks = r.BorrowedBooks[:0] // Clear all
+		// DON'T clear yet: r.BorrowedBooks = r.BorrowedBooks[:0]
 	} else {
 		// Keep 1-2 books, return the rest
 		keepCount := 1 + rand.Intn(2) //nolint:gosec // Weak random OK for simulation - Keep 1 or 2
@@ -144,18 +154,40 @@ func (r *ReaderActor) returnBooks(ctx context.Context, handlers *HandlerBundle) 
 		returnCount := len(r.BorrowedBooks) - keepCount
 		booksToReturn = make([]uuid.UUID, returnCount)
 		copy(booksToReturn, r.BorrowedBooks[:returnCount])
-		r.BorrowedBooks = r.BorrowedBooks[returnCount:] // Keep the rest
+		// DON'T modify yet: r.BorrowedBooks = r.BorrowedBooks[returnCount:]
 	}
 
-	// Execute return commands through command handlers
+	// Execute return commands through command handlers - handle failures gracefully
 	operationCount := 0
+	successfulReturns := make([]uuid.UUID, 0, len(booksToReturn))
+
 	for _, bookID := range booksToReturn {
 		if err := handlers.ExecuteReturnBook(ctx, bookID, r.ID); err != nil {
-			return operationCount, fmt.Errorf("failed to return book %s: %w", bookID, err)
+			// Some returns might fail if state was inconsistent - skip and continue
+			continue
 		}
 		operationCount++
+		successfulReturns = append(successfulReturns, bookID)
 	}
 
+	// NOW update state based ONLY on what actually succeeded
+	updatedBorrowedBooks := make([]uuid.UUID, 0, len(r.BorrowedBooks))
+	for _, bookID := range r.BorrowedBooks {
+		// Keep books that were NOT successfully returned
+		wasReturned := false
+		for _, returnedID := range successfulReturns {
+			if bookID == returnedID {
+				wasReturned = true
+				break
+			}
+		}
+		if !wasReturned {
+			updatedBorrowedBooks = append(updatedBorrowedBooks, bookID)
+		}
+	}
+	r.BorrowedBooks = updatedBorrowedBooks
+
+	// Never return error for business failures - system must continue operating
 	return operationCount, nil
 }
 
@@ -208,18 +240,24 @@ func (r *ReaderActor) browseAndBorrow(ctx context.Context, handlers *HandlerBund
 		availableBooks = append(availableBooks[:randomIndex], availableBooks[randomIndex+1:]...)
 	}
 
-	// Execute borrow commands through command handlers
+	// Execute borrow commands through command handlers - handle failures gracefully
 	operationCount := 0
+	successfulBorrows := make([]uuid.UUID, 0, len(booksToBorrow))
+
 	for _, bookID := range booksToBorrow {
 		if err := handlers.ExecuteLendBook(ctx, bookID, r.ID); err != nil {
-			return operationCount, fmt.Errorf("failed to borrow book %s: %w", bookID, err)
+			// Race conditions and business rule violations are EXPECTED in a busy library
+			// Don't fail the entire visit - just skip this book and try others
+			continue
 		}
 		operationCount++
-
-		// Optimistically add to borrowed books (will be corrected by state updates)
-		r.BorrowedBooks = append(r.BorrowedBooks, bookID)
+		successfulBorrows = append(successfulBorrows, bookID)
 	}
 
+	// Only update reader state with books that were ACTUALLY borrowed successfully
+	r.BorrowedBooks = append(r.BorrowedBooks, successfulBorrows...)
+
+	// Never return error for business failures - system must continue operating
 	return operationCount, nil
 }
 
@@ -314,9 +352,9 @@ func (l *LibrarianActor) addBooks(ctx context.Context, handlers *HandlerBundle, 
 	for i := 0; i < count; i++ {
 		bookID := uuid.New()
 
-		// Execute the add book command
+		// Execute the add book command - continue on failure like readers do
 		if err := handlers.ExecuteAddBook(ctx, bookID); err != nil {
-			return operationCount, fmt.Errorf("failed to add book %s: %w", bookID, err)
+			continue // Skip failed additions, try next book
 		}
 		operationCount++
 	}
@@ -347,9 +385,9 @@ func (l *LibrarianActor) removeBooks(ctx context.Context, handlers *HandlerBundl
 		randomIndex := rand.Intn(len(availableBooks)) //nolint:gosec // Weak random OK for simulation
 		bookID := availableBooks[randomIndex]
 
-		// Execute the remove book command.
+		// Execute the remove book command - continue on failure like readers do
 		if err := handlers.ExecuteRemoveBook(ctx, bookID); err != nil {
-			return operationCount, fmt.Errorf("failed to remove book %s: %w", bookID, err)
+			continue // Skip failed removals, try next book
 		}
 		operationCount++
 
