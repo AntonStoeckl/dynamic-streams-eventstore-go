@@ -93,7 +93,7 @@ func (r *ReaderActor) VisitLibrary(ctx context.Context, handlers *HandlerBundle)
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return 0, err
 			}
-			// Business failures are handled gracefully - continue with visit
+			// Business failures are handled gracefully - continue with the visit
 		}
 		totalOperations += returnOps
 	}
@@ -115,7 +115,7 @@ func (r *ReaderActor) VisitLibrary(ctx context.Context, handlers *HandlerBundle)
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 				return totalOperations, err
 			}
-			// Business failures are handled gracefully - continue with visit
+			// Business failures are handled gracefully - continue with the visit
 		}
 		totalOperations += borrowOps
 	}
@@ -163,7 +163,7 @@ func (r *ReaderActor) returnBooks(ctx context.Context, handlers *HandlerBundle) 
 
 	for _, bookID := range booksToReturn {
 		if err := handlers.ExecuteReturnBook(ctx, bookID, r.ID); err != nil {
-			// Some returns might fail if state was inconsistent - skip and continue
+			// Some returns might fail if the state was inconsistent - skip and continue
 			continue
 		}
 		operationCount++
@@ -354,7 +354,7 @@ func (l *LibrarianActor) addBooks(ctx context.Context, handlers *HandlerBundle, 
 
 		// Execute the add book command - continue on failure like readers do
 		if err := handlers.ExecuteAddBook(ctx, bookID); err != nil {
-			continue // Skip failed additions, try next book
+			continue // Skip failed additions, try the next book
 		}
 		operationCount++
 	}
@@ -387,7 +387,7 @@ func (l *LibrarianActor) removeBooks(ctx context.Context, handlers *HandlerBundl
 
 		// Execute the remove book command - continue on failure like readers do
 		if err := handlers.ExecuteRemoveBook(ctx, bookID); err != nil {
-			continue // Skip failed removals, try next book
+			continue // Skip failed removals, try the next book
 		}
 		operationCount++
 

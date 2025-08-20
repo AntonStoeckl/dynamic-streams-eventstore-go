@@ -22,7 +22,6 @@ const (
 	ColorBrightBlue   = "\033[94m"
 	ColorBrightCyan   = "\033[96m"
 	ColorOrange       = "\033[38;5;208m"
-	ColorDarkRed      = "\033[38;5;124m"
 )
 
 // ColorSupported checks if the terminal supports colors.
@@ -65,7 +64,6 @@ func BrightYellow(text string) string { return Colorize(text, ColorBrightYellow)
 func BrightBlue(text string) string   { return Colorize(text, ColorBrightBlue) }
 func BrightCyan(text string) string   { return Colorize(text, ColorBrightCyan) }
 func Orange(text string) string       { return Colorize(text, ColorOrange) }
-func DarkRed(text string) string      { return Colorize(text, ColorDarkRed) }
 
 func Success(text string) string       { return BrightGreen(text) }
 func Error(text string) string         { return BrightRed(text) }
@@ -74,7 +72,6 @@ func Info(text string) string          { return BrightCyan(text) }
 func Debug(text string) string         { return Gray(text) }
 func BusinessError(text string) string { return Orange(text) }
 func SystemError(text string) string   { return BrightRed(text) }
-func CriticalError(text string) string { return DarkRed(text) }
 func Performance(text string) string   { return BrightBlue(text) }
 func AutoTune(text string) string      { return BrightCyan(text) }
 

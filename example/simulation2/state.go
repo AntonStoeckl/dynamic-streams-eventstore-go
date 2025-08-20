@@ -58,7 +58,7 @@ type SimulationState struct {
 	// Cache refresh tracking.
 	lastRefresh       time.Time
 	refreshInProgress bool
-	isInitialized     bool // Track if initial load from database completed
+	isInitialized     bool // Track if the initial load from the database completed
 
 	// Statistics for monitoring.
 	stats SimulationStats
@@ -129,7 +129,7 @@ func (s *SimulationState) GetRegisteredReaders() []uuid.UUID {
 	return readers
 }
 
-// GetReaderBooksMap returns a copy of the reader to books mapping for actor synchronization.
+// GetReaderBooksMap returns a copy of the reader to the book mapping for actor synchronization.
 func (s *SimulationState) GetReaderBooksMap() map[uuid.UUID][]uuid.UUID {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -314,6 +314,7 @@ func (s *SimulationState) LendBook(bookID, readerID uuid.UUID) bool {
 	// Update stats
 	s.stats.AvailableBooks = len(s.availableBookIDs)
 	s.stats.ActiveLendings = s.totalActiveLendings
+	s.stats.BooksLentOut = s.totalActiveLendings
 
 	return true
 }
@@ -329,7 +330,7 @@ func (s *SimulationState) ReturnBook(bookID, readerID uuid.UUID) bool {
 		return false
 	}
 
-	// Check if the reader has this book
+	// Check if the reader exists
 	reader, readerExists := s.readers[readerID]
 	if !readerExists {
 		return false
@@ -351,24 +352,20 @@ func (s *SimulationState) ReturnBook(bookID, readerID uuid.UUID) bool {
 	// Update stats
 	s.stats.AvailableBooks = len(s.availableBookIDs)
 	s.stats.ActiveLendings = s.totalActiveLendings
+	s.stats.BooksLentOut = s.totalActiveLendings
 	s.stats.CompletedLendings++
 
 	return true
 }
 
 // =================================================================
-// PERIODIC REFRESH - Sync with EventStore truth
+// STATE INIT - Sync with EventStore truth (only at Startup!)
 // =================================================================
 
-// ShouldRefresh is deprecated - unified simulation only loads state at startup
-func (s *SimulationState) ShouldRefresh() bool {
-	return false // Unified simulation doesn't do periodic refresh
-}
-
-// RefreshFromEventStore updates the in-memory state from EventStore truth.
+// InitializeStateFromEventStore updates the in-memory state from EventStore truth.
 //
 //nolint:funlen // Complex state loading logic requires many statements
-func (s *SimulationState) RefreshFromEventStore(ctx context.Context, handlers *HandlerBundle) error {
+func (s *SimulationState) InitializeStateFromEventStore(ctx context.Context, handlers *HandlerBundle) error {
 	s.mu.Lock()
 	s.refreshInProgress = true
 	s.mu.Unlock()
@@ -380,7 +377,7 @@ func (s *SimulationState) RefreshFromEventStore(ctx context.Context, handlers *H
 		s.mu.Unlock()
 	}()
 
-	// Load books from database on first initialization, skip on subsequent refreshes
+	// Load books from the database for initialization
 	var booksResult booksincirculation.BooksInCirculation
 	if !s.isInitialized {
 		log.Printf("📚 Querying BooksInCirculation...")
@@ -388,7 +385,7 @@ func (s *SimulationState) RefreshFromEventStore(ctx context.Context, handlers *H
 		result, err := handlers.QueryBooksInCirculation(ctx)
 		if err != nil {
 			log.Printf("⚠️ Initial state load failed (BooksInCirculation query): %v", err)
-			return err // Fail startup if we can't load initial books
+			return err // Fail to start up if we can't load initial books
 		}
 		elapsed := time.Since(startTime)
 		log.Printf("📚 Querying BooksInCirculation... took %v", elapsed)
@@ -401,7 +398,7 @@ func (s *SimulationState) RefreshFromEventStore(ctx context.Context, handlers *H
 	}
 	// Otherwise: Skip expensive BooksInCirculation query - use consistent memory state
 
-	// Load readers from database on first initialization, skip on subsequent refreshes
+	// Load readers from the database for initialization
 	var readersResult registeredreaders.RegisteredReaders
 	if !s.isInitialized {
 		log.Printf("👥 Querying RegisteredReaders...")
@@ -409,7 +406,7 @@ func (s *SimulationState) RefreshFromEventStore(ctx context.Context, handlers *H
 		result, err := handlers.QueryRegisteredReaders(ctx)
 		if err != nil {
 			log.Printf("⚠️ Initial state load failed (RegisteredReaders query): %v", err)
-			return err // Fail startup if we can't load initial readers
+			return err // Fail to start up if we can't load initial readers
 		}
 		elapsed := time.Since(startTime)
 		log.Printf("👥 Querying RegisteredReaders... took %v", elapsed)
@@ -422,7 +419,7 @@ func (s *SimulationState) RefreshFromEventStore(ctx context.Context, handlers *H
 	}
 	// Otherwise: Skip expensive RegisteredReaders query - use consistent memory state
 
-	// Load lending relationships on first initialization, skip on subsequent refreshes
+	// Load lending relationships for initialization
 	var lentBooksResult bookslentout.BooksLentOut
 	if !s.isInitialized {
 		log.Printf("📖 Querying BooksLentOut...")
@@ -430,7 +427,7 @@ func (s *SimulationState) RefreshFromEventStore(ctx context.Context, handlers *H
 		result, err := handlers.QueryBooksLentOut(ctx)
 		if err != nil {
 			log.Printf("⚠️ Initial state load failed (BooksLentOut query): %v", err)
-			return err // Fail startup if we can't load initial lending state
+			return err // Fail to start up if we can't load the initial lending state
 		}
 		elapsed := time.Since(startTime)
 		log.Printf("📖 Querying BooksLentOut... took %v", elapsed)
@@ -444,7 +441,7 @@ func (s *SimulationState) RefreshFromEventStore(ctx context.Context, handlers *H
 
 	// Clear state based on initialization status
 	if !s.isInitialized {
-		// First time: Load everything from database
+		// First time: Load everything from the database
 		s.books = make(map[uuid.UUID]*BookState)
 		s.availableBookIDs = nil
 		s.rebuildBooksFromQuery(booksResult)
@@ -453,7 +450,7 @@ func (s *SimulationState) RefreshFromEventStore(ctx context.Context, handlers *H
 		s.registeredReaders = nil
 		s.rebuildReadersFromQuery(readersResult)
 
-		// Initialize lending maps and populate from query
+		// Initialize lending maps and populate from the query
 		s.lendingMap = make(map[uuid.UUID]uuid.UUID)
 		s.readerBooksMap = make(map[uuid.UUID][]uuid.UUID)
 		s.totalActiveLendings = 0
@@ -470,10 +467,10 @@ func (s *SimulationState) RefreshFromEventStore(ctx context.Context, handlers *H
 	s.stats.TotalBooks = s.totalBooks
 	s.stats.TotalReaders = s.totalReaders
 	s.stats.AvailableBooks = len(s.availableBookIDs)
-	s.stats.BooksLentOut = s.totalActiveLendings // Use consistent memory state instead of expensive query
+	s.stats.BooksLentOut = s.totalActiveLendings // Use consistent memory state instead of the expensive query
 	s.stats.StateRefreshes++
 
-	// Mark as initialized after first successful load
+	// Mark as initialized after the first successful load
 	if !s.isInitialized {
 		s.isInitialized = true
 	}
@@ -588,7 +585,7 @@ func (s *SimulationState) initializeLendingFromQuery(lentBooksResult bookslentou
 		}
 		s.readerBooksMap[readerID] = append(s.readerBooksMap[readerID], bookID)
 
-		// Update book state if it exists
+		// Update the book state if it exists
 		if book, exists := s.books[bookID]; exists {
 			book.Available = false
 			book.LentTo = readerID
@@ -596,7 +593,7 @@ func (s *SimulationState) initializeLendingFromQuery(lentBooksResult bookslentou
 			s.availableBookIDs = removeFromSlice(s.availableBookIDs, bookID)
 		}
 
-		// Update reader state if it exists
+		// Update the reader state if it exists
 		if reader, exists := s.readers[readerID]; exists {
 			reader.BorrowedBooks = append(reader.BorrowedBooks, bookID)
 		}

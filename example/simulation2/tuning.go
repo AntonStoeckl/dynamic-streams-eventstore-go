@@ -98,8 +98,9 @@ const (
 
 	// BATCH PROCESSING CONFIGURATION ...
 
-	// ActorBatchSize defines the number of actors processed per goroutine to avoid 14k goroutines.
-	ActorBatchSize = 25
+	// DefaultConcurrentWorkers defines the number of worker goroutines processing readers in parallel.
+	// This limits concurrent requests to the EventStore (was ActorBatchSize).
+	DefaultConcurrentWorkers = 3
 
 	// SIMULATION TIMING ...
 

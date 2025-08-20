@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -50,7 +51,7 @@ type UnifiedSimulation struct {
 	stats UnifiedStats
 }
 
-// BatchMetrics contains performance data from a single batch
+// BatchMetrics contains performance data from a single batch.
 type BatchMetrics struct {
 	OperationCount     int
 	OperationLatencies []time.Duration
@@ -59,7 +60,15 @@ type BatchMetrics struct {
 	Timestamp          time.Time
 }
 
-// UnifiedStats tracks overall simulation performance
+// batchResult holds metrics from a concurrent reader group.
+type batchResult struct {
+	operationCount     int
+	operationLatencies []time.Duration
+	timeoutCount       int
+	readersProcessed   int
+}
+
+// UnifiedStats tracks overall simulation performance.
 type UnifiedStats struct {
 	TotalCycles          int64
 	TotalOperations      int64
@@ -73,18 +82,16 @@ type UnifiedStats struct {
 	LastAdjustmentReason string
 }
 
-// NewUnifiedSimulation creates a new unified simulation
+// NewUnifiedSimulation creates a new unified simulation.
 func NewUnifiedSimulation(
 	ctx context.Context,
 	eventStore *postgresengine.EventStore,
 	state *SimulationState,
 	handlers *HandlerBundle,
 ) (*UnifiedSimulation, error) {
-	simCtx, cancel := context.WithCancel(ctx)
-
 	sim := &UnifiedSimulation{
-		ctx:        simCtx,
-		cancel:     cancel,
+		ctx:        ctx,
+		cancel:     func() {}, // Managed by caller
 		eventStore: eventStore,
 		state:      state,
 		handlers:   handlers,
@@ -95,14 +102,13 @@ func NewUnifiedSimulation(
 		librarians:      make([]*LibrarianActor, 0, LibrarianCount),
 
 		recentBatches:            make([]BatchMetrics, 0, 10),
-		maxBatchHistory:          10, // 1 second of history
+		maxBatchHistory:          10,
 		targetActiveCount:        InitialActiveReaders,
 		lastPopulationAdjustment: time.Now(),
 	}
 
 	// Initialize actor pools
 	if err := sim.initializeActorPools(); err != nil {
-		cancel()
 		return nil, fmt.Errorf("failed to initialize actor pools: %w", err)
 	}
 
@@ -117,7 +123,7 @@ func (s *UnifiedSimulation) initializeActorPools() error {
 
 	// Load all state from the database first
 	log.Printf("📚 Loading complete simulation state from EventStore...")
-	if err := s.state.RefreshFromEventStore(s.ctx, s.handlers); err != nil {
+	if err := s.state.InitializeStateFromEventStore(s.ctx, s.handlers); err != nil {
 		return fmt.Errorf("failed to load initial state from EventStore: %w", err)
 	}
 
@@ -190,22 +196,22 @@ func (s *UnifiedSimulation) initializeActorPools() error {
 	return nil
 }
 
-// Start begins the unified simulation loop
-func (s *UnifiedSimulation) Start() error {
+// Start begins the unified simulation loop.
+func (s *UnifiedSimulation) Start(cfg Config) error {
 	log.Printf("%s %s", Success("🚀"), Success("Starting unified simulation..."))
 	log.Printf("🎯 Auto-tune targets: P50<%dms, P99<%dms, timeouts<%.1f%%",
 		TargetP50LatencyMs, TargetP99LatencyMs, MaxTimeoutRate*100)
 
 	// Run the main simulation loop
-	return s.runMainLoop()
+	return s.runMainLoop(cfg)
 }
 
-// Stop gracefully shuts down the simulation
+// Stop gracefully shuts down the simulation.
 func (s *UnifiedSimulation) Stop() error {
 	log.Printf("🛑 Stopping unified simulation...")
 
 	close(s.stopChan)
-	s.cancel()
+	// Note: Caller manages context cancellation
 
 	log.Printf("✅ Unified simulation stopped")
 	return nil
@@ -215,23 +221,25 @@ func (s *UnifiedSimulation) Stop() error {
 // MAIN SIMULATION LOOP - The heart of the simplified architecture
 // =================================================================
 
-// runMainLoop is the single, sequential loop that handles everything
-func (s *UnifiedSimulation) runMainLoop() error {
+// runMainLoop is the single, sequential loop that handles everything.
+func (s *UnifiedSimulation) runMainLoop(cfg Config) error {
 	cycleNum := int64(0)
 	log.Printf("%s %s", AutoTune("🔄"), AutoTune("Main simulation loop started"))
 
 	for {
 		select {
 		case <-s.stopChan:
+			log.Printf("🛑 Simulation received stop signal")
 			return nil
 		case <-s.ctx.Done():
+			log.Printf("🛑 Simulation context canceled - shutting down gracefully")
 			return nil
 		default:
 			cycleStart := time.Now()
 
 			// EVERY batch: Core processing
 			s.rotateActiveReaders()
-			batchMetrics := s.processBatch(cycleNum)
+			batchMetrics := s.processBatch(cfg, cycleNum)
 			s.recordBatchMetrics(batchMetrics)
 
 			// Every batch: Auto-tuning (immediate feedback)
@@ -264,99 +272,27 @@ func (s *UnifiedSimulation) runMainLoop() error {
 // BATCH PROCESSING - Core work in each cycle
 // =================================================================
 
-// processBatch processes all active readers and returns metrics
-func (s *UnifiedSimulation) processBatch(cycleNum int64) BatchMetrics {
+// processBatch processes all active readers using a worker pool pattern.
+func (s *UnifiedSimulation) processBatch(cfg Config, cycleNum int64) BatchMetrics {
 	batchStart := time.Now()
 
 	if len(s.activeReaders) == 0 {
 		return BatchMetrics{Timestamp: batchStart}
 	}
 
-	// Create batch context with timeout
-	batchCtx, batchCancel := context.WithTimeout(s.ctx, BatchTimeoutSeconds*time.Second)
+	// Create batch context with timeout (using helper for metadata)
+	batchCtx, batchCancel := WithBatchTimeout(s.ctx, BatchTimeoutSeconds*time.Second)
 	defer batchCancel()
 
-	// Get book stats for logging
 	log.Printf("📊 Cycle #%d started", cycleNum+1)
 
-	totalOperations := 0
-	var allLatencies []time.Duration
-	timeoutCount := 0
-
-	// Track batch timeout state
-	batchTimedOut := false
-	readersProcessed := 0
-
-	// Process each reader
-	for _, reader := range s.activeReaders {
-		// Check for batch timeout more frequently
-		if batchCtx.Err() != nil {
-			if !batchTimedOut {
-				log.Printf("🚨 BATCH TIMEOUT: Cycle #%d exceeded %ds after processing %d/%d readers",
-					cycleNum+1, int(BatchTimeoutSeconds), readersProcessed, len(s.activeReaders))
-				batchTimedOut = true
-			}
-			timeoutCount++
-			continue
-		}
-
-		if reader.ShouldVisitLibrary() {
-			operationStart := time.Now()
-
-			operationCount, err := reader.VisitLibrary(batchCtx, s.handlers)
-			operationDuration := time.Since(operationStart)
-
-			if err != nil {
-				if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-					timeoutCount++
-					if batchTimedOut {
-						log.Printf("⏱️ Reader %s canceled due to batch timeout", reader.ID)
-					} else {
-						log.Printf("⏱️ Reader %s operation timed out (%v)", reader.ID, operationDuration)
-					}
-				} else {
-					log.Printf("⚠️  Reader %s library visit failed: %v", reader.ID, err)
-				}
-			} else {
-				// Record successful operations
-				for i := 0; i < operationCount; i++ {
-					allLatencies = append(allLatencies, operationDuration/time.Duration(operationCount))
-				}
-				totalOperations += operationCount
-				s.stats.TotalOperations += int64(operationCount)
-			}
-		}
-
-		// Handle contract cancellation (only if no batch timeout)
-		if !batchTimedOut && reader.ShouldCancelContract() {
-			s.handleReaderCancellation(reader)
-		}
-
-		readersProcessed++
-	}
+	// Execute worker pool and collect results
+	totalOperations, allLatencies, timeoutCount, batchTimedOut, numWorkers := s.executeWorkerPool(batchCtx, cfg, cycleNum)
 
 	batchDuration := time.Since(batchStart)
 
-	// Log batch completion with timeout info
-	timeoutInfo := ""
-	if timeoutCount > 0 {
-		timeoutInfo = fmt.Sprintf(", %d timeouts", timeoutCount)
-	}
-	if batchTimedOut {
-		timeoutInfo += " [BATCH TIMED OUT]"
-	}
-
-	if totalOperations > 0 {
-		avgLatency := s.calculateAverage(allLatencies)
-		throughput := float64(totalOperations) / batchDuration.Seconds()
-
-		log.Printf("📊 Cycle #%d finished: %d ops in %v (avg: %v/op, %.1f ops/sec)%s",
-			cycleNum+1, totalOperations, batchDuration.Round(time.Millisecond),
-			avgLatency.Round(time.Millisecond), throughput, timeoutInfo)
-	} else {
-		log.Printf("📊 Cycle #%d finished: %d operations in %v%s",
-			cycleNum+1, totalOperations, batchDuration.Round(time.Millisecond), timeoutInfo)
-	}
+	// Log batch completion
+	s.logBatchCompletion(cycleNum, totalOperations, batchDuration, allLatencies, timeoutCount, batchTimedOut, numWorkers)
 
 	return BatchMetrics{
 		OperationCount:     totalOperations,
@@ -367,11 +303,98 @@ func (s *UnifiedSimulation) processBatch(cycleNum int64) BatchMetrics {
 	}
 }
 
+// executeWorkerPool sets up worker pool, processes readers, and collects results.
+func (s *UnifiedSimulation) executeWorkerPool(batchCtx context.Context, cfg Config, cycleNum int64) (int, []time.Duration, int, bool, int) {
+	// Create channels for work distribution (no locks needed!)
+	numWorkers := cfg.Workers
+
+	if numWorkers > len(s.activeReaders) {
+		numWorkers = len(s.activeReaders)
+	}
+
+	readerChan := make(chan *ReaderActor, len(s.activeReaders))
+	resultChan := make(chan batchResult, numWorkers)
+
+	// Queue all readers
+	for _, reader := range s.activeReaders {
+		readerChan <- reader
+	}
+	close(readerChan) // Signal no more work
+
+	// Start worker goroutines
+	var wg sync.WaitGroup
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go s.processWorker(batchCtx, readerChan, resultChan, cycleNum, &wg)
+	}
+
+	// Close the result channel when all workers are done
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	// Collect results from workers (channel-based, no locks!)
+	totalOperations := 0
+	var allLatencies []time.Duration
+	timeoutCount := 0
+	batchTimedOut := false
+
+	for result := range resultChan {
+		totalOperations += result.operationCount
+		allLatencies = append(allLatencies, result.operationLatencies...)
+		timeoutCount += result.timeoutCount
+		s.stats.TotalOperations += int64(result.operationCount)
+
+		// Check for batch timeout during the result collection
+		if batchCtx.Err() != nil && !batchTimedOut {
+			log.Printf("🚨 BATCH TIMEOUT: Cycle #%d exceeded %ds during result collection",
+				cycleNum+1, int(BatchTimeoutSeconds))
+			batchTimedOut = true
+		}
+	}
+
+	return totalOperations, allLatencies, timeoutCount, batchTimedOut, numWorkers
+}
+
+// logBatchCompletion logs the completion of a batch with performance metrics.
+func (s *UnifiedSimulation) logBatchCompletion(
+	cycleNum int64,
+	totalOperations int,
+	batchDuration time.Duration,
+	allLatencies []time.Duration,
+	timeoutCount int,
+	batchTimedOut bool,
+	numWorkers int,
+) {
+	// Build timeout info string
+	timeoutInfo := ""
+	if timeoutCount > 0 {
+		timeoutInfo = fmt.Sprintf(", %d timeouts", timeoutCount)
+	}
+	if batchTimedOut {
+		timeoutInfo += " [BATCH TIMED OUT]"
+	}
+
+	// Log with the appropriate format based on whether operations occurred
+	if totalOperations > 0 {
+		avgLatency := s.calculateAverage(allLatencies)
+		throughput := float64(totalOperations) / batchDuration.Seconds()
+
+		log.Printf("📊 Cycle #%d finished: %d ops in %v (avg: %v/op, %.1f ops/sec) [%d workers]%s",
+			cycleNum+1, totalOperations, batchDuration.Round(time.Millisecond),
+			avgLatency.Round(time.Millisecond), throughput, numWorkers, timeoutInfo)
+	} else {
+		log.Printf("📊 Cycle #%d finished: %d operations in %v [%d workers]%s",
+			cycleNum+1, totalOperations, batchDuration.Round(time.Millisecond), numWorkers, timeoutInfo)
+	}
+}
+
 // =================================================================
 // AUTO-TUNING LOGIC - Immediate feedback from recent metrics
 // =================================================================
 
-// autoTuneFromRecentMetrics analyzes recent batch metrics and adjusts active reader count
+// autoTuneFromRecentMetrics analyzes recent batch metrics and adjusts the active reader count.
 func (s *UnifiedSimulation) autoTuneFromRecentMetrics() {
 	// Calculate current performance from recent batches
 	p50, p99 := s.calculatePercentilesFromBatches()
@@ -386,7 +409,7 @@ func (s *UnifiedSimulation) autoTuneFromRecentMetrics() {
 	performanceGood := s.isPerformanceGood(p50, p99, timeoutRate)
 	performanceBad := s.isPerformanceBad(p50, p99, timeoutRate)
 
-	// Calculate adjustment
+	// Calculate the adjustment
 	adjustment, reason := s.calculateAdjustment(performanceGood, performanceBad)
 
 	// Apply adjustment if needed
@@ -395,11 +418,11 @@ func (s *UnifiedSimulation) autoTuneFromRecentMetrics() {
 	}
 }
 
-// recordBatchMetrics adds batch metrics to recent history
+// recordBatchMetrics adds batch metrics to the recent history.
 func (s *UnifiedSimulation) recordBatchMetrics(metrics BatchMetrics) {
 	s.recentBatches = append(s.recentBatches, metrics)
 
-	// Maintain sliding window
+	// Maintain the sliding window
 	if len(s.recentBatches) > s.maxBatchHistory {
 		s.recentBatches = s.recentBatches[1:]
 	}
@@ -409,7 +432,7 @@ func (s *UnifiedSimulation) recordBatchMetrics(metrics BatchMetrics) {
 // METRICS CALCULATION - Direct from batch data
 // =================================================================
 
-// calculatePercentilesFromBatches calculates P50 and P99 from recent batch metrics
+// calculatePercentilesFromBatches calculates P50 and P99 from recent batch metrics.
 func (s *UnifiedSimulation) calculatePercentilesFromBatches() (p50, p99 time.Duration) {
 	var allLatencies []time.Duration
 
@@ -440,7 +463,7 @@ func (s *UnifiedSimulation) calculatePercentilesFromBatches() (p50, p99 time.Dur
 	return allLatencies[p50Index], allLatencies[p99Index]
 }
 
-// calculateTimeoutRateFromBatches calculates timeout rate from recent batches
+// calculateTimeoutRateFromBatches calculates the timeout rate from recent batches.
 func (s *UnifiedSimulation) calculateTimeoutRateFromBatches() float64 {
 	totalTimeouts := 0
 	totalAttempts := 0
@@ -457,7 +480,7 @@ func (s *UnifiedSimulation) calculateTimeoutRateFromBatches() float64 {
 	return float64(totalTimeouts) / float64(totalAttempts)
 }
 
-// calculateAverage calculates average duration from slice
+// calculateAverage calculates the average duration from a slice.
 func (s *UnifiedSimulation) calculateAverage(durations []time.Duration) time.Duration {
 	if len(durations) == 0 {
 		return 0
@@ -471,7 +494,7 @@ func (s *UnifiedSimulation) calculateAverage(durations []time.Duration) time.Dur
 	return total / time.Duration(len(durations))
 }
 
-// isPerformanceGood determines if current performance meets targets
+// isPerformanceGood determines if the current performance meets targets.
 func (s *UnifiedSimulation) isPerformanceGood(p50, p99 time.Duration, timeoutRate float64) bool {
 	p50Good := p50 < time.Duration(TargetP50LatencyMs)*time.Millisecond
 	p99Good := p99 < time.Duration(TargetP99LatencyMs)*time.Millisecond
@@ -484,7 +507,7 @@ func (s *UnifiedSimulation) isPerformanceGood(p50, p99 time.Duration, timeoutRat
 // PERFORMANCE EVALUATION - Same logic as before, but simplified
 // =================================================================
 
-// isPerformanceBad determines if current performance is unacceptable
+// isPerformanceBad determines if the current performance is unacceptable.
 func (s *UnifiedSimulation) isPerformanceBad(p50, p99 time.Duration, timeoutRate float64) bool {
 	badFactor := MaxFactorForBadPerformance
 	p99Bad := p99 > time.Duration(TargetP99LatencyMs*badFactor)*time.Millisecond
@@ -494,7 +517,7 @@ func (s *UnifiedSimulation) isPerformanceBad(p50, p99 time.Duration, timeoutRate
 	return p99Bad || p50Bad || timeoutBad
 }
 
-// calculateAdjustment determines adjustment needed based on performance
+// calculateAdjustment determines the adjustment needed based on performance.
 func (s *UnifiedSimulation) calculateAdjustment(performanceGood, performanceBad bool) (adjustment int, reason string) {
 	switch {
 	case performanceGood && !performanceBad:
@@ -526,7 +549,7 @@ func (s *UnifiedSimulation) calculateAdjustment(performanceGood, performanceBad 
 	return adjustment, reason
 }
 
-// applyAdjustment adjusts the active reader count
+// applyAdjustment adjusts the active reader count.
 func (s *UnifiedSimulation) applyAdjustment(adjustment int, reason string) {
 	currentCount := len(s.activeReaders)
 	newCount := max(MinActiveReaders, min(currentCount+adjustment, MaxActiveReaders))
@@ -547,7 +570,7 @@ func (s *UnifiedSimulation) applyAdjustment(adjustment int, reason string) {
 	}
 }
 
-// rotateActiveReaders swaps ALL active readers to ensure fair participation
+// rotateActiveReaders swaps ALL active readers to ensure fair participation.
 func (s *UnifiedSimulation) rotateActiveReaders() {
 	targetCount := len(s.activeReaders)
 	if targetCount == 0 || len(s.inactiveReaders) == 0 {
@@ -560,31 +583,9 @@ func (s *UnifiedSimulation) rotateActiveReaders() {
 
 	// Select new active readers using smart selection
 	for i := 0; i < targetCount && len(s.inactiveReaders) > 0; i++ {
-		preferReadersWithBooks := rand.Float32() < ChancePreferReadersWithBooks //nolint:gosec
-
-		var selectedReader *ReaderActor
-		var randomIndex int
-
-		if preferReadersWithBooks {
-			// Build a list of inactive readers with books
-			readersWithBooks := make([]int, 0, len(s.inactiveReaders))
-			for idx, reader := range s.inactiveReaders {
-				if len(reader.BorrowedBooks) > 0 {
-					readersWithBooks = append(readersWithBooks, idx)
-				}
-			}
-
-			if len(readersWithBooks) > 0 {
-				selectedIdx := readersWithBooks[rand.Intn(len(readersWithBooks))] //nolint:gosec
-				randomIndex = selectedIdx
-				selectedReader = s.inactiveReaders[randomIndex]
-			}
-		}
-
-		// Fallback to random selection
+		selectedReader, randomIndex := s.selectReaderFromInactive()
 		if selectedReader == nil {
-			randomIndex = rand.Intn(len(s.inactiveReaders)) //nolint:gosec
-			selectedReader = s.inactiveReaders[randomIndex]
+			break // No more inactive readers available
 		}
 
 		// Move the reader from inactive to active
@@ -605,7 +606,44 @@ func (s *UnifiedSimulation) rotateActiveReaders() {
 // HELPER METHODS - From original scheduler, simplified
 // =================================================================
 
-// adjustActiveReaderCount changes the number of active readers
+// selectReaderFromInactive selects a reader from the inactive pool using smart selection logic.
+// Returns the selected reader and its index in the inactive readers slice.
+func (s *UnifiedSimulation) selectReaderFromInactive() (*ReaderActor, int) {
+	if len(s.inactiveReaders) == 0 {
+		return nil, -1
+	}
+
+	preferReadersWithBooks := rand.Float32() < ChancePreferReadersWithBooks //nolint:gosec
+
+	var selectedReader *ReaderActor
+	var randomIndex int
+
+	if preferReadersWithBooks {
+		// Build the list of readers with borrowed books
+		readersWithBooks := make([]int, 0, len(s.inactiveReaders))
+		for idx, reader := range s.inactiveReaders {
+			if len(reader.BorrowedBooks) > 0 {
+				readersWithBooks = append(readersWithBooks, idx)
+			}
+		}
+
+		if len(readersWithBooks) > 0 {
+			selectedIdx := readersWithBooks[rand.Intn(len(readersWithBooks))] //nolint:gosec
+			randomIndex = selectedIdx
+			selectedReader = s.inactiveReaders[randomIndex]
+		}
+	}
+
+	// Fallback to random selection if no preference match
+	if selectedReader == nil {
+		randomIndex = rand.Intn(len(s.inactiveReaders)) //nolint:gosec
+		selectedReader = s.inactiveReaders[randomIndex]
+	}
+
+	return selectedReader, randomIndex
+}
+
+// adjustActiveReaderCount changes the number of active readers.
 func (s *UnifiedSimulation) adjustActiveReaderCount(targetCount int) {
 	currentCount := len(s.activeReaders)
 	targetCount = max(MinActiveReaders, min(targetCount, MaxActiveReaders))
@@ -617,30 +655,10 @@ func (s *UnifiedSimulation) adjustActiveReaderCount(targetCount int) {
 		toActivate := min(needed, available)
 
 		for i := 0; i < toActivate && len(s.inactiveReaders) > 0; i++ {
-			// Smart reader selection
-			preferReadersWithBooks := rand.Float32() < ChancePreferReadersWithBooks //nolint:gosec
-
-			var selectedReader *ReaderActor
-			var randomIndex int
-
-			if preferReadersWithBooks {
-				readersWithBooks := make([]int, 0, len(s.inactiveReaders))
-				for idx, reader := range s.inactiveReaders {
-					if len(reader.BorrowedBooks) > 0 {
-						readersWithBooks = append(readersWithBooks, idx)
-					}
-				}
-
-				if len(readersWithBooks) > 0 {
-					selectedIdx := readersWithBooks[rand.Intn(len(readersWithBooks))] //nolint:gosec
-					randomIndex = selectedIdx
-					selectedReader = s.inactiveReaders[randomIndex]
-				}
-			}
-
+			// Use smart reader selection
+			selectedReader, randomIndex := s.selectReaderFromInactive()
 			if selectedReader == nil {
-				randomIndex = rand.Intn(len(s.inactiveReaders)) //nolint:gosec
-				selectedReader = s.inactiveReaders[randomIndex]
+				break // No more inactive readers available
 			}
 
 			// Move reader to active pool
@@ -678,7 +696,7 @@ func (s *UnifiedSimulation) adjustActiveReaderCount(targetCount int) {
 	s.stats.CurrentActiveReaders = len(s.activeReaders)
 }
 
-// processLibrarians handles librarian work
+// processLibrarians handles librarian work.
 func (s *UnifiedSimulation) processLibrarians() {
 	for _, librarian := range s.librarians {
 		if s.ctx.Err() != nil {
@@ -693,7 +711,7 @@ func (s *UnifiedSimulation) processLibrarians() {
 	}
 }
 
-// adjustPopulationIfNeeded manages reader registration/cancellation
+// adjustPopulationIfNeeded manages reader registration and cancellation.
 func (s *UnifiedSimulation) adjustPopulationIfNeeded() {
 	totalReaders := len(s.activeReaders) + len(s.inactiveReaders)
 
@@ -721,7 +739,7 @@ func (s *UnifiedSimulation) adjustPopulationIfNeeded() {
 	}
 }
 
-// handleReaderCancellation processes a reader cancellation
+// handleReaderCancellation processes a reader cancellation.
 func (s *UnifiedSimulation) handleReaderCancellation(reader *ReaderActor) {
 	// Only cancel if the reader has no borrowed books
 	borrowedBooks := s.state.GetReaderBorrowedBooks(reader.ID)
@@ -740,7 +758,7 @@ func (s *UnifiedSimulation) handleReaderCancellation(reader *ReaderActor) {
 	// Remove from active pool in next rotation
 }
 
-// cancelExcessReaders removes readers when above maximum
+// cancelExcessReaders removes readers when above the maximum.
 func (s *UnifiedSimulation) cancelExcessReaders(count int) {
 	canceled := 0
 
@@ -763,7 +781,7 @@ func (s *UnifiedSimulation) cancelExcessReaders(count int) {
 	}
 }
 
-// syncSingleReader synchronizes borrowed books for a reader
+// syncSingleReader synchronizes borrowed books for a reader.
 func (s *UnifiedSimulation) syncSingleReader(actor *ReaderActor) error {
 	readerBooks, err := s.handlers.QueryBooksLentByReader(s.ctx, actor.ID)
 	if err != nil {
@@ -784,7 +802,7 @@ func (s *UnifiedSimulation) syncSingleReader(actor *ReaderActor) error {
 	return nil
 }
 
-// synchronizeActorBorrowedBooksFromLoadedState populates ALL actor BorrowedBooks from loaded state
+// synchronizeActorBorrowedBooksFromLoadedState populates ALL actor BorrowedBooks from the loaded state.
 func (s *UnifiedSimulation) synchronizeActorBorrowedBooksFromLoadedState() {
 	stats := s.state.GetStats()
 	totalLentBooks := stats.BooksLentOut
@@ -811,6 +829,72 @@ func (s *UnifiedSimulation) synchronizeActorBorrowedBooksFromLoadedState() {
 		Info("Actor sync:"), Bold(fmt.Sprintf("%d", totalLentBooks)),
 		BrightYellow("books lent out across"), Bold(fmt.Sprintf("%d", totalActorsPopulated)),
 		BrightCyan("readers"), Gray("from loaded state"))
+}
+
+// processWorker processes readers from a channel using the worker pool pattern.
+func (s *UnifiedSimulation) processWorker(
+	ctx context.Context,
+	readers <-chan *ReaderActor, // receive-only channel
+	results chan<- batchResult, // send-only channel
+	cycleNum int64,
+	wg *sync.WaitGroup,
+) {
+	defer wg.Done()
+
+	result := batchResult{
+		operationLatencies: make([]time.Duration, 0),
+	}
+
+	// Pull from the channel until empty or canceled
+	for reader := range readers {
+		// Check context BEFORE processing each reader
+		if ctx.Err() != nil {
+			result.timeoutCount++
+			result.readersProcessed++
+			continue
+		}
+
+		if reader.ShouldVisitLibrary() {
+			operationStart := time.Now()
+
+			operationCount, err := reader.VisitLibrary(ctx, s.handlers)
+			operationDuration := time.Since(operationStart)
+
+			if err != nil {
+				if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+					result.timeoutCount++
+					log.Printf("⏱️ Reader %s operation timed out in cycle #%d (%v)", reader.ID, cycleNum+1, operationDuration)
+				} else {
+					log.Printf("⚠️  Reader %s library visit failed in cycle #%d: %v", reader.ID, cycleNum+1, err)
+				}
+			} else {
+				// Record successful operations
+				for i := 0; i < operationCount; i++ {
+					result.operationLatencies = append(result.operationLatencies, operationDuration/time.Duration(operationCount))
+				}
+				result.operationCount += operationCount
+			}
+		}
+
+		// Handle contract cancellation (only if no context timeout)
+		if ctx.Err() == nil && reader.ShouldCancelContract() {
+			s.handleReaderCancellation(reader)
+		}
+
+		result.readersProcessed++
+
+		// Check context AFTER processing too (early exit on timeout)
+		if ctx.Err() != nil {
+			break // Stop processing on timeout
+		}
+	}
+
+	// Send accumulated result (non-blocking)
+	select {
+	case results <- result:
+	case <-ctx.Done():
+		// Context canceled, don't block on sending to the channel
+	}
 }
 
 func (s *UnifiedSimulation) logPerformance() {

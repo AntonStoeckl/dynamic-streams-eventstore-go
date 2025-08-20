@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -10,30 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	"go.opentelemetry.io/otel"
-
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/oteladapters"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"
 )
-
-// Config holds command-line configuration for the actor-based simulation.
-type Config struct {
-	ObservabilityEnabled bool
-	CPUProfile           string
-	MemProfile           string
-	// Note: No rate parameter - actors determine their own pace.
-}
-
-// ObservabilityConfig holds the observability adapters for command handlers.
-type ObservabilityConfig struct {
-	Logger           eventstore.Logger
-	ContextualLogger eventstore.ContextualLogger
-	MetricsCollector eventstore.MetricsCollector
-	TracingCollector eventstore.TracingCollector
-}
 
 func main() {
 	if err := run(); err != nil {
@@ -46,12 +23,7 @@ func run() error {
 
 	cfg := parseFlags()
 
-	// Database adapter configuration (reuse from v1).
-	adapterType := os.Getenv("DB_ADAPTER")
-	if adapterType == "" {
-		adapterType = "pgx"
-	}
-	log.Printf("%s Using database adapter: %s", Info("🔧"), Info(adapterType))
+	logDBAdapter()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -66,29 +38,24 @@ func run() error {
 		return fmt.Errorf("failed to create EventStore: %w", err)
 	}
 
-	logSimulationConfiguration()
+	logSimulationConfiguration(cfg)
+
+	// Create simulation context BEFORE initialization
+	simulationCtx, simulationCancel := context.WithCancel(ctx)
+	defer simulationCancel()
 
 	// Initialize unified simulation.
-	handlers, simulation, err := initializeUnifiedSimulation(ctx, eventStore, cfg)
+	_, simulation, err := initializeUnifiedSimulation(simulationCtx, eventStore, cfg)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("⏳ Simulation will start in %d seconds...", SetupPhaseDelaySeconds)
-	time.Sleep(time.Duration(SetupPhaseDelaySeconds) * time.Second)
+	logStartup()
 
-	log.Printf("🚀 Unified simulation starting...")
-	log.Printf("💡 Immediate auto-tuning with 1-second feedback loop")
-	log.Printf("Press Ctrl+C to stop...")
-
-	// Start the unified simulation.
-	simulationCtx, simulationCancel := context.WithCancel(ctx)
-	defer simulationCancel()
-
-	// Start simulation in goroutine so we can handle signals
+	// Start simulation in the goroutine so we can handle signals
 	simulationDone := make(chan error, 1)
 	go func() {
-		simulationDone <- simulation.Start()
+		simulationDone <- simulation.Start(cfg)
 	}()
 
 	// Wait for a shutdown signal or simulation completion.
@@ -96,6 +63,17 @@ func run() error {
 	case sig := <-sigChan:
 		log.Printf("📢 Received signal %v, initiating graceful shutdown...", sig)
 		simulationCancel()
+		// Wait for simulation to finish
+		select {
+		case err := <-simulationDone:
+			if err != nil {
+				log.Printf("⚠️  Simulation ended with error: %v", err)
+			} else {
+				log.Printf("📢 Simulation goroutine finished cleanly")
+			}
+		case <-time.After(5 * time.Second):
+			log.Printf("⚠️  Simulation shutdown timeout after 5 seconds")
+		}
 	case <-simulationCtx.Done():
 		log.Printf("📢 Simulation context canceled")
 	case err := <-simulationDone:
@@ -105,126 +83,31 @@ func run() error {
 	}
 
 	// Graceful shutdown.
-	gracefulShutdown(simulation, handlers)
+	gracefulShutdown(simulation)
 
 	return nil
 }
 
-// parseFlags parses command line flags.
-func parseFlags() Config {
-	var (
-		observability = flag.Bool("observability-enabled", false, "Enable OpenTelemetry observability")
-		cpuProfile    = flag.String("cpuprofile", "", "write cpu profile to file")
-		memProfile    = flag.String("memprofile", "", "write memory profile to file")
-	)
-
-	flag.Parse()
-
-	return Config{
-		ObservabilityEnabled: *observability,
-		CPUProfile:           *cpuProfile,
-		MemProfile:           *memProfile,
+func logDBAdapter() {
+	// Database adapter configuration.
+	adapterType := os.Getenv("DB_ADAPTER")
+	if adapterType == "" {
+		adapterType = "pgx"
 	}
+	log.Printf("%s Using database adapter: %s", Info("🔧"), Info(adapterType))
 }
 
-// initializePGXEventStore creates EventStore using pgx.Pool adapters with observability.
-func initializePGXEventStore(ctx context.Context, cfg Config) (*postgresengine.EventStore, error) {
-	log.Printf("%s %s", Info("🔧"), Info("Initializing PGX adapter with connection pools"))
-
-	// Initialize primary connection.
-	pgxPoolPrimary, primaryErr := pgxpool.NewWithConfig(ctx, config.PostgresPGXPoolPrimaryConfig())
-	if primaryErr != nil {
-		return nil, fmt.Errorf("failed to create pgx pool for primary: %w", primaryErr)
-	}
-
-	// Test primary connection.
-	if pingPrimaryErr := pgxPoolPrimary.Ping(ctx); pingPrimaryErr != nil {
-		pgxPoolPrimary.Close()
-		return nil, fmt.Errorf("failed to connect to primary database: %w", pingPrimaryErr)
-	}
-
-	// Initialize replica connection.
-	pgxPoolReplica, replicaErr := pgxpool.NewWithConfig(ctx, config.PostgresPGXPoolReplicaConfig())
-	if replicaErr != nil {
-		pgxPoolPrimary.Close()
-		return nil, fmt.Errorf("failed to create pgx pool for replica: %w", replicaErr)
-	}
-
-	// Test replica connection.
-	if pingReplicaErr := pgxPoolReplica.Ping(ctx); pingReplicaErr != nil {
-		pgxPoolPrimary.Close()
-		pgxPoolReplica.Close()
-		return nil, fmt.Errorf("failed to connect to replica database: %w", pingReplicaErr)
-	}
-
-	// Set up EventStore observability options if enabled.
-	var eventStoreOptions []postgresengine.Option
-	if cfg.ObservabilityEnabled {
-		obsConfig := cfg.NewObservabilityConfig() //nolint:contextcheck // Initialization code, context created internally
-		if obsConfig.Logger != nil {
-			eventStoreOptions = append(eventStoreOptions, postgresengine.WithLogger(obsConfig.Logger))
-		}
-		if obsConfig.ContextualLogger != nil {
-			eventStoreOptions = append(eventStoreOptions, postgresengine.WithContextualLogger(obsConfig.ContextualLogger))
-		}
-		if obsConfig.MetricsCollector != nil {
-			eventStoreOptions = append(eventStoreOptions, postgresengine.WithMetrics(obsConfig.MetricsCollector))
-		}
-		if obsConfig.TracingCollector != nil {
-			eventStoreOptions = append(eventStoreOptions, postgresengine.WithTracing(obsConfig.TracingCollector))
-		}
-		log.Printf("🔍 EventStore observability enabled: metrics=%v, tracing=%v, logging=%v",
-			obsConfig.MetricsCollector != nil,
-			obsConfig.TracingCollector != nil,
-			obsConfig.Logger != nil || obsConfig.ContextualLogger != nil)
-	}
-
-	return postgresengine.NewEventStoreFromPGXPoolAndReplica(pgxPoolPrimary, pgxPoolReplica, eventStoreOptions...)
-}
-
-// NewObservabilityConfig creates observability configuration for the simulation.
-func (c Config) NewObservabilityConfig() ObservabilityConfig {
-	if !c.ObservabilityEnabled {
-		return ObservabilityConfig{}
-	}
-
-	// Create real OpenTelemetry providers for the simulation.
-	_, err := config.NewObservabilityConfig()
-	if err != nil {
-		log.Printf("Failed to create observability providers: %v", err)
-		return ObservabilityConfig{}
-	}
-	// Note: Providers are set globally in OpenTelemetry, no need to store reference.
-
-	// Create real OpenTelemetry adapters (same as the test).
-	tracer := otel.Tracer("eventstore-library-simulation-v2")
-	meter := otel.Meter("eventstore-library-simulation-v2")
-
-	metricsCollector := oteladapters.NewMetricsCollector(meter)
-	tracingCollector := oteladapters.NewTracingCollector(tracer)
-	contextualLogger := oteladapters.NewSlogBridgeLogger("eventstore-library-simulation-v2")
-
-	return ObservabilityConfig{
-		Logger:           nil, // Using contextual logger instead.
-		ContextualLogger: contextualLogger,
-		MetricsCollector: metricsCollector,
-		TracingCollector: tracingCollector,
-	}
-}
-
-// logSimulationConfiguration prints the configuration parameters.
-func logSimulationConfiguration() {
+func logSimulationConfiguration(cfg Config) {
 	log.Printf("📊 Simulation Configuration:")
 	log.Printf("  - Active Readers: %d (initial), %d-%d (auto-tuned)",
 		InitialActiveReaders, MinActiveReaders, MaxActiveReaders)
 	log.Printf("  - Population: %d-%d readers, %d-%d books",
 		MinReaders, MaxReaders, MinBooks, MaxBooks)
-	log.Printf("  - Batch Size: %d actors per goroutine", ActorBatchSize)
+	log.Printf("  - Concurrent Workers: %d", cfg.Workers)
 	log.Printf("  - Auto-tuning: P50<%dms, P99<%dms target",
 		TargetP50LatencyMs, TargetP99LatencyMs)
 }
 
-// initializeUnifiedSimulation creates the unified simulation and its dependencies.
 func initializeUnifiedSimulation(ctx context.Context, eventStore *postgresengine.EventStore, cfg Config) (*HandlerBundle, *UnifiedSimulation, error) {
 	log.Printf("🏗️  Initializing unified simulation...")
 
@@ -251,8 +134,16 @@ func initializeUnifiedSimulation(ctx context.Context, eventStore *postgresengine
 	return handlers, simulation, nil
 }
 
-// gracefulShutdown stops the unified simulation.
-func gracefulShutdown(simulation *UnifiedSimulation, handlers *HandlerBundle) {
+func logStartup() {
+	log.Printf("⏳ Simulation will start in %d seconds...", SetupPhaseDelaySeconds)
+	time.Sleep(time.Duration(SetupPhaseDelaySeconds) * time.Second)
+
+	log.Printf("🚀 Unified simulation starting...")
+	log.Printf("💡 Immediate auto-tuning with 1-second feedback loop")
+	log.Printf("Press Ctrl+C to stop...")
+}
+
+func gracefulShutdown(simulation *UnifiedSimulation) {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 

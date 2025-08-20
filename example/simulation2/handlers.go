@@ -50,7 +50,7 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 	// Get observability config once if enabled.
 	var obsConfig ObservabilityConfig
 	if cfg.ObservabilityEnabled {
-		obsConfig = cfg.NewObservabilityConfig()
+		obsConfig = cfg.newObservabilityConfig()
 		log.Printf("🔍 Observability enabled - metrics: %t, tracing: %t, logging: %t",
 			obsConfig.MetricsCollector != nil,
 			obsConfig.TracingCollector != nil,
@@ -147,19 +147,35 @@ func (hb *HandlerBundle) GetSimulationState() *SimulationState {
 
 // recordMetrics logs operation timing and errors (simplified for unified simulation).
 func (hb *HandlerBundle) recordMetrics(ctx context.Context, start time.Time, err error) {
-
 	duration := time.Since(start)
 
 	// Log timeout/cancellation specifically for debugging (keep this synchronous)
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
-		if duration >= time.Duration(CommandTimeoutSeconds*float64(time.Second)) {
-			log.Printf("%s %s", SystemError("⏱️"), SystemError(fmt.Sprintf("COMMAND TIMEOUT: Operation exceeded %ds command deadline after %v", int(CommandTimeoutSeconds), duration)))
+		// Get the timeout type from context metadata
+		timeoutType, hasType := GetTimeoutType(ctx)
+
+		if hasType {
+			switch timeoutType {
+			case CommandTimeoutType:
+				log.Printf("%s %s", SystemError("⏱️"),
+					SystemError(fmt.Sprintf("COMMAND TIMEOUT: Operation exceeded %ds deadline after %v",
+						int(CommandTimeoutSeconds), duration)))
+			case BatchTimeoutType:
+				log.Printf("%s %s", SystemError("⏱️"),
+					SystemError(fmt.Sprintf("BATCH TIMEOUT: Operation exceeded %ds deadline after %v",
+						int(BatchTimeoutSeconds), duration)))
+			}
 		} else {
-			log.Printf("%s %s", SystemError("⏱️"), SystemError(fmt.Sprintf("TIMEOUT: Operation exceeded deadline after %v", duration)))
+			// Fallback for contexts without metadata
+			log.Printf("%s %s", SystemError("⏱️"),
+				SystemError(fmt.Sprintf("TIMEOUT: Operation exceeded deadline after %v", duration)))
 		}
+
 	case errors.Is(err, context.Canceled):
-		log.Printf("%s %s", SystemError("🚫"), SystemError(fmt.Sprintf("CANCELED: Operation canceled after %v (likely batch timeout)", duration)))
+		log.Printf("%s %s", SystemError("🚫"),
+			SystemError(fmt.Sprintf("CANCELED: Operation canceled after %v", duration)))
+
 	case duration > 5*time.Second:
 		log.Printf("🐌 SLOW: Operation took %v (no timeout)", duration)
 	}
@@ -171,7 +187,7 @@ func (hb *HandlerBundle) recordMetrics(ctx context.Context, start time.Time, err
 // ExecuteAddBook adds a book to circulation via command handler.
 func (hb *HandlerBundle) ExecuteAddBook(ctx context.Context, bookID uuid.UUID) error {
 	start := time.Now()
-	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(CommandTimeoutSeconds*float64(time.Second)))
+	timeoutCtx, cancel := WithCommandTimeout(ctx, time.Duration(CommandTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 
 	command := addbookcopy.BuildCommand(
@@ -198,7 +214,7 @@ func (hb *HandlerBundle) ExecuteAddBook(ctx context.Context, bookID uuid.UUID) e
 // ExecuteRemoveBook removes a book from circulation via command handler.
 func (hb *HandlerBundle) ExecuteRemoveBook(ctx context.Context, bookID uuid.UUID) error {
 	start := time.Now()
-	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(CommandTimeoutSeconds*float64(time.Second)))
+	timeoutCtx, cancel := WithCommandTimeout(ctx, time.Duration(CommandTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 
 	command := removebookcopy.BuildCommand(bookID, time.Now())
@@ -216,7 +232,7 @@ func (hb *HandlerBundle) ExecuteRemoveBook(ctx context.Context, bookID uuid.UUID
 // ExecuteRegisterReader registers a new reader via command handler.
 func (hb *HandlerBundle) ExecuteRegisterReader(ctx context.Context, readerID uuid.UUID) error {
 	start := time.Now()
-	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(CommandTimeoutSeconds*float64(time.Second)))
+	timeoutCtx, cancel := WithCommandTimeout(ctx, time.Duration(CommandTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 
 	command := registerreader.BuildCommand(
@@ -238,7 +254,7 @@ func (hb *HandlerBundle) ExecuteRegisterReader(ctx context.Context, readerID uui
 // ExecuteCancelReader cancels a reader contract via command handler.
 func (hb *HandlerBundle) ExecuteCancelReader(ctx context.Context, readerID uuid.UUID) error {
 	start := time.Now()
-	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(CommandTimeoutSeconds*float64(time.Second)))
+	timeoutCtx, cancel := WithCommandTimeout(ctx, time.Duration(CommandTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 
 	command := cancelreadercontract.BuildCommand(readerID, time.Now())
@@ -256,7 +272,7 @@ func (hb *HandlerBundle) ExecuteCancelReader(ctx context.Context, readerID uuid.
 // ExecuteLendBook lends a book to a reader via command handler.
 func (hb *HandlerBundle) ExecuteLendBook(ctx context.Context, bookID, readerID uuid.UUID) error {
 	start := time.Now()
-	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(CommandTimeoutSeconds*float64(time.Second)))
+	timeoutCtx, cancel := WithCommandTimeout(ctx, time.Duration(CommandTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 
 	command := lendbookcopytoreader.BuildCommand(bookID, readerID, time.Now())
@@ -274,7 +290,7 @@ func (hb *HandlerBundle) ExecuteLendBook(ctx context.Context, bookID, readerID u
 // ExecuteReturnBook returns a book from a reader via command handler.
 func (hb *HandlerBundle) ExecuteReturnBook(ctx context.Context, bookID, readerID uuid.UUID) error {
 	start := time.Now()
-	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(CommandTimeoutSeconds*float64(time.Second)))
+	timeoutCtx, cancel := WithCommandTimeout(ctx, time.Duration(CommandTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 
 	command := returnbookcopyfromreader.BuildCommand(bookID, readerID, time.Now())
@@ -307,7 +323,7 @@ func (hb *HandlerBundle) QueryBooksInCirculation(ctx context.Context) (booksinci
 // With metrics reporting, as this query is fast.
 func (hb *HandlerBundle) QueryBooksLentByReader(ctx context.Context, readerID uuid.UUID) (bookslentbyreader.BooksCurrentlyLent, error) {
 	start := time.Now()
-	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(BooksLentByReaderQueryTimeoutSeconds*float64(time.Second)))
+	timeoutCtx, cancel := WithCommandTimeout(ctx, time.Duration(BooksLentByReaderQueryTimeoutSeconds*float64(time.Second)))
 	defer cancel()
 	query := bookslentbyreader.Query{ReaderID: readerID}
 	result, err := hb.booksLentByReaderHandler.Handle(timeoutCtx, query)
