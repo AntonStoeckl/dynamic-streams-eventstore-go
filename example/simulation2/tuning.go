@@ -57,8 +57,6 @@ const (
 	// This provides realistic business behavior metrics without affecting the simulation state.
 	ChanceSyncOnActivation = 0.1 // 10% chance to query BooksLentByReader for metrics
 
-	// BROWSING AND DISCOVERY PATTERNS ...
-
 	// ChanceVisitDirectly defines the probability that readers visit the library directly.
 	ChanceVisitDirectly = 0.8
 
