@@ -21,8 +21,9 @@ import (
 
 const (
 	// Core database configuration.
-	defaultEventTableName = "events"
-	dialectPostgres       = "postgres"
+	defaultEventTableName    = "events"
+	defaultSnapshotTableName = "snapshots"
+	dialectPostgres          = "postgres"
 
 	// Database schema column names.
 	colEventType      = "event_type"
@@ -30,6 +31,12 @@ const (
 	colPayload        = "payload"
 	colMetadata       = "metadata"
 	colSequenceNumber = "sequence_number"
+
+	// Snapshots table column names.
+	colProjectionType = "projection_type"
+	colFilterHash     = "filter_hash"
+	colSnapshotData   = "snapshot_data"
+	colCreatedAt      = "created_at"
 
 	// SQL query building constants.
 	cteContext    = "context"
@@ -49,13 +56,14 @@ type (
 // EventStore represents a storage mechanism for appending and querying events in an event sourcing implementation.
 // It leverages a database adapter and supports customizable logging, metricsCollector collection, tracing, and event table configuration.
 type EventStore struct {
-	db               adapters.DBAdapter
-	eventTableName   string
-	logger           Logger
-	metricsCollector MetricsCollector
-	tracingCollector TracingCollector
-	contextualLogger ContextualLogger
-	builderPool      *sync.Pool
+	db                adapters.DBAdapter
+	eventTableName    string
+	snapshotTableName string
+	logger            Logger
+	metricsCollector  MetricsCollector
+	tracingCollector  TracingCollector
+	contextualLogger  ContextualLogger
+	builderPool       *sync.Pool
 }
 
 type queryResultRow struct {
@@ -73,8 +81,9 @@ func NewEventStoreFromPGXPool(db *pgxpool.Pool, options ...Option) (*EventStore,
 	}
 
 	es := &EventStore{
-		db:             adapters.NewPGXAdapter(db),
-		eventTableName: defaultEventTableName,
+		db:                adapters.NewPGXAdapter(db),
+		eventTableName:    defaultEventTableName,
+		snapshotTableName: defaultSnapshotTableName,
 		builderPool: &sync.Pool{
 			New: func() interface{} {
 				dialect := goqu.Dialect(dialectPostgres)
@@ -100,8 +109,9 @@ func NewEventStoreFromPGXPoolAndReplica(db *pgxpool.Pool, replica *pgxpool.Pool,
 	}
 
 	es := &EventStore{
-		db:             adapters.NewPGXAdapterWithReplica(db, replica),
-		eventTableName: defaultEventTableName,
+		db:                adapters.NewPGXAdapterWithReplica(db, replica),
+		eventTableName:    defaultEventTableName,
+		snapshotTableName: defaultSnapshotTableName,
 		builderPool: &sync.Pool{
 			New: func() interface{} {
 				dialect := goqu.Dialect(dialectPostgres)
@@ -126,8 +136,9 @@ func NewEventStoreFromSQLDB(db *sql.DB, options ...Option) (*EventStore, error) 
 	}
 
 	es := &EventStore{
-		db:             adapters.NewSQLAdapter(db),
-		eventTableName: defaultEventTableName,
+		db:                adapters.NewSQLAdapter(db),
+		eventTableName:    defaultEventTableName,
+		snapshotTableName: defaultSnapshotTableName,
 		builderPool: &sync.Pool{
 			New: func() interface{} {
 				dialect := goqu.Dialect(dialectPostgres)
@@ -153,8 +164,9 @@ func NewEventStoreFromSQLDBAndReplica(db *sql.DB, replica *sql.DB, options ...Op
 	}
 
 	es := &EventStore{
-		db:             adapters.NewSQLAdapterWithReplica(db, replica),
-		eventTableName: defaultEventTableName,
+		db:                adapters.NewSQLAdapterWithReplica(db, replica),
+		eventTableName:    defaultEventTableName,
+		snapshotTableName: defaultSnapshotTableName,
 		builderPool: &sync.Pool{
 			New: func() interface{} {
 				dialect := goqu.Dialect(dialectPostgres)
@@ -179,8 +191,9 @@ func NewEventStoreFromSQLX(db *sqlx.DB, options ...Option) (*EventStore, error) 
 	}
 
 	es := &EventStore{
-		db:             adapters.NewSQLXAdapter(db),
-		eventTableName: defaultEventTableName,
+		db:                adapters.NewSQLXAdapter(db),
+		eventTableName:    defaultEventTableName,
+		snapshotTableName: defaultSnapshotTableName,
 		builderPool: &sync.Pool{
 			New: func() interface{} {
 				dialect := goqu.Dialect(dialectPostgres)
@@ -206,8 +219,9 @@ func NewEventStoreFromSQLXAndReplica(db *sqlx.DB, replica *sqlx.DB, options ...O
 	}
 
 	es := &EventStore{
-		db:             adapters.NewSQLXAdapterWithReplica(db, replica),
-		eventTableName: defaultEventTableName,
+		db:                adapters.NewSQLXAdapterWithReplica(db, replica),
+		eventTableName:    defaultEventTableName,
+		snapshotTableName: defaultSnapshotTableName,
 		builderPool: &sync.Pool{
 			New: func() interface{} {
 				dialect := goqu.Dialect(dialectPostgres)
@@ -854,6 +868,234 @@ func (es *EventStore) buildSequenceExpressions(filter eventstore.Filter) []goqu.
 		)
 	}
 	return sequenceExpressions
+}
+
+// SaveSnapshot stores or updates a snapshot for the given projection type and filter.
+// If a snapshot already exists, it will be updated only if the new sequence number is higher.
+func (es *EventStore) SaveSnapshot(ctx context.Context, snapshot eventstore.Snapshot) error {
+	if err := snapshot.Validate(); err != nil {
+		return err
+	}
+
+	sqlQuery, buildErr := es.buildSnapshotUpsertQuery(snapshot)
+	if buildErr != nil {
+		return buildErr
+	}
+
+	start := time.Now()
+	_, execErr := es.db.Exec(ctx, sqlQuery)
+	duration := time.Since(start)
+
+	if execErr != nil {
+		es.logError("saving snapshot failed", execErr, "projection_type", snapshot.ProjectionType)
+		es.logErrorContext(ctx, "saving snapshot failed", execErr, "projection_type", snapshot.ProjectionType)
+		return errors.Join(eventstore.ErrSavingSnapshotFailed, execErr)
+	}
+
+	es.logOperation("snapshot saved successfully",
+		"projection_type", snapshot.ProjectionType,
+		"filter_hash", snapshot.FilterHash,
+		"sequence_number", snapshot.SequenceNumber,
+		"duration_ms", es.toMilliseconds(duration),
+	)
+	es.logOperationContext(ctx, "snapshot saved successfully",
+		"projection_type", snapshot.ProjectionType,
+		"filter_hash", snapshot.FilterHash,
+		"sequence_number", snapshot.SequenceNumber,
+		"duration_ms", es.toMilliseconds(duration),
+	)
+
+	return nil
+}
+
+func (es *EventStore) buildSnapshotUpsertQuery(snapshot eventstore.Snapshot) (sqlQueryString, error) {
+	builder := es.getBuilder()
+	defer es.putBuilder(builder)
+
+	// Create the insert statement with the snapshot data
+	insertStmt := builder.
+		Insert(es.snapshotTableName).
+		Rows(goqu.Record{
+			colProjectionType: snapshot.ProjectionType,
+			colFilterHash:     snapshot.FilterHash,
+			colSequenceNumber: snapshot.SequenceNumber,
+			colSnapshotData:   goqu.L("?::jsonb", string(snapshot.Data)),
+			colCreatedAt:      goqu.L("NOW()"),
+		}).
+		OnConflict(goqu.DoUpdate(
+			fmt.Sprintf("%s,%s", colProjectionType, colFilterHash),
+			goqu.Record{
+				// Only update sequence_number if the new one is higher
+				colSequenceNumber: goqu.L(
+					fmt.Sprintf("GREATEST(%s.%s, EXCLUDED.%s)",
+						es.snapshotTableName, colSequenceNumber, colSequenceNumber),
+				),
+				// Only update snapshot_data if sequence_number is being updated
+				colSnapshotData: goqu.L(
+					fmt.Sprintf(`CASE 
+						WHEN EXCLUDED.%s >= %s.%s 
+						THEN EXCLUDED.%s 
+						ELSE %s.%s 
+					END`,
+						colSequenceNumber, es.snapshotTableName, colSequenceNumber,
+						colSnapshotData,
+						es.snapshotTableName, colSnapshotData),
+				),
+				// Only update created_at if sequence_number is being updated
+				colCreatedAt: goqu.L(
+					fmt.Sprintf(`CASE 
+						WHEN EXCLUDED.%s >= %s.%s 
+						THEN EXCLUDED.%s 
+						ELSE %s.%s 
+					END`,
+						colSequenceNumber, es.snapshotTableName, colSequenceNumber,
+						colCreatedAt,
+						es.snapshotTableName, colCreatedAt),
+				),
+			},
+		))
+
+	sqlQuery, _, toSQLErr := insertStmt.ToSQL()
+	if toSQLErr != nil {
+		return "", errors.Join(eventstore.ErrBuildingQueryFailed, toSQLErr)
+	}
+
+	return sqlQuery, nil
+}
+
+// LoadSnapshot retrieves the snapshot for the given projection type and filter.
+// Returns ErrSnapshotNotFound if no snapshot exists.
+func (es *EventStore) LoadSnapshot(ctx context.Context, projectionType string, filter eventstore.Filter) (*eventstore.Snapshot, error) {
+	if projectionType == "" {
+		return nil, eventstore.ErrEmptyProjectionType
+	}
+
+	sqlQuery, buildErr := es.buildSnapshotLoadQuery(projectionType, filter)
+	if buildErr != nil {
+		return nil, buildErr
+	}
+
+	filterHash := filter.Hash()
+
+	start := time.Now()
+	var snapshot eventstore.Snapshot
+	scanErr := es.db.QueryRow(ctx, sqlQuery).Scan(
+		&snapshot.ProjectionType,
+		&snapshot.FilterHash,
+		&snapshot.SequenceNumber,
+		&snapshot.Data,
+		&snapshot.CreatedAt,
+	)
+	duration := time.Since(start)
+
+	if scanErr != nil {
+		if errors.Is(scanErr, sql.ErrNoRows) {
+			es.logOperation("snapshot not found",
+				"projection_type", projectionType,
+				"filter_hash", filterHash,
+				"duration_ms", es.toMilliseconds(duration),
+			)
+			return nil, eventstore.ErrSnapshotNotFound
+		}
+
+		es.logError("loading snapshot failed", scanErr, "projection_type", projectionType)
+		es.logErrorContext(ctx, "loading snapshot failed", scanErr, "projection_type", projectionType)
+		return nil, errors.Join(eventstore.ErrLoadingSnapshotFailed, scanErr)
+	}
+
+	es.logOperation("snapshot loaded successfully",
+		"projection_type", snapshot.ProjectionType,
+		"filter_hash", snapshot.FilterHash,
+		"sequence_number", snapshot.SequenceNumber,
+		"duration_ms", es.toMilliseconds(duration),
+	)
+	es.logOperationContext(ctx, "snapshot loaded successfully",
+		"projection_type", snapshot.ProjectionType,
+		"filter_hash", snapshot.FilterHash,
+		"sequence_number", snapshot.SequenceNumber,
+		"duration_ms", es.toMilliseconds(duration),
+	)
+
+	return &snapshot, nil
+}
+
+func (es *EventStore) buildSnapshotLoadQuery(projectionType string, filter eventstore.Filter) (sqlQueryString, error) {
+	builder := es.getBuilder()
+	defer es.putBuilder(builder)
+
+	filterHash := filter.Hash()
+
+	selectStmt := builder.
+		From(es.snapshotTableName).
+		Select(colProjectionType, colFilterHash, colSequenceNumber, colSnapshotData, colCreatedAt).
+		Where(goqu.Ex{
+			colProjectionType: projectionType,
+			colFilterHash:     filterHash,
+		})
+
+	sqlQuery, _, toSQLErr := selectStmt.ToSQL()
+	if toSQLErr != nil {
+		return "", errors.Join(eventstore.ErrBuildingQueryFailed, toSQLErr)
+	}
+
+	return sqlQuery, nil
+}
+
+// DeleteSnapshot removes the snapshot for the given projection type and filter.
+// Returns nil if the snapshot doesn't exist (idempotent operation).
+func (es *EventStore) DeleteSnapshot(ctx context.Context, projectionType string, filter eventstore.Filter) error {
+	if projectionType == "" {
+		return eventstore.ErrEmptyProjectionType
+	}
+
+	filterHash := filter.Hash()
+
+	builder := es.getBuilder()
+	defer es.putBuilder(builder)
+
+	deleteStmt := builder.
+		Delete(es.snapshotTableName).
+		Where(goqu.Ex{
+			colProjectionType: projectionType,
+			colFilterHash:     filterHash,
+		})
+
+	sqlQuery, _, toSQLErr := deleteStmt.ToSQL()
+	if toSQLErr != nil {
+		return errors.Join(eventstore.ErrBuildingQueryFailed, toSQLErr)
+	}
+
+	start := time.Now()
+	tag, execErr := es.db.Exec(ctx, sqlQuery)
+	duration := time.Since(start)
+
+	if execErr != nil {
+		es.logError("deleting snapshot failed", execErr, "projection_type", projectionType)
+		es.logErrorContext(ctx, "deleting snapshot failed", execErr, "projection_type", projectionType)
+		return errors.Join(eventstore.ErrDeletingSnapshotFailed, execErr)
+	}
+
+	rowsAffected, rowsAffectedErr := tag.RowsAffected()
+	if rowsAffectedErr != nil {
+		es.logError("getting rows affected failed", rowsAffectedErr, "projection_type", projectionType)
+		es.logErrorContext(ctx, "getting rows affected failed", rowsAffectedErr, "projection_type", projectionType)
+		return errors.Join(eventstore.ErrDeletingSnapshotFailed, rowsAffectedErr)
+	}
+
+	es.logOperation("snapshot deletion completed",
+		"projection_type", projectionType,
+		"filter_hash", filterHash,
+		"rows_affected", rowsAffected,
+		"duration_ms", es.toMilliseconds(duration),
+	)
+	es.logOperationContext(ctx, "snapshot deletion completed",
+		"projection_type", projectionType,
+		"filter_hash", filterHash,
+		"rows_affected", rowsAffected,
+		"duration_ms", es.toMilliseconds(duration),
+	)
+
+	return nil
 }
 
 func (es *EventStore) getBuilder() *goqu.DialectWrapper {

@@ -8,6 +8,7 @@ import (
 // DBAdapter defines the interface for database operations needed by the event store.
 type DBAdapter interface {
 	Query(ctx context.Context, query string) (DBRows, error)
+	QueryRow(ctx context.Context, query string) DBRow
 	Exec(ctx context.Context, query string) (DBResult, error)
 }
 
@@ -17,6 +18,11 @@ type DBRows interface {
 	Scan(dest ...any) error
 	Close() error
 	Err() error
+}
+
+// DBRow defines the interface for single row query results.
+type DBRow interface {
+	Scan(dest ...any) error
 }
 
 // DBResult defines the interface for execution results.
@@ -47,6 +53,16 @@ func (s *stdRows) Close() error {
 // Err returns any error encountered during iteration.
 func (s *stdRows) Err() error {
 	return s.rows.Err()
+}
+
+// stdRow wraps standard library sql.Row to implement DBRow interface.
+type stdRow struct {
+	row *sql.Row
+}
+
+// Scan copies row values into provided destinations.
+func (s *stdRow) Scan(dest ...any) error {
+	return s.row.Scan(dest...)
 }
 
 // stdResult wraps standard library sql.Result to implement DBResult interface.

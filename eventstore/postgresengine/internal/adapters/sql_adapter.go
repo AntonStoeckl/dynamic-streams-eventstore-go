@@ -48,6 +48,18 @@ func (s *SQLAdapter) Query(ctx context.Context, query string) (DBRows, error) {
 	return &stdRows{rows: rows}, nil
 }
 
+// QueryRow executes a query that returns a single row using the replica database if available.
+func (s *SQLAdapter) QueryRow(ctx context.Context, query string) DBRow {
+	db := s.db // default to primary
+
+	if s.replicaDB != nil {
+		db = s.replicaDB // use replica for reads
+	}
+
+	row := db.QueryRowContext(ctx, query)
+	return &stdRow{row: row}
+}
+
 // Exec executes a query using the sql.DB and returns a wrapped result.
 func (s *SQLAdapter) Exec(ctx context.Context, query string) (DBResult, error) {
 	result, err := s.db.ExecContext(ctx, query)

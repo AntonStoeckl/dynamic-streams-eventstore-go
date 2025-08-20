@@ -40,6 +40,18 @@ func (p *PGXAdapter) Query(ctx context.Context, query string) (DBRows, error) {
 	return &pgxRows{rows: rows}, nil
 }
 
+// QueryRow executes a query that returns a single row using the replica pool if available.
+func (p *PGXAdapter) QueryRow(ctx context.Context, query string) DBRow {
+	pool := p.pool // default to primary
+
+	if p.replicaPool != nil {
+		pool = p.replicaPool // use replica for reads
+	}
+
+	row := pool.QueryRow(ctx, query)
+	return &pgxRow{row: row}
+}
+
 // Exec executes a query using the pgx pool and returns wrapped result.
 func (p *PGXAdapter) Exec(ctx context.Context, query string) (DBResult, error) {
 	tag, err := p.pool.Exec(ctx, query)
@@ -74,6 +86,16 @@ func (p *pgxRows) Close() error {
 // Err returns any error encountered during iteration.
 func (p *pgxRows) Err() error {
 	return p.rows.Err()
+}
+
+// pgxRow wraps pgx.Row to implement the DBRow interface.
+type pgxRow struct {
+	row pgx.Row
+}
+
+// Scan copies row values into provided destinations.
+func (p *pgxRow) Scan(dest ...any) error {
+	return p.row.Scan(dest...)
 }
 
 // pgxResult wraps pgconn.CommandTag to implement the DBResult interface.

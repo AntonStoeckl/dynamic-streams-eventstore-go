@@ -1,7 +1,10 @@
 package eventstore
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"slices"
+	"strings"
 	"time"
 )
 
@@ -46,6 +49,64 @@ func (f Filter) OccurredUntil() time.Time {
 // SequenceNumberHigherThan returns the minimum sequence number for event filtering (exclusive).
 func (f Filter) SequenceNumberHigherThan() int64 {
 	return f.sequenceNumberHigherThan
+}
+
+// Hash returns a deterministic SHA256 hash of the filter for snapshot identification.
+// The hash includes all filter components: items, time boundaries, and sequence boundaries.
+func (f Filter) Hash() string {
+	hasher := sha256.New()
+	hasher.Write([]byte(f.Serialize()))
+	return fmt.Sprintf("sha256:%x", hasher.Sum(nil))
+}
+
+// Serialize creates a deterministic string representation of the filter for hashing.
+// The serialization includes all filter components in a consistent order.
+func (f Filter) Serialize() string {
+	parts := make([]string, 0, len(f.items)+3) // Pre-allocate for items and potential time/sequence boundaries
+
+	// Serialize filter items (already sorted by the builder)
+	for i, item := range f.items {
+		itemParts := []string{fmt.Sprintf("item:%d", i)}
+
+		// Add event types (already sorted)
+		if len(item.eventTypes) > 0 {
+			itemParts = append(itemParts, "event_types:"+strings.Join(item.eventTypes, ","))
+		}
+
+		// Add predicates (already sorted by key)
+		if len(item.predicates) > 0 {
+			var predicateStrings []string
+			for _, predicate := range item.predicates {
+				predicateStrings = append(predicateStrings, fmt.Sprintf("%s=%s", predicate.key, predicate.val))
+			}
+
+			itemParts = append(itemParts, "predicates:"+strings.Join(predicateStrings, ","))
+		}
+
+		// Add predicate logic
+		if item.allPredicatesMustMatch {
+			itemParts = append(itemParts, "predicate_logic:AND")
+		} else {
+			itemParts = append(itemParts, "predicate_logic:OR")
+		}
+
+		parts = append(parts, strings.Join(itemParts, "|"))
+	}
+
+	// Add time boundaries
+	if !f.occurredFrom.IsZero() {
+		parts = append(parts, "occurred_from:"+f.occurredFrom.Format(time.RFC3339Nano))
+	}
+	if !f.occurredUntil.IsZero() {
+		parts = append(parts, "occurred_until:"+f.occurredUntil.Format(time.RFC3339Nano))
+	}
+
+	// Add the sequence boundary
+	if f.sequenceNumberHigherThan > 0 {
+		parts = append(parts, fmt.Sprintf("sequence_higher_than:%d", f.sequenceNumberHigherThan))
+	}
+
+	return strings.Join(parts, "||")
 }
 
 /***** FilterItem *****/

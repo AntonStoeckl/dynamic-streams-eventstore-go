@@ -953,3 +953,314 @@ func Test_FilterBuilder_InterfaceConstraints(t *testing.T) {
 		})
 	}
 }
+
+//nolint:funlen
+func Test_Filter_Hash_Deterministic(t *testing.T) {
+	tests := []struct {
+		name   string
+		filter func() eventstore.Filter
+	}{
+		{
+			name: "simple_event_type_filter",
+			filter: func() eventstore.Filter {
+				return eventstore.BuildEventFilter().
+					Matching().
+					AnyEventTypeOf("TestEvent").
+					Finalize()
+			},
+		},
+		{
+			name: "multiple_event_types",
+			filter: func() eventstore.Filter {
+				return eventstore.BuildEventFilter().
+					Matching().
+					AnyEventTypeOf("EventA", "EventB").
+					Finalize()
+			},
+		},
+		{
+			name: "event_type_with_predicates",
+			filter: func() eventstore.Filter {
+				return eventstore.BuildEventFilter().
+					Matching().
+					AnyEventTypeOf("TestEvent").
+					AndAnyPredicateOf(eventstore.P("Key1", "Value1")).
+					Finalize()
+			},
+		},
+		{
+			name: "complex_filter_with_time_boundaries",
+			filter: func() eventstore.Filter {
+				timeFrom := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+				timeUntil := time.Date(2025, 12, 31, 23, 59, 59, 0, time.UTC)
+				return eventstore.BuildEventFilter().
+					Matching().
+					AnyEventTypeOf("EventA", "EventB").
+					AndAllPredicatesOf(
+						eventstore.P("Key1", "Value1"),
+						eventstore.P("Key2", "Value2")).
+					OccurredFrom(timeFrom).
+					AndOccurredUntil(timeUntil).
+					Finalize()
+			},
+		},
+		{
+			name: "filter_with_sequence_boundary",
+			filter: func() eventstore.Filter {
+				return eventstore.BuildEventFilter().
+					Matching().
+					AnyEventTypeOf("TestEvent").
+					WithSequenceNumberHigherThan(12345).
+					Finalize()
+			},
+		},
+		{
+			name: "multiple_filter_items",
+			filter: func() eventstore.Filter {
+				return eventstore.BuildEventFilter().
+					Matching().
+					AnyEventTypeOf("EventA").
+					AndAnyPredicateOf(eventstore.P("Key1", "Value1")).
+					OrMatching().
+					AnyEventTypeOf("EventB").
+					AndAllPredicatesOf(eventstore.P("Key2", "Value2")).
+					Finalize()
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filter := tt.filter()
+
+			// Generate hash multiple times
+			hash1 := filter.Hash()
+			hash2 := filter.Hash()
+			hash3 := filter.Hash()
+
+			// All hashes should be identical
+			assert.Equal(t, hash1, hash2, "Hash should be deterministic")
+			assert.Equal(t, hash1, hash3, "Hash should be deterministic")
+
+			// Hash should not be empty
+			assert.NotEmpty(t, hash1, "Hash should not be empty")
+
+			// Hash should start with sha256: prefix
+			assert.Contains(t, hash1, "sha256:", "Hash should have sha256 prefix")
+
+			// Hash should be a reasonable length (64 hex chars and prefix)
+			assert.Len(t, hash1, len("sha256:")+64, "Hash should be correct length")
+		})
+	}
+}
+
+//nolint:funlen
+func Test_Filter_Hash_DifferentFilters_DifferentHashes(t *testing.T) {
+	tests := []struct {
+		name    string
+		filter1 func() eventstore.Filter
+		filter2 func() eventstore.Filter
+	}{
+		{
+			name: "different_event_types",
+			filter1: func() eventstore.Filter {
+				return eventstore.BuildEventFilter().
+					Matching().
+					AnyEventTypeOf("EventA").
+					Finalize()
+			},
+			filter2: func() eventstore.Filter {
+				return eventstore.BuildEventFilter().
+					Matching().
+					AnyEventTypeOf("EventB").
+					Finalize()
+			},
+		},
+		{
+			name: "different_predicates",
+			filter1: func() eventstore.Filter {
+				return eventstore.BuildEventFilter().
+					Matching().
+					AnyPredicateOf(eventstore.P("Key1", "Value1")).
+					Finalize()
+			},
+			filter2: func() eventstore.Filter {
+				return eventstore.BuildEventFilter().
+					Matching().
+					AnyPredicateOf(eventstore.P("Key1", "Value2")).
+					Finalize()
+			},
+		},
+		{
+			name: "different_predicate_logic",
+			filter1: func() eventstore.Filter {
+				return eventstore.BuildEventFilter().
+					Matching().
+					AnyPredicateOf(
+						eventstore.P("Key1", "Value1"),
+						eventstore.P("Key2", "Value2")).
+					Finalize()
+			},
+			filter2: func() eventstore.Filter {
+				return eventstore.BuildEventFilter().
+					Matching().
+					AllPredicatesOf(
+						eventstore.P("Key1", "Value1"),
+						eventstore.P("Key2", "Value2")).
+					Finalize()
+			},
+		},
+		{
+			name: "different_time_boundaries",
+			filter1: func() eventstore.Filter {
+				timeFrom := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+				return eventstore.BuildEventFilter().
+					OccurredFrom(timeFrom).
+					Finalize()
+			},
+			filter2: func() eventstore.Filter {
+				timeFrom := time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)
+				return eventstore.BuildEventFilter().
+					OccurredFrom(timeFrom).
+					Finalize()
+			},
+		},
+		{
+			name: "different_sequence_boundaries",
+			filter1: func() eventstore.Filter {
+				return eventstore.BuildEventFilter().
+					WithSequenceNumberHigherThan(100).
+					Finalize()
+			},
+			filter2: func() eventstore.Filter {
+				return eventstore.BuildEventFilter().
+					WithSequenceNumberHigherThan(200).
+					Finalize()
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			filter1 := tt.filter1()
+			filter2 := tt.filter2()
+
+			hash1 := filter1.Hash()
+			hash2 := filter2.Hash()
+
+			assert.NotEqual(t, hash1, hash2, "Different filters should have different hashes")
+		})
+	}
+}
+
+func Test_Filter_Hash_SameFilter_SameHash(t *testing.T) {
+	tests := []struct {
+		name   string
+		filter func() eventstore.Filter
+	}{
+		{
+			name: "same_filter_built_twice",
+			filter: func() eventstore.Filter {
+				return eventstore.BuildEventFilter().
+					Matching().
+					AnyEventTypeOf("EventA", "EventB").
+					AndAnyPredicateOf(
+						eventstore.P("Key1", "Value1"),
+						eventstore.P("Key2", "Value2")).
+					Finalize()
+			},
+		},
+		{
+			name: "same_filter_with_reordered_input_sanitized",
+			filter: func() eventstore.Filter {
+				// Note: The builder sanitizes input by sorting, so even if we provide
+				// different order, the result should be the same
+				return eventstore.BuildEventFilter().
+					Matching().
+					AnyEventTypeOf("EventB", "EventA"). // Different order
+					AndAnyPredicateOf(
+						eventstore.P("Key2", "Value2"), // Different order
+						eventstore.P("Key1", "Value1")).
+					Finalize()
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Build the filter twice
+			filter1 := tt.filter()
+			filter2 := tt.filter()
+
+			hash1 := filter1.Hash()
+			hash2 := filter2.Hash()
+
+			assert.Equal(t, hash1, hash2, "Same filters should have same hash")
+		})
+	}
+}
+
+func Test_Filter_Serialize_IncludesAllComponents(t *testing.T) {
+	timeFrom := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
+	timeUntil := time.Date(2025, 12, 31, 18, 0, 0, 0, time.UTC)
+
+	filter := eventstore.BuildEventFilter().
+		Matching().
+		AnyEventTypeOf("EventA", "EventB").
+		AndAllPredicatesOf(
+			eventstore.P("BookID", "book-123"),
+			eventstore.P("Status", "active")).
+		OrMatching().
+		AnyPredicateOf(eventstore.P("Type", "special")).
+		OccurredFrom(timeFrom).
+		AndOccurredUntil(timeUntil).
+		Finalize()
+
+	serialized := filter.Serialize()
+
+	// Check that all components are included in serialization
+	assert.Contains(t, serialized, "EventA", "Should include event type EventA")
+	assert.Contains(t, serialized, "EventB", "Should include event type EventB")
+	assert.Contains(t, serialized, "BookID=book-123", "Should include BookID predicate")
+	assert.Contains(t, serialized, "Status=active", "Should include Status predicate")
+	assert.Contains(t, serialized, "Type=special", "Should include Type predicate")
+	assert.Contains(t, serialized, "predicate_logic:AND", "Should include AND logic")
+	assert.Contains(t, serialized, "predicate_logic:OR", "Should include OR logic")
+	assert.Contains(t, serialized, "occurred_from:", "Should include occurred_from")
+	assert.Contains(t, serialized, "occurred_until:", "Should include occurred_until")
+
+	// Check structure markers
+	assert.Contains(t, serialized, "item:0", "Should include first item marker")
+	assert.Contains(t, serialized, "item:1", "Should include second item marker")
+}
+
+func Test_Filter_Serialize_WithSequenceBoundary(t *testing.T) {
+	filter := eventstore.BuildEventFilter().
+		Matching().
+		AnyEventTypeOf("TestEvent").
+		WithSequenceNumberHigherThan(98765).
+		Finalize()
+
+	serialized := filter.Serialize()
+
+	assert.Contains(t, serialized, "TestEvent", "Should include event type")
+	assert.Contains(t, serialized, "sequence_higher_than:98765", "Should include sequence boundary")
+	assert.NotContains(t, serialized, "occurred_from:", "Should not include time boundaries")
+	assert.NotContains(t, serialized, "occurred_until:", "Should not include time boundaries")
+}
+
+func Test_Filter_Serialize_Empty_Components(t *testing.T) {
+	// Filter with minimal components
+	filter := eventstore.BuildEventFilter().
+		Matching().
+		AnyEventTypeOf("TestEvent").
+		Finalize()
+
+	serialized := filter.Serialize()
+
+	assert.Contains(t, serialized, "TestEvent", "Should include event type")
+	assert.Contains(t, serialized, "predicate_logic:OR", "Should include default predicate logic")
+	assert.NotContains(t, serialized, "predicates:", "Should not include empty predicates")
+	assert.NotContains(t, serialized, "occurred_from:", "Should not include empty time boundaries")
+	assert.NotContains(t, serialized, "sequence_higher_than:", "Should not include empty sequence boundary")
+}
