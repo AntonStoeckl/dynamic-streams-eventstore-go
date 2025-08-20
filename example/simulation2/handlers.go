@@ -153,9 +153,13 @@ func (hb *HandlerBundle) recordMetrics(ctx context.Context, start time.Time, err
 	// Log timeout/cancellation specifically for debugging (keep this synchronous)
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
-		log.Printf("%s %s", SystemError("⏱️"), SystemError(fmt.Sprintf("TIMEOUT: Operation exceeded deadline after %v", duration)))
+		if duration >= time.Duration(CommandTimeoutSeconds*float64(time.Second)) {
+			log.Printf("%s %s", SystemError("⏱️"), SystemError(fmt.Sprintf("COMMAND TIMEOUT: Operation exceeded %ds command deadline after %v", int(CommandTimeoutSeconds), duration)))
+		} else {
+			log.Printf("%s %s", SystemError("⏱️"), SystemError(fmt.Sprintf("TIMEOUT: Operation exceeded deadline after %v", duration)))
+		}
 	case errors.Is(err, context.Canceled):
-		log.Printf("%s %s", SystemError("🚫"), SystemError(fmt.Sprintf("CANCELED: Operation canceled after %v", duration)))
+		log.Printf("%s %s", SystemError("🚫"), SystemError(fmt.Sprintf("CANCELED: Operation canceled after %v (likely batch timeout)", duration)))
 	case duration > 5*time.Second:
 		log.Printf("🐌 SLOW: Operation took %v (no timeout)", duration)
 	}

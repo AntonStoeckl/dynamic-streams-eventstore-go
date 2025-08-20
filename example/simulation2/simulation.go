@@ -283,9 +283,19 @@ func (s *UnifiedSimulation) processBatch(cycleNum int64) BatchMetrics {
 	var allLatencies []time.Duration
 	timeoutCount := 0
 
+	// Track batch timeout state
+	batchTimedOut := false
+	readersProcessed := 0
+
 	// Process each reader
 	for _, reader := range s.activeReaders {
+		// Check for batch timeout more frequently
 		if batchCtx.Err() != nil {
+			if !batchTimedOut {
+				log.Printf("🚨 BATCH TIMEOUT: Cycle #%d exceeded %ds after processing %d/%d readers",
+					cycleNum+1, int(BatchTimeoutSeconds), readersProcessed, len(s.activeReaders))
+				batchTimedOut = true
+			}
 			timeoutCount++
 			continue
 		}
@@ -299,7 +309,11 @@ func (s *UnifiedSimulation) processBatch(cycleNum int64) BatchMetrics {
 			if err != nil {
 				if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
 					timeoutCount++
-					log.Printf("⏱️ Reader %s timed out", reader.ID)
+					if batchTimedOut {
+						log.Printf("⏱️ Reader %s canceled due to batch timeout", reader.ID)
+					} else {
+						log.Printf("⏱️ Reader %s operation timed out (%v)", reader.ID, operationDuration)
+					}
 				} else {
 					log.Printf("⚠️  Reader %s library visit failed: %v", reader.ID, err)
 				}
@@ -313,25 +327,35 @@ func (s *UnifiedSimulation) processBatch(cycleNum int64) BatchMetrics {
 			}
 		}
 
-		// Handle contract cancellation
-		if reader.ShouldCancelContract() {
+		// Handle contract cancellation (only if no batch timeout)
+		if !batchTimedOut && reader.ShouldCancelContract() {
 			s.handleReaderCancellation(reader)
 		}
+
+		readersProcessed++
 	}
 
 	batchDuration := time.Since(batchStart)
 
-	// Log batch completion
+	// Log batch completion with timeout info
+	timeoutInfo := ""
+	if timeoutCount > 0 {
+		timeoutInfo = fmt.Sprintf(", %d timeouts", timeoutCount)
+	}
+	if batchTimedOut {
+		timeoutInfo += " [BATCH TIMED OUT]"
+	}
+
 	if totalOperations > 0 {
 		avgLatency := s.calculateAverage(allLatencies)
 		throughput := float64(totalOperations) / batchDuration.Seconds()
 
-		log.Printf("📊 Cycle #%d finished: %d ops in %v (avg: %v/op, %.1f ops/sec)",
+		log.Printf("📊 Cycle #%d finished: %d ops in %v (avg: %v/op, %.1f ops/sec)%s",
 			cycleNum+1, totalOperations, batchDuration.Round(time.Millisecond),
-			avgLatency.Round(time.Millisecond), throughput)
+			avgLatency.Round(time.Millisecond), throughput, timeoutInfo)
 	} else {
-		log.Printf("📊 Cycle #%d finished: %d operations in %v",
-			cycleNum+1, totalOperations, batchDuration.Round(time.Millisecond))
+		log.Printf("📊 Cycle #%d finished: %d operations in %v%s",
+			cycleNum+1, totalOperations, batchDuration.Round(time.Millisecond), timeoutInfo)
 	}
 
 	return BatchMetrics{
