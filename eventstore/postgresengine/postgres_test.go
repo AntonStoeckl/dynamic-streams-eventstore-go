@@ -634,6 +634,20 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			expectedNumEvents: 1,
 			expectedEvents:    core.DomainEvents{bookCopy2ReturnedByReader2},
 		},
+		{
+			description: "... (sequenceNumberHigherThan)",
+			filter: eventstore.BuildEventFilter().
+				Matching().
+				AnyPredicateOf(eventstore.P("BookID", bookID1.String())).
+				AndAnyEventTypeOf(core.BookCopyLentToReaderEventType).
+				OrMatching().
+				AnyPredicateOf(eventstore.P("BookID", bookID2.String())).
+				AndAnyEventTypeOf(core.BookCopyReturnedByReaderEventType).
+				WithSequenceNumberHigherThan(8).
+				Finalize(),
+			expectedNumEvents: 1,
+			expectedEvents:    core.DomainEvents{bookCopy2ReturnedByReader1},
+		},
 	}
 
 	for _, tc := range testCases {

@@ -18,13 +18,14 @@ type (
 
 /***** Filter *****/
 
-// Filter represents a complete event filter with FilterItems and optional time boundaries.
+// Filter represents a complete event filter with FilterItems and optional time or sequence boundaries.
 // Multiple FilterItems are combined with OR logic, while predicates within items follow
 // configurable AND/OR logic based on AllPredicatesMustMatch.
 type Filter struct {
-	items         []FilterItem
-	occurredFrom  time.Time
-	occurredUntil time.Time
+	items                    []FilterItem
+	occurredFrom             time.Time
+	occurredUntil            time.Time
+	sequenceNumberHigherThan int64
 }
 
 // Items returns the collection of FilterItems that define the filter criteria.
@@ -40,6 +41,11 @@ func (f Filter) OccurredFrom() time.Time {
 // OccurredUntil returns the upper time boundary for event filtering (inclusive).
 func (f Filter) OccurredUntil() time.Time {
 	return f.occurredUntil
+}
+
+// SequenceNumberHigherThan returns the minimum sequence number for event filtering (exclusive).
+func (f Filter) SequenceNumberHigherThan() int64 {
+	return f.sequenceNumberHigherThan
 }
 
 /***** FilterItem *****/
@@ -113,6 +119,13 @@ type FilterBuilder interface {
 	//
 	// Currently, there is NO check if OccurredUntil is later than OccurredFrom!
 	OccurredUntil(occurredAtUntil time.Time) CompletedFilterItemBuilderWithOccurredUntil
+
+	// WithSequenceNumberHigherThan sets the sequence number boundary (exclusive) for the whole Filter.
+	// This makes time boundaries unavailable (mutually exclusive).
+	//
+	// It sanitizes the input:
+	//   - negative values are converted to 0 (sequences start at 1)
+	WithSequenceNumberHigherThan(sequenceNumber int64) CompletedFilterItemBuilderWithSequenceNumber
 }
 
 // EmptyFilterItemBuilder represents the initial state when starting a new FilterItem.
@@ -170,6 +183,13 @@ type FilterItemBuilderLackingPredicates interface {
 	// Currently, there is NO check if OccurredUntil is later than OccurredFrom!
 	OccurredUntil(occurredAtUntil time.Time) CompletedFilterItemBuilderWithOccurredUntil
 
+	// WithSequenceNumberHigherThan sets the sequence number boundary (exclusive) for the whole Filter.
+	// This makes time boundaries unavailable (mutually exclusive).
+	//
+	// It sanitizes the input:
+	//   - negative values are converted to 0 (sequences start at 1)
+	WithSequenceNumberHigherThan(sequenceNumber int64) CompletedFilterItemBuilderWithSequenceNumber
+
 	// OrMatching finalizes the current FilterItem and starts a new one.
 	OrMatching() EmptyFilterItemBuilder
 
@@ -196,6 +216,13 @@ type FilterItemBuilderLackingEventTypes interface {
 	// Currently, there is NO check if OccurredUntil is later than OccurredFrom!
 	OccurredUntil(occurredAtUntil time.Time) CompletedFilterItemBuilderWithOccurredUntil
 
+	// WithSequenceNumberHigherThan sets the sequence number boundary (exclusive) for the whole Filter.
+	// This makes time boundaries unavailable (mutually exclusive).
+	//
+	// It sanitizes the input:
+	//   - negative values are converted to 0 (sequences start at 1)
+	WithSequenceNumberHigherThan(sequenceNumber int64) CompletedFilterItemBuilderWithSequenceNumber
+
 	// OrMatching finalizes the current FilterItem and starts a new one.
 	OrMatching() EmptyFilterItemBuilder
 
@@ -213,6 +240,13 @@ type CompletedFilterItemBuilder interface {
 	//
 	// Currently, there is NO check if OccurredUntil is later than OccurredFrom!
 	OccurredUntil(occurredAtUntil time.Time) CompletedFilterItemBuilderWithOccurredUntil
+
+	// WithSequenceNumberHigherThan sets the sequence number boundary (exclusive) for the whole Filter.
+	// This makes time boundaries unavailable (mutually exclusive).
+	//
+	// It sanitizes the input:
+	//   - negative values are converted to 0 (sequences start at 1)
+	WithSequenceNumberHigherThan(sequenceNumber int64) CompletedFilterItemBuilderWithSequenceNumber
 
 	// OrMatching finalizes the current FilterItem and starts a new one.
 	OrMatching() EmptyFilterItemBuilder
@@ -243,6 +277,13 @@ type CompletedFilterItemBuilderWithOccurredUntil interface {
 // CompletedFilterItemBuilderWithOccurredFromToUntil represents a completed FilterItem with both time boundaries set.
 // You can only finalize the filter at this stage.
 type CompletedFilterItemBuilderWithOccurredFromToUntil interface {
+	// Finalize returns the Filter once it has at least one FilterItem with at least one EventType OR one Predicate.
+	Finalize() Filter
+}
+
+// CompletedFilterItemBuilderWithSequenceNumber represents a completed FilterItem with a sequence boundary set.
+// You can only finalize the filter at this stage.
+type CompletedFilterItemBuilderWithSequenceNumber interface {
 	// Finalize returns the Filter once it has at least one FilterItem with at least one EventType OR one Predicate.
 	Finalize() Filter
 }
@@ -415,6 +456,15 @@ func (fb filterBuilder) sanitizePredicates(
 	return allPredicates
 }
 
+// sanitizeSequenceNumber converts negative values to 0.
+func (fb filterBuilder) sanitizeSequenceNumber(sequenceNumber int64) int64 {
+	if sequenceNumber < 0 {
+		return 0
+	}
+
+	return sequenceNumber
+}
+
 // OccurredFrom sets the lower boundary for occurredAt (including this timestamp) for the whole Filter.
 func (fb filterBuilder) OccurredFrom(occurredFrom time.Time) CompletedFilterItemBuilderWithOccurredFrom {
 	fb.filter.occurredFrom = occurredFrom
@@ -436,6 +486,17 @@ func (fb filterBuilder) OccurredUntil(occurredUntil time.Time) CompletedFilterIt
 // Currently, there is NO check if AndOccurredUntil is later than OccurredFrom!
 func (fb filterBuilder) AndOccurredUntil(occurredUntil time.Time) CompletedFilterItemBuilderWithOccurredFromToUntil {
 	fb.filter.occurredUntil = occurredUntil
+
+	return fb
+}
+
+// WithSequenceNumberHigherThan sets the sequence number boundary (exclusive) for the whole Filter.
+// This makes time boundaries unavailable (mutually exclusive).
+//
+// It sanitizes the input:
+//   - negative values are converted to 0 (sequences start at 1)
+func (fb filterBuilder) WithSequenceNumberHigherThan(sequenceNumber int64) CompletedFilterItemBuilderWithSequenceNumber {
+	fb.filter.sequenceNumberHigherThan = fb.sanitizeSequenceNumber(sequenceNumber)
 
 	return fb
 }

@@ -769,6 +769,23 @@ func (es *EventStore) validateAppendResult(
 }
 
 func (es *EventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.SelectDataset) *goqu.SelectDataset {
+	itemsExpressions := es.buildFilterItemsExpressions(filter)
+	occurredAtExpressions := es.buildOccurredAtExpressions(filter)
+
+	sequenceExpressions := es.buildSequenceExpressions(filter)
+
+	selectStmt = selectStmt.Where(
+		goqu.And(
+			goqu.Or(itemsExpressions...),
+			goqu.And(occurredAtExpressions...),
+			goqu.And(sequenceExpressions...),
+		),
+	)
+
+	return selectStmt
+}
+
+func (es *EventStore) buildFilterItemsExpressions(filter eventstore.Filter) []goqu.Expression {
 	itemsExpressions := make([]goqu.Expression, 0)
 
 	for _, item := range filter.Items() {
@@ -805,7 +822,10 @@ func (es *EventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.
 			goqu.And(eventTypesExpressionList, predicatesExpressionList),
 		)
 	}
+	return itemsExpressions
+}
 
+func (es *EventStore) buildOccurredAtExpressions(filter eventstore.Filter) []goqu.Expression {
 	occurredAtExpressions := make([]goqu.Expression, 0)
 
 	if !filter.OccurredFrom().IsZero() {
@@ -821,15 +841,19 @@ func (es *EventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.
 			goqu.C(colOccurredAt).Lte(filter.OccurredUntil()),
 		)
 	}
+	return occurredAtExpressions
+}
 
-	selectStmt = selectStmt.Where(
-		goqu.And(
-			goqu.Or(itemsExpressions...),
-			goqu.And(occurredAtExpressions...),
-		),
-	)
+func (es *EventStore) buildSequenceExpressions(filter eventstore.Filter) []goqu.Expression {
+	sequenceExpressions := make([]goqu.Expression, 0)
 
-	return selectStmt
+	if filter.SequenceNumberHigherThan() > 0 {
+		sequenceExpressions = append(
+			sequenceExpressions,
+			goqu.C(colSequenceNumber).Gt(filter.SequenceNumberHigherThan()),
+		)
+	}
+	return sequenceExpressions
 }
 
 func (es *EventStore) getBuilder() *goqu.DialectWrapper {
