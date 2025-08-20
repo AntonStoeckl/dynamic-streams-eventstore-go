@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -24,12 +23,6 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/registeredreaders"
 )
 
-// metricsRecord holds metrics data for async processing.
-type metricsRecord struct {
-	duration time.Duration
-	timedOut bool
-}
-
 // HandlerBundle contains all command and query handlers for the simulation.
 type HandlerBundle struct {
 	// Command handlers.
@@ -46,17 +39,8 @@ type HandlerBundle struct {
 	booksLentOutHandler       bookslentout.QueryHandler
 	registeredReadersHandler  registeredreaders.QueryHandler
 
-	// Performance monitoring.
-	loadController *LoadController
-
 	// State access for actor decisions.
 	simulationState *SimulationState
-
-	// Async metrics recording.
-	metricsChannel chan metricsRecord
-	metricsWg      sync.WaitGroup
-	metricsCtx     context.Context
-	metricsCancel  context.CancelFunc
 }
 
 // NewHandlerBundle creates all command handlers with optional observability.
@@ -135,9 +119,6 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 		return nil, fmt.Errorf("failed to create RegisteredReaders handler: %w", err)
 	}
 
-	// Create async metrics infrastructure
-	metricsCtx, metricsCancel := context.WithCancel(context.Background())
-
 	bundle := &HandlerBundle{
 		addBookCopyHandler:        addBookCopyHandler,
 		removeBookCopyHandler:     removeBookCopyHandler,
@@ -149,56 +130,9 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 		booksLentByReaderHandler:  booksLentByReaderHandler,
 		booksLentOutHandler:       booksLentOutHandler,
 		registeredReadersHandler:  registeredReadersHandler,
-		metricsChannel:            make(chan metricsRecord, 1000), // Buffered channel for high concurrency
-		metricsCtx:                metricsCtx,
-		metricsCancel:             metricsCancel,
 	}
 
 	return bundle, nil
-}
-
-// SetLoadController sets the load controller for performance monitoring.
-func (hb *HandlerBundle) SetLoadController(lc *LoadController) {
-	hb.loadController = lc
-}
-
-// StartAsyncMetrics starts the background metrics processing goroutine.
-func (hb *HandlerBundle) StartAsyncMetrics() {
-	hb.metricsWg.Add(1)
-	go hb.processMetricsAsync()
-}
-
-// StopAsyncMetrics stops the background metrics processing and waits for completion.
-func (hb *HandlerBundle) StopAsyncMetrics() {
-	hb.metricsCancel()
-	hb.metricsWg.Wait()
-}
-
-// processMetricsAsync processes metrics records in the background without blocking.
-func (hb *HandlerBundle) processMetricsAsync() {
-	defer hb.metricsWg.Done()
-
-	for {
-		select {
-		case record := <-hb.metricsChannel:
-			// Process the metrics record synchronously in the background
-			if hb.loadController != nil {
-				hb.loadController.RecordLatency(record.duration)
-				hb.loadController.RecordTimeout(record.timedOut)
-			}
-
-		case <-hb.metricsCtx.Done():
-			// Process any remaining metrics before shutdown
-			for len(hb.metricsChannel) > 0 {
-				record := <-hb.metricsChannel
-				if hb.loadController != nil {
-					hb.loadController.RecordLatency(record.duration)
-					hb.loadController.RecordTimeout(record.timedOut)
-				}
-			}
-			return
-		}
-	}
 }
 
 // SetSimulationState sets the simulation state for actor decisions.
@@ -211,12 +145,8 @@ func (hb *HandlerBundle) GetSimulationState() *SimulationState {
 	return hb.simulationState
 }
 
-// recordMetrics records operation metrics for load controller if available.
-// This is now non-blocking and sends metrics to a background processor.
+// recordMetrics logs operation timing and errors (simplified for unified simulation).
 func (hb *HandlerBundle) recordMetrics(ctx context.Context, start time.Time, err error) {
-	if hb.loadController == nil {
-		return
-	}
 
 	duration := time.Since(start)
 
@@ -230,22 +160,8 @@ func (hb *HandlerBundle) recordMetrics(ctx context.Context, start time.Time, err
 		log.Printf("🐌 SLOW: Operation took %v (no timeout)", duration)
 	}
 
-	// Check for timeout error (both context and error parameters).
-	timedOut := ctx.Err() != nil || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
-
-	// Send metrics to the background processor (non-blocking)
-	record := metricsRecord{
-		duration: duration,
-		timedOut: timedOut,
-	}
-
-	select {
-	case hb.metricsChannel <- record:
-		// Successfully queued for background processing
-	default:
-		// Channel full - drop metrics rather than block
-		// This prevents backpressure from affecting operation performance
-	}
+	// Note: Unified simulation gets metrics directly from batch processing
+	// No need to send metrics to LoadController
 }
 
 // ExecuteAddBook adds a book to circulation via command handler.

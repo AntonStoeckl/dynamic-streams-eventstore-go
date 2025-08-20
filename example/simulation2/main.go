@@ -68,8 +68,8 @@ func run() error {
 
 	logSimulationConfiguration()
 
-	// Initialize simulation components.
-	handlers, scheduler, loadController, err := initializeSimulationComponents(ctx, eventStore, cfg)
+	// Initialize unified simulation.
+	handlers, simulation, err := initializeUnifiedSimulation(ctx, eventStore, cfg)
 	if err != nil {
 		return err
 	}
@@ -77,36 +77,35 @@ func run() error {
 	log.Printf("⏳ Simulation will start in %d seconds...", SetupPhaseDelaySeconds)
 	time.Sleep(time.Duration(SetupPhaseDelaySeconds) * time.Second)
 
-	log.Printf("🚀 Actor-based simulation starting...")
-	log.Printf("💡 Actors will work at system's natural pace (no fixed rate)")
+	log.Printf("🚀 Unified simulation starting...")
+	log.Printf("💡 Immediate auto-tuning with 1-second feedback loop")
 	log.Printf("Press Ctrl+C to stop...")
 
-	// Start all simulation components.
+	// Start the unified simulation.
 	simulationCtx, simulationCancel := context.WithCancel(ctx)
 	defer simulationCancel()
 
-	if err := scheduler.Start(); err != nil {
-		return fmt.Errorf("failed to start scheduler: %w", err)
-	}
+	// Start simulation in goroutine so we can handle signals
+	simulationDone := make(chan error, 1)
+	go func() {
+		simulationDone <- simulation.Start()
+	}()
 
-	if err := loadController.Start(); err != nil {
-		return fmt.Errorf("failed to start load controller: %w", err)
-	}
-
-	// Store references for shutdown.
-	_ = handlers // Will be used when actors execute commands.
-
-	// Wait for a shutdown signal.
+	// Wait for a shutdown signal or simulation completion.
 	select {
 	case sig := <-sigChan:
 		log.Printf("📢 Received signal %v, initiating graceful shutdown...", sig)
 		simulationCancel()
 	case <-simulationCtx.Done():
 		log.Printf("📢 Simulation context canceled")
+	case err := <-simulationDone:
+		if err != nil {
+			return fmt.Errorf("simulation failed: %w", err)
+		}
 	}
 
 	// Graceful shutdown.
-	gracefulShutdown(loadController, scheduler, handlers)
+	gracefulShutdown(simulation, handlers)
 
 	return nil
 }
@@ -225,63 +224,49 @@ func logSimulationConfiguration() {
 		TargetP50LatencyMs, TargetP99LatencyMs)
 }
 
-// initializeSimulationComponents creates and connects all simulation components.
-func initializeSimulationComponents(ctx context.Context, eventStore *postgresengine.EventStore, cfg Config) (*HandlerBundle, *ActorScheduler, *LoadController, error) {
-	log.Printf("🏗️  Initializing simulation components...")
+// initializeUnifiedSimulation creates the unified simulation and its dependencies.
+func initializeUnifiedSimulation(ctx context.Context, eventStore *postgresengine.EventStore, cfg Config) (*HandlerBundle, *UnifiedSimulation, error) {
+	log.Printf("🏗️  Initializing unified simulation...")
 
 	// Create handlers for all library operations.
 	handlers, err := NewHandlerBundle(eventStore, cfg) //nolint:contextcheck // Initialization code, context created internally
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to create handler bundle: %w", err)
+		return nil, nil, fmt.Errorf("failed to create handler bundle: %w", err)
 	}
 
 	// Create the simulation state for fast lookups.
 	state := NewSimulationState()
 
-	// Create the actor scheduler with batch processing.
-	scheduler, err := NewActorScheduler(ctx, eventStore, state, handlers)
+	// Create the unified simulation.
+	simulation, err := NewUnifiedSimulation(ctx, eventStore, state, handlers)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("failed to create actor scheduler: %w", err)
+		return nil, nil, fmt.Errorf("failed to create unified simulation: %w", err)
 	}
-
-	// Create load controller for auto-tuning.
-	loadController := NewLoadController(ctx, scheduler, state)
-
-	// Connect load controller to handlers for metrics collection.
-	handlers.SetLoadController(loadController)
-
-	// Start async metrics processing now that load controller is connected.
-	handlers.StartAsyncMetrics()
 
 	// Connect simulation state to handlers for actor decisions.
 	handlers.SetSimulationState(state)
 
-	return handlers, scheduler, loadController, nil
+	// NOTE: No need for load controller or async metrics - unified simulation handles everything directly
+
+	return handlers, simulation, nil
 }
 
-// gracefulShutdown stops simulation components in reverse order.
-func gracefulShutdown(loadController *LoadController, scheduler *ActorScheduler, handlers *HandlerBundle) {
+// gracefulShutdown stops the unified simulation.
+func gracefulShutdown(simulation *UnifiedSimulation, handlers *HandlerBundle) {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 
-	log.Printf("🔄 Shutting down simulation...")
+	log.Printf("🔄 Shutting down unified simulation...")
 
-	// Stop components in reverse order.
-	if err := loadController.Stop(); err != nil {
-		log.Printf("⚠️  Error stopping load controller: %v", err)
-	}
-
-	// Stop async metrics processing.
-	handlers.StopAsyncMetrics()
-
-	if err := scheduler.Stop(); err != nil {
-		log.Printf("⚠️  Error stopping scheduler: %v", err)
+	// Stop the unified simulation.
+	if err := simulation.Stop(); err != nil {
+		log.Printf("⚠️  Error stopping unified simulation: %v", err)
 	}
 
 	select {
 	case <-shutdownCtx.Done():
 		log.Printf("⚠️  Shutdown timeout exceeded")
 	default:
-		log.Printf("✅ Actor-Based Library Simulation v2 stopped gracefully")
+		log.Printf("✅ Unified Library Simulation stopped gracefully")
 	}
 }

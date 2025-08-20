@@ -21,7 +21,7 @@ const (
 	// ACTOR POOL CONFIGURATION ...
 
 	// InitialActiveReaders defines the conservative starting point for active readers.
-	InitialActiveReaders = 170
+	InitialActiveReaders = 220
 
 	// MinActiveReaders defines the minimum scale limit.
 	MinActiveReaders = 50
@@ -78,18 +78,17 @@ const (
 
 	// AUTO-TUNING SYSTEM ...
 
-	// TargetP50LatencyMs defines the acceptable average response time in milliseconds.
+	// TargetP50LatencyMs defines the acceptable average latency in milliseconds.
 	TargetP50LatencyMs = 70
 
-	// TargetP99LatencyMs defines the maximum acceptable latency in milliseconds.
+	// TargetP99LatencyMs defines the acceptable average latency in milliseconds.
 	TargetP99LatencyMs = 180
 
 	// MaxTimeoutRate defines the timeout threshold as a percentage.
 	MaxTimeoutRate = 0.005
 
-	// AnomalyDetectionMultiplier defines the threshold for detecting metrics anomalies.
-	// P99 is considered anomalous if it exceeds P50 * AnomalyDetectionMultiplier.
-	AnomalyDetectionMultiplier = 80.0 // Was 10x, increased to reduce false alarms
+	// MaxFactorForBadPerformance defines the multiplier for bad P50 / P99 performance.
+	MaxFactorForBadPerformance = 1.1
 
 	// ScaleUpIncrement defines the number of readers to add when performing well.
 	ScaleUpIncrement = 10
@@ -97,26 +96,10 @@ const (
 	// ScaleDownIncrement defines the number of readers to remove when overloaded.
 	ScaleDownIncrement = 20
 
-	// TuningIntervalSeconds defines how often to adjust the active reader count.
-	TuningIntervalSeconds = 5
-
 	// BATCH PROCESSING CONFIGURATION ...
 
 	// ActorBatchSize defines the number of actors processed per goroutine to avoid 14k goroutines.
 	ActorBatchSize = 25
-
-	// BatchProcessingDelayMs defines the delay between batch processing rounds.
-	BatchProcessingDelayMs = 100
-
-	// STATE MANAGEMENT ...
-
-	// StateRefreshIntervalMs defines how often to refresh a cached state.
-	// Increased to reduce database pressure with 60K books + 15K readers queries.
-	StateRefreshIntervalMs = 500
-
-	// MetricsWindowSize defines the number of operations for metrics calculation.
-	// Set to 250 to capture a full 30-second batch timeout window for accurate P99 metrics.
-	MetricsWindowSize = 250
 
 	// SIMULATION TIMING ...
 
@@ -128,6 +111,9 @@ const (
 	// CommandTimeoutSeconds defines timeout for command operations (ExecuteLendBook, ExecuteReturnBook, etc.)
 	// These are fast, transactional operations that should complete quickly.
 	CommandTimeoutSeconds = 5.0
+
+	// BatchTimeoutSeconds defines timeout for entire batch processing cycles.
+	BatchTimeoutSeconds = 60.0
 
 	// BooksInCirculationQueryTimeoutSeconds defines the timeout for this (relatively slow) query.
 	BooksInCirculationQueryTimeoutSeconds = 60.0

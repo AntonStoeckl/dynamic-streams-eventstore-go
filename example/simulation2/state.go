@@ -360,13 +360,9 @@ func (s *SimulationState) ReturnBook(bookID, readerID uuid.UUID) bool {
 // PERIODIC REFRESH - Sync with EventStore truth
 // =================================================================
 
-// ShouldRefresh checks if the state cache needs refreshing from the EventStore.
+// ShouldRefresh is deprecated - unified simulation only loads state at startup
 func (s *SimulationState) ShouldRefresh() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return time.Since(s.lastRefresh) > time.Duration(StateRefreshIntervalMs)*time.Millisecond &&
-		!s.refreshInProgress
+	return false // Unified simulation doesn't do periodic refresh
 }
 
 // RefreshFromEventStore updates the in-memory state from EventStore truth.
