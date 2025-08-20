@@ -104,8 +104,8 @@ func logSimulationConfiguration(cfg Config) {
 	log.Printf("  - Population: %d-%d readers, %d-%d books",
 		MinReaders, MaxReaders, MinBooks, MaxBooks)
 	log.Printf("  - Concurrent Workers: %d", cfg.Workers)
-	log.Printf("  - Auto-tuning: P50<%dms, P99<%dms target",
-		TargetP50LatencyMs, TargetP99LatencyMs)
+	log.Printf("  - Auto-tuning: avg<%dms/op target",
+		TargetAvgLatencyMs)
 }
 
 func initializeUnifiedSimulation(ctx context.Context, eventStore *postgresengine.EventStore, cfg Config) (*HandlerBundle, *UnifiedSimulation, error) {

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	"sort"
 	"sync"
 	"time"
 
@@ -70,16 +69,16 @@ type batchResult struct {
 
 // UnifiedStats tracks overall simulation performance.
 type UnifiedStats struct {
-	TotalCycles          int64
-	TotalOperations      int64
-	AutoTuneAdjustments  int64
-	ScaleUpEvents        int64
-	ScaleDownEvents      int64
-	CurrentActiveReaders int
-	CurrentP50Ms         int64
-	CurrentP99Ms         int64
-	TimeoutRate          float64
-	LastAdjustmentReason string
+	TotalCycles                int64
+	TotalOperations            int64
+	AutoTuneAdjustments        int64
+	ScaleUpEvents              int64
+	ScaleDownEvents            int64
+	CurrentActiveReaders       int
+	CurrentAvgLatencyMs        int64
+	CurrentThroughputOpsPerSec float64
+	TimeoutRate                float64
+	LastAdjustmentReason       string
 }
 
 // NewUnifiedSimulation creates a new unified simulation.
@@ -119,7 +118,7 @@ func NewUnifiedSimulation(
 //
 //nolint:funlen
 func (s *UnifiedSimulation) initializeActorPools() error {
-	fmt.Printf("%s %s\n", StatusIcon("working"), Info("Initializing actor pools..."))
+	log.Printf("%s %s", StatusIcon("working"), Info("Initializing actor pools..."))
 
 	// Load all state from the database first
 	log.Printf("📚 Loading complete simulation state from EventStore...")
@@ -199,8 +198,8 @@ func (s *UnifiedSimulation) initializeActorPools() error {
 // Start begins the unified simulation loop.
 func (s *UnifiedSimulation) Start(cfg Config) error {
 	log.Printf("%s %s", Success("🚀"), Success("Starting unified simulation..."))
-	log.Printf("🎯 Auto-tune targets: P50<%dms, P99<%dms, timeouts<%.1f%%",
-		TargetP50LatencyMs, TargetP99LatencyMs, MaxTimeoutRate*100)
+	log.Printf("🎯 Auto-tune targets: avg<%dms/op, timeouts<%.1f%%",
+		TargetAvgLatencyMs, MaxTimeoutRate*100)
 
 	// Run the main simulation loop
 	return s.runMainLoop(cfg)
@@ -237,7 +236,7 @@ func (s *UnifiedSimulation) runMainLoop(cfg Config) error {
 		default:
 			cycleStart := time.Now()
 
-			// EVERY batch: Core processing
+			// Every batch: Core processing
 			s.rotateActiveReaders()
 			batchMetrics := s.processBatch(cfg, cycleNum)
 			s.recordBatchMetrics(batchMetrics)
@@ -292,7 +291,7 @@ func (s *UnifiedSimulation) processBatch(cfg Config, cycleNum int64) BatchMetric
 	batchDuration := time.Since(batchStart)
 
 	// Log batch completion
-	s.logBatchCompletion(cycleNum, totalOperations, batchDuration, allLatencies, timeoutCount, batchTimedOut, numWorkers)
+	s.logBatchCompletion(cycleNum, totalOperations, batchDuration, timeoutCount, batchTimedOut, numWorkers)
 
 	return BatchMetrics{
 		OperationCount:     totalOperations,
@@ -362,7 +361,6 @@ func (s *UnifiedSimulation) logBatchCompletion(
 	cycleNum int64,
 	totalOperations int,
 	batchDuration time.Duration,
-	allLatencies []time.Duration,
 	timeoutCount int,
 	batchTimedOut bool,
 	numWorkers int,
@@ -377,17 +375,8 @@ func (s *UnifiedSimulation) logBatchCompletion(
 	}
 
 	// Log with the appropriate format based on whether operations occurred
-	if totalOperations > 0 {
-		avgLatency := s.calculateAverage(allLatencies)
-		throughput := float64(totalOperations) / batchDuration.Seconds()
-
-		log.Printf("📊 Cycle #%d finished: %d ops in %v (avg: %v/op, %.1f ops/sec) [%d workers]%s",
-			cycleNum+1, totalOperations, batchDuration.Round(time.Millisecond),
-			avgLatency.Round(time.Millisecond), throughput, numWorkers, timeoutInfo)
-	} else {
-		log.Printf("📊 Cycle #%d finished: %d operations in %v [%d workers]%s",
-			cycleNum+1, totalOperations, batchDuration.Round(time.Millisecond), numWorkers, timeoutInfo)
-	}
+	log.Printf("📊 Cycle #%d finished: %d ops in %v [%d workers]%s",
+		cycleNum+1, totalOperations, batchDuration.Round(time.Millisecond), numWorkers, timeoutInfo)
 }
 
 // =================================================================
@@ -396,18 +385,18 @@ func (s *UnifiedSimulation) logBatchCompletion(
 
 // autoTuneFromRecentMetrics analyzes recent batch metrics and adjusts the active reader count.
 func (s *UnifiedSimulation) autoTuneFromRecentMetrics() {
-	// Calculate current performance from recent batches
-	p50, p99 := s.calculatePercentilesFromBatches()
+	// Calculate current performance from the latest batch
+	avgLatency, throughput := s.calculateLatestBatchMetrics()
 	timeoutRate := s.calculateTimeoutRateFromBatches()
 
 	// Update stats
-	s.stats.CurrentP50Ms = p50.Milliseconds()
-	s.stats.CurrentP99Ms = p99.Milliseconds()
+	s.stats.CurrentAvgLatencyMs = avgLatency.Milliseconds()
+	s.stats.CurrentThroughputOpsPerSec = throughput
 	s.stats.TimeoutRate = timeoutRate
 
 	// Determine performance state
-	performanceGood := s.isPerformanceGood(p50, p99, timeoutRate)
-	performanceBad := s.isPerformanceBad(p50, p99, timeoutRate)
+	performanceGood := s.isPerformanceGood(avgLatency, timeoutRate)
+	performanceBad := s.isPerformanceBad(avgLatency, timeoutRate)
 
 	// Calculate the adjustment
 	adjustment, reason := s.calculateAdjustment(performanceGood, performanceBad)
@@ -432,35 +421,26 @@ func (s *UnifiedSimulation) recordBatchMetrics(metrics BatchMetrics) {
 // METRICS CALCULATION - Direct from batch data
 // =================================================================
 
-// calculatePercentilesFromBatches calculates P50 and P99 from recent batch metrics.
-func (s *UnifiedSimulation) calculatePercentilesFromBatches() (p50, p99 time.Duration) {
-	var allLatencies []time.Duration
-
-	for _, batch := range s.recentBatches {
-		allLatencies = append(allLatencies, batch.OperationLatencies...)
-	}
-
-	if len(allLatencies) == 0 {
+// calculateLatestBatchMetrics calculates average latency and throughput from the most recent batch.
+func (s *UnifiedSimulation) calculateLatestBatchMetrics() (avgLatency time.Duration, throughput float64) {
+	if len(s.recentBatches) == 0 {
 		return 0, 0
 	}
 
-	// Sort latencies
-	sort.Slice(allLatencies, func(i, j int) bool {
-		return allLatencies[i] < allLatencies[j]
-	})
+	// Use only the latest batch
+	latestBatch := s.recentBatches[len(s.recentBatches)-1]
 
-	// Calculate percentiles
-	p50Index := int(float64(len(allLatencies)) * 0.5)
-	p99Index := int(float64(len(allLatencies)) * 0.99)
-
-	if p50Index >= len(allLatencies) {
-		p50Index = len(allLatencies) - 1
-	}
-	if p99Index >= len(allLatencies) {
-		p99Index = len(allLatencies) - 1
+	if latestBatch.OperationCount == 0 {
+		return 0, 0
 	}
 
-	return allLatencies[p50Index], allLatencies[p99Index]
+	// Calculate the average latency for this batch
+	avgLatency = s.calculateAverage(latestBatch.OperationLatencies)
+
+	// Calculate throughput for this batch
+	throughput = float64(latestBatch.OperationCount) / latestBatch.BatchDuration.Seconds()
+
+	return avgLatency, throughput
 }
 
 // calculateTimeoutRateFromBatches calculates the timeout rate from recent batches.
@@ -499,22 +479,21 @@ func (s *UnifiedSimulation) calculateAverage(durations []time.Duration) time.Dur
 // =================================================================
 
 // isPerformanceGood determines if the current performance meets targets.
-func (s *UnifiedSimulation) isPerformanceGood(p50, p99 time.Duration, timeoutRate float64) bool {
-	p50Good := p50 < time.Duration(TargetP50LatencyMs)*time.Millisecond
-	p99Good := p99 < time.Duration(TargetP99LatencyMs)*time.Millisecond
+func (s *UnifiedSimulation) isPerformanceGood(avgLatency time.Duration, timeoutRate float64) bool {
+	avgLatencyGood := avgLatency < time.Duration(TargetAvgLatencyMs)*time.Millisecond
 	timeoutGood := timeoutRate < MaxTimeoutRate
 
-	return p50Good && p99Good && timeoutGood
+	return avgLatencyGood && timeoutGood
 }
 
 // isPerformanceBad determines if the current performance is unacceptable.
-func (s *UnifiedSimulation) isPerformanceBad(p50, p99 time.Duration, timeoutRate float64) bool {
-	badFactor := MaxFactorForBadPerformance
-	p99Bad := p99 > time.Duration(TargetP99LatencyMs*badFactor)*time.Millisecond
-	p50Bad := p50 > time.Duration(TargetP50LatencyMs*badFactor)*time.Millisecond
+func (s *UnifiedSimulation) isPerformanceBad(avgLatency time.Duration, timeoutRate float64) bool {
+	// Use 1.5x the target as a "bad" threshold (simplified from MaxFactorForBadPerformance)
+	badFactor := 1.5
+	avgLatencyBad := avgLatency > time.Duration(float64(TargetAvgLatencyMs)*badFactor)*time.Millisecond
 	timeoutBad := timeoutRate > MaxTimeoutRate*badFactor
 
-	return p99Bad || p50Bad || timeoutBad
+	return avgLatencyBad || timeoutBad
 }
 
 // calculateAdjustment determines the adjustment needed based on performance.
@@ -903,7 +882,7 @@ func (s *UnifiedSimulation) logPerformance() {
 
 	log.Printf("%s %s",
 		Performance("🎯"),
-		Performance(fmt.Sprintf("Performance: P50=%dms, P99=%dms, timeouts=%.1f%%, active=%d readers | Books: %d total, %d lent out",
-			s.stats.CurrentP50Ms, s.stats.CurrentP99Ms, s.stats.TimeoutRate*100,
+		Performance(fmt.Sprintf("Performance: avg=%dms/op, %.1f ops/sec, timeouts=%.1f%%, active=%d readers | Books: %d total, %d lent out",
+			s.stats.CurrentAvgLatencyMs, s.stats.CurrentThroughputOpsPerSec, s.stats.TimeoutRate*100,
 			len(s.activeReaders), stateStats.TotalBooks, stateStats.BooksLentOut)))
 }

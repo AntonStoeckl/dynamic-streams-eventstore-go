@@ -32,14 +32,14 @@ type ObservabilityConfig struct {
 func parseFlags() Config {
 	var (
 		observability = flag.Bool("observability-enabled", false, "Enable OpenTelemetry observability")
-		workers       = flag.Uint("workers", DefaultConcurrentWorkers, "Number of concurrent workers")
+		workers       = flag.Int("workers", DefaultConcurrentWorkers, "Number of concurrent workers")
 	)
 
 	flag.Parse()
 
 	return Config{
 		ObservabilityEnabled: *observability,
-		Workers:              int(*workers),
+		Workers:              *workers,
 	}
 }
 

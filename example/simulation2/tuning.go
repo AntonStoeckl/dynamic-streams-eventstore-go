@@ -78,17 +78,11 @@ const (
 
 	// AUTO-TUNING SYSTEM ...
 
-	// TargetP50LatencyMs defines the acceptable average latency in milliseconds.
-	TargetP50LatencyMs = 70
-
-	// TargetP99LatencyMs defines the acceptable average latency in milliseconds.
-	TargetP99LatencyMs = 180
+	// TargetAvgLatencyMs defines the acceptable average latency per operation in milliseconds.
+	TargetAvgLatencyMs = 70
 
 	// MaxTimeoutRate defines the timeout threshold as a percentage.
 	MaxTimeoutRate = 0.005
-
-	// MaxFactorForBadPerformance defines the multiplier for bad P50 / P99 performance.
-	MaxFactorForBadPerformance = 1.1
 
 	// ScaleUpIncrement defines the number of readers to add when performing well.
 	ScaleUpIncrement = 10
@@ -117,13 +111,13 @@ const (
 	BatchTimeoutSeconds = 60.0
 
 	// BooksInCirculationQueryTimeoutSeconds defines the timeout for this (relatively slow) query.
-	BooksInCirculationQueryTimeoutSeconds = 60.0
+	BooksInCirculationQueryTimeoutSeconds = 180.0
 
 	// BooksLentOutQueryTimeoutSeconds defines the timeout for this (relatively slow) query.
-	BooksLentOutQueryTimeoutSeconds = 45.0
+	BooksLentOutQueryTimeoutSeconds = 180.0
 
 	// RegisteredReadersQueryTimeoutSeconds defines the timeout for this (relatively slow) query.
-	RegisteredReadersQueryTimeoutSeconds = 5.0
+	RegisteredReadersQueryTimeoutSeconds = 20.0
 
 	// BooksLentByReaderQueryTimeoutSeconds defines the timeout for this (fast) query.
 	BooksLentByReaderQueryTimeoutSeconds = 0.5 // 500 ms
