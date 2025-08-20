@@ -494,6 +494,10 @@ func (s *UnifiedSimulation) calculateAverage(durations []time.Duration) time.Dur
 	return total / time.Duration(len(durations))
 }
 
+// =================================================================
+// PERFORMANCE EVALUATION - Same logic as before, but simplified
+// =================================================================
+
 // isPerformanceGood determines if the current performance meets targets.
 func (s *UnifiedSimulation) isPerformanceGood(p50, p99 time.Duration, timeoutRate float64) bool {
 	p50Good := p50 < time.Duration(TargetP50LatencyMs)*time.Millisecond
@@ -502,10 +506,6 @@ func (s *UnifiedSimulation) isPerformanceGood(p50, p99 time.Duration, timeoutRat
 
 	return p50Good && p99Good && timeoutGood
 }
-
-// =================================================================
-// PERFORMANCE EVALUATION - Same logic as before, but simplified
-// =================================================================
 
 // isPerformanceBad determines if the current performance is unacceptable.
 func (s *UnifiedSimulation) isPerformanceBad(p50, p99 time.Duration, timeoutRate float64) bool {
