@@ -1264,3 +1264,205 @@ func Test_Filter_Serialize_Empty_Components(t *testing.T) {
 	assert.NotContains(t, serialized, "occurred_from:", "Should not include empty time boundaries")
 	assert.NotContains(t, serialized, "sequence_higher_than:", "Should not include empty sequence boundary")
 }
+
+//nolint:funlen
+func Test_Filter_ReopenForSequenceFiltering_Compatible(t *testing.T) {
+	tests := []struct {
+		name           string
+		baseFilter     eventstore.Filter
+		sequenceNumber int64
+		validateResult func(t *testing.T, result eventstore.Filter)
+	}{
+		{
+			name: "event_types_only_filter_can_reopen",
+			baseFilter: eventstore.BuildEventFilter().
+				Matching().
+				AnyEventTypeOf("BookAdded", "BookRemoved").
+				Finalize(),
+			sequenceNumber: 12345,
+			validateResult: func(t *testing.T, result eventstore.Filter) {
+				assert.Equal(t, int64(12345), result.SequenceNumberHigherThan())
+				assert.True(t, result.OccurredFrom().IsZero())
+				assert.True(t, result.OccurredUntil().IsZero())
+				assert.Len(t, result.Items(), 1)
+				assert.ElementsMatch(t, []string{"BookAdded", "BookRemoved"}, result.Items()[0].EventTypes())
+				assert.Empty(t, result.Items()[0].Predicates())
+			},
+		},
+		{
+			name: "event_types_with_predicates_can_reopen",
+			baseFilter: eventstore.BuildEventFilter().
+				Matching().
+				AnyEventTypeOf("BookAdded").
+				AndAnyPredicateOf(eventstore.P("BookID", "book-123")).
+				Finalize(),
+			sequenceNumber: 9876,
+			validateResult: func(t *testing.T, result eventstore.Filter) {
+				assert.Equal(t, int64(9876), result.SequenceNumberHigherThan())
+				assert.True(t, result.OccurredFrom().IsZero())
+				assert.True(t, result.OccurredUntil().IsZero())
+				assert.Len(t, result.Items(), 1)
+				assert.Equal(t, []string{"BookAdded"}, result.Items()[0].EventTypes())
+				assert.Len(t, result.Items()[0].Predicates(), 1)
+				assert.Equal(t, "BookID", result.Items()[0].Predicates()[0].Key())
+				assert.Equal(t, "book-123", result.Items()[0].Predicates()[0].Val())
+			},
+		},
+		{
+			name: "predicates_only_filter_can_reopen",
+			baseFilter: eventstore.BuildEventFilter().
+				Matching().
+				AnyPredicateOf(eventstore.P("ReaderID", "reader-456")).
+				Finalize(),
+			sequenceNumber: 5555,
+			validateResult: func(t *testing.T, result eventstore.Filter) {
+				assert.Equal(t, int64(5555), result.SequenceNumberHigherThan())
+				assert.True(t, result.OccurredFrom().IsZero())
+				assert.True(t, result.OccurredUntil().IsZero())
+				assert.Len(t, result.Items(), 1)
+				assert.Empty(t, result.Items()[0].EventTypes())
+				assert.Len(t, result.Items()[0].Predicates(), 1)
+				assert.Equal(t, "ReaderID", result.Items()[0].Predicates()[0].Key())
+				assert.Equal(t, "reader-456", result.Items()[0].Predicates()[0].Val())
+			},
+		},
+		{
+			name: "existing_sequence_filter_can_reopen_with_new_sequence",
+			baseFilter: eventstore.BuildEventFilter().
+				Matching().
+				AnyEventTypeOf("BookAdded").
+				WithSequenceNumberHigherThan(1000).
+				Finalize(),
+			sequenceNumber: 2000,
+			validateResult: func(t *testing.T, result eventstore.Filter) {
+				assert.Equal(t, int64(2000), result.SequenceNumberHigherThan()) // New sequence number
+				assert.True(t, result.OccurredFrom().IsZero())
+				assert.True(t, result.OccurredUntil().IsZero())
+				assert.Len(t, result.Items(), 1)
+				assert.Equal(t, []string{"BookAdded"}, result.Items()[0].EventTypes())
+			},
+		},
+		{
+			name: "negative_sequence_number_sanitized_to_zero",
+			baseFilter: eventstore.BuildEventFilter().
+				Matching().
+				AnyEventTypeOf("BookAdded").
+				Finalize(),
+			sequenceNumber: -100,
+			validateResult: func(t *testing.T, result eventstore.Filter) {
+				assert.Equal(t, int64(0), result.SequenceNumberHigherThan()) // Sanitized to 0
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reopened := tt.baseFilter.ReopenForSequenceFiltering()
+
+			// Should return SequenceFilteringCapable
+			capable, ok := reopened.(eventstore.SequenceFilteringCapable)
+			assert.True(t, ok, "Should return SequenceFilteringCapable interface")
+			assert.NotNil(t, capable)
+
+			// Should be able to add sequence filtering
+			result := capable.WithSequenceNumberHigherThan(tt.sequenceNumber).Finalize()
+
+			// Validate the result
+			tt.validateResult(t, result)
+		})
+	}
+}
+
+func Test_Filter_ReopenForSequenceFiltering_Incompatible(t *testing.T) {
+	tests := []struct {
+		name           string
+		baseFilter     eventstore.Filter
+		expectedReason string
+	}{
+		{
+			name: "filter_with_occurred_from_cannot_reopen",
+			baseFilter: eventstore.BuildEventFilter().
+				Matching().
+				AnyEventTypeOf("BookAdded").
+				OccurredFrom(time.Date(2025, 1, 1, 10, 0, 0, 0, time.UTC)).
+				Finalize(),
+			expectedReason: "cannot add sequence filtering: time boundaries already present",
+		},
+		{
+			name: "filter_with_occurred_until_cannot_reopen",
+			baseFilter: eventstore.BuildEventFilter().
+				Matching().
+				AnyEventTypeOf("BookAdded").
+				OccurredUntil(time.Date(2025, 1, 1, 20, 0, 0, 0, time.UTC)).
+				Finalize(),
+			expectedReason: "cannot add sequence filtering: time boundaries already present",
+		},
+		{
+			name: "filter_with_both_time_boundaries_cannot_reopen",
+			baseFilter: eventstore.BuildEventFilter().
+				Matching().
+				AnyEventTypeOf("BookAdded").
+				OccurredFrom(time.Date(2025, 1, 1, 10, 0, 0, 0, time.UTC)).
+				AndOccurredUntil(time.Date(2025, 1, 1, 20, 0, 0, 0, time.UTC)).
+				Finalize(),
+			expectedReason: "cannot add sequence filtering: time boundaries already present",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reopened := tt.baseFilter.ReopenForSequenceFiltering()
+
+			// Should return SequenceFilteringIncompatible
+			incompatible, ok := reopened.(eventstore.SequenceFilteringIncompatible)
+			assert.True(t, ok, "Should return SequenceFilteringIncompatible interface")
+			assert.NotNil(t, incompatible)
+
+			// Should document why it's incompatible
+			reason := incompatible.CannotAddSequenceFiltering()
+			assert.Equal(t, tt.expectedReason, reason)
+		})
+	}
+}
+
+func Test_Filter_ReopenForSequenceFiltering_CompileTimeSafety(t *testing.T) {
+	// Test that the type system enforces compile-time safety
+
+	// Compatible filter
+	compatibleFilter := eventstore.BuildEventFilter().
+		Matching().
+		AnyEventTypeOf("BookAdded").
+		Finalize()
+
+	reopened := compatibleFilter.ReopenForSequenceFiltering()
+
+	// This should compile - compatible filter returns SequenceFilteringCapable
+	if capable, ok := reopened.(eventstore.SequenceFilteringCapable); ok {
+		result := capable.WithSequenceNumberHigherThan(123).Finalize()
+		assert.Equal(t, int64(123), result.SequenceNumberHigherThan())
+	} else {
+		t.Fatal("Compatible filter should return SequenceFilteringCapable")
+	}
+
+	// Incompatible filter
+	incompatibleFilter := eventstore.BuildEventFilter().
+		Matching().
+		AnyEventTypeOf("BookAdded").
+		OccurredFrom(time.Now()).
+		Finalize()
+
+	reopenedIncompatible := incompatibleFilter.ReopenForSequenceFiltering()
+
+	// This should NOT be SequenceFilteringCapable
+	if _, ok := reopenedIncompatible.(eventstore.SequenceFilteringCapable); ok {
+		t.Fatal("Incompatible filter should NOT return SequenceFilteringCapable")
+	}
+
+	// This should be SequenceFilteringIncompatible
+	if incompatible, ok := reopenedIncompatible.(eventstore.SequenceFilteringIncompatible); ok {
+		reason := incompatible.CannotAddSequenceFiltering()
+		assert.Contains(t, reason, "time boundaries already present")
+	} else {
+		t.Fatal("Incompatible filter should return SequenceFilteringIncompatible")
+	}
+}

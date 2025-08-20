@@ -31,6 +31,20 @@ type Filter struct {
 	sequenceNumberHigherThan int64
 }
 
+// ReopenForSequenceFiltering attempts to reopen this filter for sequence number filtering.
+// Returns either SequenceFilteringCapable (if no time boundaries are set) or
+// SequenceFilteringIncompatible (if time boundaries conflict).
+// This provides compile-time safety - you can only call WithSequenceNumberHigherThan
+// on the returned interface if the filter is compatible.
+func (f Filter) ReopenForSequenceFiltering() interface{} {
+	if !f.occurredFrom.IsZero() || !f.occurredUntil.IsZero() {
+		return &incompatibleFilterState{
+			reason: "cannot add sequence filtering: time boundaries already present",
+		}
+	}
+	return &sequenceFilterBuilder{baseFilter: f}
+}
+
 // Items returns the collection of FilterItems that define the filter criteria.
 func (f Filter) Items() []FilterItem {
 	return f.items
@@ -581,4 +595,69 @@ func (fb filterBuilder) Finalize() Filter {
 	fb.filter.items = append(fb.filter.items, fb.currentFilterItem)
 
 	return fb.filter
+}
+
+/***** Filter Reopening Interfaces *****/
+
+// SequenceFilteringCapable represents a filter state that can accept sequence number filtering.
+// This interface provides compile-time safety - you can only call WithSequenceNumberHigherThan
+// on filters that are compatible (no time boundaries set).
+type SequenceFilteringCapable interface {
+	// WithSequenceNumberHigherThan sets the sequence number boundary (exclusive) for the reopened Filter.
+	WithSequenceNumberHigherThan(sequenceNumber int64) CompletedFilterItemBuilderWithSequenceNumber
+}
+
+// SequenceFilteringIncompatible represents a filter state that cannot accept sequence number filtering.
+// This interface provides compile-time safety - attempting to call WithSequenceNumberHigherThan
+// will result in a compile-time error.
+type SequenceFilteringIncompatible interface {
+	// CannotAddSequenceFiltering documents why sequence filtering is not possible on this filter.
+	CannotAddSequenceFiltering() string
+}
+
+/***** Filter Reopening Implementation *****/
+
+// sequenceFilterBuilder implements SequenceFilteringCapable for filters that can accept sequence filtering.
+type sequenceFilterBuilder struct {
+	baseFilter Filter
+}
+
+// WithSequenceNumberHigherThan creates a new filter with sequence number filtering.
+// It directly clones the base filter and sets the sequence number, clearing any time boundaries.
+func (sfb *sequenceFilterBuilder) WithSequenceNumberHigherThan(sequenceNumber int64) CompletedFilterItemBuilderWithSequenceNumber {
+	// Sanitize sequence number (same logic as filterBuilder)
+	if sequenceNumber < 0 {
+		sequenceNumber = 0
+	}
+
+	// Clone the base filter and modify the sequence number
+	clonedFilter := Filter{
+		items:                    sfb.baseFilter.items, // Reuse slice (immutable)
+		occurredFrom:             time.Time{},          // Clear time boundaries
+		occurredUntil:            time.Time{},          // Clear time boundaries
+		sequenceNumberHigherThan: sequenceNumber,
+	}
+
+	// Return a completed builder that can only finalize
+	return &sequenceFilterCompleted{filter: clonedFilter}
+}
+
+// sequenceFilterCompleted implements CompletedFilterItemBuilderWithSequenceNumber for the cloned filter.
+type sequenceFilterCompleted struct {
+	filter Filter
+}
+
+// Finalize returns the cloned filter with sequence number filtering applied.
+func (sfc *sequenceFilterCompleted) Finalize() Filter {
+	return sfc.filter
+}
+
+// incompatibleFilterState implements SequenceFilteringIncompatible for filters that cannot accept sequence filtering.
+type incompatibleFilterState struct {
+	reason string
+}
+
+// CannotAddSequenceFiltering returns the reason why sequence filtering is not possible.
+func (ifs *incompatibleFilterState) CannotAddSequenceFiltering() string {
+	return ifs.reason
 }
