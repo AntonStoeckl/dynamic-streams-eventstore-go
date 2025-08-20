@@ -636,8 +636,6 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 		},
 	}
 
-	eventstore.BuildEventFilter().OccurredFrom(time.Now()).AndOccurredUntil(time.Now()).Finalize()
-
 	for _, tc := range testCases {
 		t.Run(tc.description, func(t *testing.T) {
 			// act
