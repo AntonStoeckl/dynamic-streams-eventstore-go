@@ -194,8 +194,8 @@ func assertSnapshotMissMetrics(t *testing.T, metricsCollector *MetricsCollectorS
 
 	componentRecords := getComponentMetrics(metricsCollector)
 
-	// We should have 4 component records: snapshot_load (error), query (success), unmarshal (success), projection (success)
-	assert.Len(t, componentRecords, 4, "should record exactly 4 component metrics for snapshot miss")
+	// We should have 5 component records: snapshot_load (error), query (success), unmarshal (success), projection (success), snapshot_save (success)
+	assert.Len(t, componentRecords, 5, "should record exactly 5 component metrics for snapshot miss")
 
 	// Check for expected components with the correct status
 	expectedComponents := map[string]string{
@@ -203,6 +203,7 @@ func assertSnapshotMissMetrics(t *testing.T, metricsCollector *MetricsCollectorS
 		"query":         "success", // Fallback to base handler
 		"unmarshal":     "success", // Fallback to base handler
 		"projection":    "success", // Fallback to base handler
+		"snapshot_save": "success", // Save initial snapshot after fallback
 	}
 
 	assertComponentMetrics(t, componentRecords, expectedComponents)
@@ -214,8 +215,8 @@ func assertSnapshotHitMetrics(t *testing.T, metricsCollector *MetricsCollectorSp
 
 	componentRecords := getComponentMetrics(metricsCollector)
 
-	// We should have 6 snapshot hit parts: all snapshot operations succeed
-	assert.Len(t, componentRecords, 6, "should record exactly 6 component metrics for snapshot hit")
+	// We should have 7 snapshot hit parts: all snapshot operations succeed including snapshot save
+	assert.Len(t, componentRecords, 7, "should record exactly 7 component metrics for snapshot hit")
 
 	// Check for snapshot hit components with success status
 	expectedComponents := map[string]string{
@@ -225,6 +226,7 @@ func assertSnapshotHitMetrics(t *testing.T, metricsCollector *MetricsCollectorSp
 		"unmarshal":              "success", // Incremental events unmarshal
 		"snapshot_deserialize":   "success", // Snapshot data deserialization
 		"incremental_projection": "success", // Incremental projection
+		"snapshot_save":          "success", // Save updated snapshot with incremental changes
 	}
 
 	assertComponentMetrics(t, componentRecords, expectedComponents)
