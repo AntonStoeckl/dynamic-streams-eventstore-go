@@ -185,22 +185,22 @@ const (
 	// LogMsgSnapshotFallback is logged when snapshot loading fails and falls back to base handler.
 	LogMsgSnapshotFallback = "snapshot fallback to base handler"
 
-	// LogMsgSnapshotHit is logged when snapshot is successfully loaded and used for incremental query.
+	// LogMsgSnapshotHit is logged when the snapshot is successfully loaded and used for the incremental query.
 	LogMsgSnapshotHit = "snapshot hit: incremental query"
 
 	// LogMsgSnapshotMiss is logged when snapshot loading fails.
 	LogMsgSnapshotMiss = "snapshot miss: falling back to base handler"
 
-	// LogMsgSnapshotIncompatible is logged when filter is incompatible with sequence filtering.
+	// LogMsgSnapshotIncompatible is logged when the filter is incompatible with sequence filtering.
 	LogMsgSnapshotIncompatible = "snapshot incompatible"
 
-	// LogMsgSnapshotSaved is logged when snapshot is successfully saved.
+	// LogMsgSnapshotSaved is logged when the snapshot is successfully saved.
 	LogMsgSnapshotSaved = "snapshot saved"
 
 	// LogMsgSnapshotSaveError is logged when snapshot saving fails.
 	LogMsgSnapshotSaveError = "snapshot save error"
 
-	// LogMsgIncrementalQueryError is logged when incremental query fails.
+	// LogMsgIncrementalQueryError is logged when the incremental query fails.
 	LogMsgIncrementalQueryError = "incremental query error: falling back to base handler"
 
 	// LogMsgEventConversionError is logged when event conversion fails.
@@ -253,6 +253,27 @@ const (
 
 	// SpanNameQueryHandle is the tracing span name for query handling.
 	SpanNameQueryHandle = "queryhandler.handle"
+
+	// SnapshotReasonError indicates that the snapshot operation failed with an error.
+	SnapshotReasonError = "snapshot_error"
+
+	// SnapshotReasonMiss indicates that no snapshot was found.
+	SnapshotReasonMiss = "snapshot_miss"
+
+	// SnapshotReasonFilterIncompatible indicates that the filter is incompatible with sequence filtering.
+	SnapshotReasonFilterIncompatible = "filter_incompatible"
+
+	// SnapshotReasonIncrementalQueryError indicates that the incremental query failed.
+	SnapshotReasonIncrementalQueryError = "incremental_query_error"
+
+	// SnapshotReasonUnmarshalError indicates that the event unmarshaling failed.
+	SnapshotReasonUnmarshalError = "unmarshal_error"
+
+	// SnapshotReasonDeserializeError indicates that the snapshot deserialization failed.
+	SnapshotReasonDeserializeError = "deserialize_error"
+
+	// SnapshotReasonHit indicates that the snapshot was successfully used.
+	SnapshotReasonHit = "snapshot_hit"
 )
 
 // Interface aliases for convenience when using command handler observability.

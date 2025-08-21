@@ -81,36 +81,36 @@ func (h *SnapshotAwareQueryHandler) Handle(ctx context.Context) (BooksInCirculat
 	// Snapshot Load phase
 	snapshot, err := h.executeSnapshotLoad(ctx, baseFilter)
 	if err != nil {
-		return h.recordFallbackAndExecute(ctx, queryStart, span, "snapshot_error")
+		return h.recordFallbackAndExecute(ctx, queryStart, span, shell.SnapshotReasonError)
 	}
 
 	// Fall back and then save the data as a snapshot
 	if snapshot == nil {
-		return h.recordFallbackAndExecute(ctx, queryStart, span, "snapshot_miss")
+		return h.recordFallbackAndExecute(ctx, queryStart, span, shell.SnapshotReasonMiss)
 	}
 
 	// Filter Reopening phase
 	sequenceCapableFilter, err := h.executeFilterReopen(ctx, baseFilter)
 	if err != nil {
-		return h.recordFallbackAndExecute(ctx, queryStart, span, "filter_incompatible")
+		return h.recordFallbackAndExecute(ctx, queryStart, span, shell.SnapshotReasonFilterIncompatible)
 	}
 
 	// Incremental Query phase
 	storableEvents, maxSeq, err := h.executeIncrementalQuery(ctx, sequenceCapableFilter, snapshot.SequenceNumber)
 	if err != nil {
-		return h.recordFallbackAndExecute(ctx, queryStart, span, "incremental_query_error")
+		return h.recordFallbackAndExecute(ctx, queryStart, span, shell.SnapshotReasonIncrementalQueryError)
 	}
 
 	// Unmarshal phase
 	incrementalEvents, err := h.executeUnmarshal(ctx, storableEvents)
 	if err != nil {
-		return h.recordFallbackAndExecute(ctx, queryStart, span, "unmarshal_error")
+		return h.recordFallbackAndExecute(ctx, queryStart, span, shell.SnapshotReasonUnmarshalError)
 	}
 
 	// Snapshot Deserialization phase
 	baseProjection, err := h.executeSnapshotDeserialization(ctx, snapshot)
 	if err != nil {
-		return h.recordFallbackAndExecute(ctx, queryStart, span, "deserialize_error")
+		return h.recordFallbackAndExecute(ctx, queryStart, span, shell.SnapshotReasonDeserializeError)
 	}
 
 	// Determine the final sequence number (max of snapshot and incremental query)
@@ -136,7 +136,7 @@ func (h *SnapshotAwareQueryHandler) Handle(ctx context.Context) (BooksInCirculat
 			shell.LogAttrToSequence, maxSeq,
 			shell.LogAttrEventCount, len(incrementalEvents))
 	}
-	h.recordQuerySuccess(ctx, time.Since(queryStart), span, "snapshot_hit")
+	h.recordQuerySuccess(ctx, time.Since(queryStart), span, shell.SnapshotReasonHit)
 
 	return result, nil
 }
@@ -448,7 +448,7 @@ func (h *SnapshotAwareQueryHandler) recordFallbackAndExecute(
 	}
 
 	// For snapshot miss, save the result as an initial snapshot for future queries
-	if fallbackReason == "snapshot_miss" {
+	if fallbackReason == shell.SnapshotReasonMiss {
 		baseFilter := BuildEventFilter()
 		// Use the sequence number from the result (no double query needed!)
 		h.saveUpdatedSnapshot(ctx, baseFilter, result.SequenceNumber, result)
