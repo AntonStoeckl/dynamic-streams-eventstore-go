@@ -25,7 +25,7 @@ func Test_FilterBuilder_ValidCombinations(t *testing.T) {
 				assert.Empty(t, f.Items())
 				assert.True(t, f.OccurredFrom().IsZero())
 				assert.True(t, f.OccurredUntil().IsZero())
-				assert.Equal(t, int64(0), f.SequenceNumberHigherThan())
+				assert.Equal(t, uint(0), f.SequenceNumberHigherThan())
 			},
 		},
 		{
@@ -36,7 +36,7 @@ func Test_FilterBuilder_ValidCombinations(t *testing.T) {
 					Finalize()
 			},
 			validate: func(t *testing.T, f eventstore.Filter) {
-				assert.Equal(t, int64(12345), f.SequenceNumberHigherThan())
+				assert.Equal(t, uint(12345), f.SequenceNumberHigherThan())
 				assert.True(t, f.OccurredFrom().IsZero())
 				assert.True(t, f.OccurredUntil().IsZero())
 				assert.Len(t, f.Items(), 1)
@@ -56,7 +56,7 @@ func Test_FilterBuilder_ValidCombinations(t *testing.T) {
 				expectedTime := time.Date(2025, 1, 1, 10, 0, 0, 0, time.UTC)
 				assert.Equal(t, expectedTime, f.OccurredFrom())
 				assert.True(t, f.OccurredUntil().IsZero())
-				assert.Equal(t, int64(0), f.SequenceNumberHigherThan())
+				assert.Equal(t, uint(0), f.SequenceNumberHigherThan())
 				assert.Len(t, f.Items(), 1)
 				assert.Empty(t, f.Items()[0].EventTypes())
 				assert.Empty(t, f.Items()[0].Predicates())
@@ -74,7 +74,7 @@ func Test_FilterBuilder_ValidCombinations(t *testing.T) {
 				expectedTime := time.Date(2025, 12, 31, 23, 59, 59, 0, time.UTC)
 				assert.True(t, f.OccurredFrom().IsZero())
 				assert.Equal(t, expectedTime, f.OccurredUntil())
-				assert.Equal(t, int64(0), f.SequenceNumberHigherThan())
+				assert.Equal(t, uint(0), f.SequenceNumberHigherThan())
 				assert.Len(t, f.Items(), 1)
 				assert.Empty(t, f.Items()[0].EventTypes())
 				assert.Empty(t, f.Items()[0].Predicates())
@@ -95,7 +95,7 @@ func Test_FilterBuilder_ValidCombinations(t *testing.T) {
 				expectedUntil := time.Date(2025, 12, 31, 23, 59, 59, 0, time.UTC)
 				assert.Equal(t, expectedFrom, f.OccurredFrom())
 				assert.Equal(t, expectedUntil, f.OccurredUntil())
-				assert.Equal(t, int64(0), f.SequenceNumberHigherThan())
+				assert.Equal(t, uint(0), f.SequenceNumberHigherThan())
 				assert.Len(t, f.Items(), 1)
 				assert.Empty(t, f.Items()[0].EventTypes())
 				assert.Empty(t, f.Items()[0].Predicates())
@@ -112,7 +112,7 @@ func Test_FilterBuilder_ValidCombinations(t *testing.T) {
 			validate: func(t *testing.T, f eventstore.Filter) {
 				assert.True(t, f.OccurredFrom().IsZero())
 				assert.True(t, f.OccurredUntil().IsZero())
-				assert.Equal(t, int64(0), f.SequenceNumberHigherThan())
+				assert.Equal(t, uint(0), f.SequenceNumberHigherThan())
 				assert.Len(t, f.Items(), 1)
 				assert.Equal(t, []string{"BookCopyLentToReader"}, f.Items()[0].EventTypes())
 				assert.Empty(t, f.Items()[0].Predicates())
@@ -285,7 +285,7 @@ func Test_FilterBuilder_ValidCombinations(t *testing.T) {
 				expectedUntil := time.Date(2025, 6, 30, 18, 0, 0, 0, time.UTC)
 				assert.Equal(t, expectedFrom, f.OccurredFrom())
 				assert.Equal(t, expectedUntil, f.OccurredUntil())
-				assert.Equal(t, int64(0), f.SequenceNumberHigherThan())
+				assert.Equal(t, uint(0), f.SequenceNumberHigherThan())
 				assert.Len(t, f.Items(), 1)
 				assert.Equal(t, []string{"ReaderRegistered"}, f.Items()[0].EventTypes())
 				assert.Empty(t, f.Items()[0].Predicates())
@@ -303,7 +303,7 @@ func Test_FilterBuilder_ValidCombinations(t *testing.T) {
 			validate: func(t *testing.T, f eventstore.Filter) {
 				assert.True(t, f.OccurredFrom().IsZero())
 				assert.True(t, f.OccurredUntil().IsZero())
-				assert.Equal(t, int64(9876), f.SequenceNumberHigherThan())
+				assert.Equal(t, uint(9876), f.SequenceNumberHigherThan())
 				assert.Len(t, f.Items(), 1)
 				assert.Empty(t, f.Items()[0].EventTypes())
 				assert.Len(t, f.Items()[0].Predicates(), 1)
@@ -329,7 +329,7 @@ func Test_FilterBuilder_ValidCombinations(t *testing.T) {
 				expectedFrom := time.Date(2025, 3, 15, 9, 30, 0, 0, time.UTC)
 				assert.Equal(t, expectedFrom, f.OccurredFrom())
 				assert.True(t, f.OccurredUntil().IsZero())
-				assert.Equal(t, int64(0), f.SequenceNumberHigherThan())
+				assert.Equal(t, uint(0), f.SequenceNumberHigherThan())
 				assert.Len(t, f.Items(), 1)
 				assert.Equal(t, []string{"BookCopyLentToReader", "BookCopyReturnedByReader"}, f.Items()[0].EventTypes())
 				assert.Len(t, f.Items()[0].Predicates(), 2)
@@ -355,7 +355,7 @@ func Test_FilterBuilder_ValidCombinations(t *testing.T) {
 			validate: func(t *testing.T, f eventstore.Filter) {
 				assert.True(t, f.OccurredFrom().IsZero())
 				assert.True(t, f.OccurredUntil().IsZero())
-				assert.Equal(t, int64(0), f.SequenceNumberHigherThan())
+				assert.Equal(t, uint(0), f.SequenceNumberHigherThan())
 				assert.Len(t, f.Items(), 2)
 
 				// First FilterItem
@@ -428,7 +428,7 @@ func Test_FilterBuilder_ValidCombinations(t *testing.T) {
 			validate: func(t *testing.T, f eventstore.Filter) {
 				assert.True(t, f.OccurredFrom().IsZero())
 				assert.True(t, f.OccurredUntil().IsZero())
-				assert.Equal(t, int64(5555), f.SequenceNumberHigherThan())
+				assert.Equal(t, uint(5555), f.SequenceNumberHigherThan())
 				assert.Len(t, f.Items(), 2)
 
 				// First FilterItem
@@ -591,25 +591,25 @@ func Test_FilterBuilder_InputSanitization(t *testing.T) {
 			},
 		},
 		{
-			name: "negative_sequence_numbers_sanitized_to_zero",
+			name: "zero_sequence_number_boundary_test",
 			build: func() eventstore.Filter {
 				return eventstore.BuildEventFilter().
-					WithSequenceNumberHigherThan(-100).
+					WithSequenceNumberHigherThan(0).
 					Finalize()
 			},
 			validate: func(t *testing.T, f eventstore.Filter) {
-				assert.Equal(t, int64(0), f.SequenceNumberHigherThan())
+				assert.Equal(t, uint(0), f.SequenceNumberHigherThan())
 			},
 		},
 		{
-			name: "negative_one_sequence_number_sanitized_to_zero",
+			name: "small_sequence_number_boundary_test",
 			build: func() eventstore.Filter {
 				return eventstore.BuildEventFilter().
-					WithSequenceNumberHigherThan(-1).
+					WithSequenceNumberHigherThan(1).
 					Finalize()
 			},
 			validate: func(t *testing.T, f eventstore.Filter) {
-				assert.Equal(t, int64(0), f.SequenceNumberHigherThan())
+				assert.Equal(t, uint(1), f.SequenceNumberHigherThan())
 			},
 		},
 		{
@@ -620,7 +620,7 @@ func Test_FilterBuilder_InputSanitization(t *testing.T) {
 					Finalize()
 			},
 			validate: func(t *testing.T, f eventstore.Filter) {
-				assert.Equal(t, int64(123), f.SequenceNumberHigherThan())
+				assert.Equal(t, uint(123), f.SequenceNumberHigherThan())
 			},
 		},
 		{
@@ -631,7 +631,7 @@ func Test_FilterBuilder_InputSanitization(t *testing.T) {
 					Finalize()
 			},
 			validate: func(t *testing.T, f eventstore.Filter) {
-				assert.Equal(t, int64(0), f.SequenceNumberHigherThan())
+				assert.Equal(t, uint(0), f.SequenceNumberHigherThan())
 			},
 		},
 	}
@@ -663,7 +663,7 @@ func Test_FilterBuilder_MutualExclusion(t *testing.T) {
 				expectedTime := time.Date(2025, 4, 1, 14, 30, 0, 0, time.UTC)
 				assert.Equal(t, expectedTime, f.OccurredFrom())
 				assert.True(t, f.OccurredUntil().IsZero())
-				assert.Equal(t, int64(0), f.SequenceNumberHigherThan()) // Should remain zero
+				assert.Equal(t, uint(0), f.SequenceNumberHigherThan()) // Should remain zero
 			},
 		},
 		{
@@ -674,7 +674,7 @@ func Test_FilterBuilder_MutualExclusion(t *testing.T) {
 					Finalize()
 			},
 			validate: func(t *testing.T, f eventstore.Filter) {
-				assert.Equal(t, int64(7890), f.SequenceNumberHigherThan())
+				assert.Equal(t, uint(7890), f.SequenceNumberHigherThan())
 				assert.True(t, f.OccurredFrom().IsZero())  // Should remain zero
 				assert.True(t, f.OccurredUntil().IsZero()) // Should remain zero
 			},
@@ -697,7 +697,7 @@ func Test_FilterBuilder_MutualExclusion(t *testing.T) {
 				expectedUntil := time.Date(2025, 8, 31, 17, 0, 0, 0, time.UTC)
 				assert.Equal(t, expectedFrom, f.OccurredFrom())
 				assert.Equal(t, expectedUntil, f.OccurredUntil())
-				assert.Equal(t, int64(0), f.SequenceNumberHigherThan()) // Should remain zero
+				assert.Equal(t, uint(0), f.SequenceNumberHigherThan()) // Should remain zero
 			},
 		},
 		{
@@ -713,7 +713,7 @@ func Test_FilterBuilder_MutualExclusion(t *testing.T) {
 					Finalize()
 			},
 			validate: func(t *testing.T, f eventstore.Filter) {
-				assert.Equal(t, int64(11111), f.SequenceNumberHigherThan())
+				assert.Equal(t, uint(11111), f.SequenceNumberHigherThan())
 				assert.True(t, f.OccurredFrom().IsZero())  // Should remain zero
 				assert.True(t, f.OccurredUntil().IsZero()) // Should remain zero
 			},
@@ -743,33 +743,33 @@ func Test_FilterBuilder_EdgeCases(t *testing.T) {
 					Finalize()
 			},
 			validate: func(t *testing.T, f eventstore.Filter) {
-				assert.Equal(t, int64(0), f.SequenceNumberHigherThan())
+				assert.Equal(t, uint(0), f.SequenceNumberHigherThan())
 				assert.True(t, f.OccurredFrom().IsZero())
 				assert.True(t, f.OccurredUntil().IsZero())
 			},
 		},
 		{
-			name: "negative_sequence_number_sanitized_to_zero",
+			name: "small_sequence_number_preserved",
 			build: func() eventstore.Filter {
 				return eventstore.BuildEventFilter().
-					WithSequenceNumberHigherThan(-100).
+					WithSequenceNumberHigherThan(100).
 					Finalize()
 			},
 			validate: func(t *testing.T, f eventstore.Filter) {
-				assert.Equal(t, int64(0), f.SequenceNumberHigherThan())
+				assert.Equal(t, uint(100), f.SequenceNumberHigherThan())
 				assert.True(t, f.OccurredFrom().IsZero())
 				assert.True(t, f.OccurredUntil().IsZero())
 			},
 		},
 		{
-			name: "negative_one_sequence_number_sanitized",
+			name: "minimal_sequence_number_preserved",
 			build: func() eventstore.Filter {
 				return eventstore.BuildEventFilter().
-					WithSequenceNumberHigherThan(-1).
+					WithSequenceNumberHigherThan(1).
 					Finalize()
 			},
 			validate: func(t *testing.T, f eventstore.Filter) {
-				assert.Equal(t, int64(0), f.SequenceNumberHigherThan())
+				assert.Equal(t, uint(1), f.SequenceNumberHigherThan())
 				assert.True(t, f.OccurredFrom().IsZero())
 				assert.True(t, f.OccurredUntil().IsZero())
 			},
@@ -782,7 +782,7 @@ func Test_FilterBuilder_EdgeCases(t *testing.T) {
 					Finalize()
 			},
 			validate: func(t *testing.T, f eventstore.Filter) {
-				assert.Equal(t, int64(9223372036854775807), f.SequenceNumberHigherThan())
+				assert.Equal(t, uint(9223372036854775807), f.SequenceNumberHigherThan())
 				assert.True(t, f.OccurredFrom().IsZero())
 				assert.True(t, f.OccurredUntil().IsZero())
 			},
@@ -799,7 +799,7 @@ func Test_FilterBuilder_EdgeCases(t *testing.T) {
 			validate: func(t *testing.T, f eventstore.Filter) {
 				assert.True(t, f.OccurredFrom().IsZero())
 				assert.True(t, f.OccurredUntil().IsZero())
-				assert.Equal(t, int64(0), f.SequenceNumberHigherThan())
+				assert.Equal(t, uint(0), f.SequenceNumberHigherThan())
 			},
 		},
 		{
@@ -1270,7 +1270,7 @@ func Test_Filter_ReopenForSequenceFiltering_Compatible(t *testing.T) {
 	tests := []struct {
 		name           string
 		baseFilter     eventstore.Filter
-		sequenceNumber int64
+		sequenceNumber uint
 		validateResult func(t *testing.T, result eventstore.Filter)
 	}{
 		{
@@ -1281,7 +1281,7 @@ func Test_Filter_ReopenForSequenceFiltering_Compatible(t *testing.T) {
 				Finalize(),
 			sequenceNumber: 12345,
 			validateResult: func(t *testing.T, result eventstore.Filter) {
-				assert.Equal(t, int64(12345), result.SequenceNumberHigherThan())
+				assert.Equal(t, uint(12345), result.SequenceNumberHigherThan())
 				assert.True(t, result.OccurredFrom().IsZero())
 				assert.True(t, result.OccurredUntil().IsZero())
 				assert.Len(t, result.Items(), 1)
@@ -1298,7 +1298,7 @@ func Test_Filter_ReopenForSequenceFiltering_Compatible(t *testing.T) {
 				Finalize(),
 			sequenceNumber: 9876,
 			validateResult: func(t *testing.T, result eventstore.Filter) {
-				assert.Equal(t, int64(9876), result.SequenceNumberHigherThan())
+				assert.Equal(t, uint(9876), result.SequenceNumberHigherThan())
 				assert.True(t, result.OccurredFrom().IsZero())
 				assert.True(t, result.OccurredUntil().IsZero())
 				assert.Len(t, result.Items(), 1)
@@ -1316,7 +1316,7 @@ func Test_Filter_ReopenForSequenceFiltering_Compatible(t *testing.T) {
 				Finalize(),
 			sequenceNumber: 5555,
 			validateResult: func(t *testing.T, result eventstore.Filter) {
-				assert.Equal(t, int64(5555), result.SequenceNumberHigherThan())
+				assert.Equal(t, uint(5555), result.SequenceNumberHigherThan())
 				assert.True(t, result.OccurredFrom().IsZero())
 				assert.True(t, result.OccurredUntil().IsZero())
 				assert.Len(t, result.Items(), 1)
@@ -1335,7 +1335,7 @@ func Test_Filter_ReopenForSequenceFiltering_Compatible(t *testing.T) {
 				Finalize(),
 			sequenceNumber: 2000,
 			validateResult: func(t *testing.T, result eventstore.Filter) {
-				assert.Equal(t, int64(2000), result.SequenceNumberHigherThan()) // New sequence number
+				assert.Equal(t, uint(2000), result.SequenceNumberHigherThan()) // New sequence number
 				assert.True(t, result.OccurredFrom().IsZero())
 				assert.True(t, result.OccurredUntil().IsZero())
 				assert.Len(t, result.Items(), 1)
@@ -1343,14 +1343,14 @@ func Test_Filter_ReopenForSequenceFiltering_Compatible(t *testing.T) {
 			},
 		},
 		{
-			name: "negative_sequence_number_sanitized_to_zero",
+			name: "zero_sequence_number_preserved",
 			baseFilter: eventstore.BuildEventFilter().
 				Matching().
 				AnyEventTypeOf("BookAdded").
 				Finalize(),
-			sequenceNumber: -100,
+			sequenceNumber: 0,
 			validateResult: func(t *testing.T, result eventstore.Filter) {
-				assert.Equal(t, int64(0), result.SequenceNumberHigherThan()) // Sanitized to 0
+				assert.Equal(t, uint(0), result.SequenceNumberHigherThan())
 			},
 		},
 	}
@@ -1439,7 +1439,7 @@ func Test_Filter_ReopenForSequenceFiltering_CompileTimeSafety(t *testing.T) {
 	// This should compile - compatible filter returns SequenceFilteringCapable
 	if capable, ok := reopened.(eventstore.SequenceFilteringCapable); ok {
 		result := capable.WithSequenceNumberHigherThan(123).Finalize()
-		assert.Equal(t, int64(123), result.SequenceNumberHigherThan())
+		assert.Equal(t, uint(123), result.SequenceNumberHigherThan())
 	} else {
 		t.Fatal("Compatible filter should return SequenceFilteringCapable")
 	}

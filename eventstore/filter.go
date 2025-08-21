@@ -28,7 +28,7 @@ type Filter struct {
 	items                    []FilterItem
 	occurredFrom             time.Time
 	occurredUntil            time.Time
-	sequenceNumberHigherThan int64
+	sequenceNumberHigherThan uint
 }
 
 // ReopenForSequenceFiltering attempts to reopen this filter for sequence number filtering.
@@ -61,7 +61,7 @@ func (f Filter) OccurredUntil() time.Time {
 }
 
 // SequenceNumberHigherThan returns the minimum sequence number for event filtering (exclusive).
-func (f Filter) SequenceNumberHigherThan() int64 {
+func (f Filter) SequenceNumberHigherThan() uint {
 	return f.sequenceNumberHigherThan
 }
 
@@ -197,10 +197,7 @@ type FilterBuilder interface {
 
 	// WithSequenceNumberHigherThan sets the sequence number boundary (exclusive) for the whole Filter.
 	// This makes time boundaries unavailable (mutually exclusive).
-	//
-	// It sanitizes the input:
-	//   - negative values are converted to 0 (sequences start at 1)
-	WithSequenceNumberHigherThan(sequenceNumber int64) CompletedFilterItemBuilderWithSequenceNumber
+	WithSequenceNumberHigherThan(sequenceNumber uint) CompletedFilterItemBuilderWithSequenceNumber
 }
 
 // EmptyFilterItemBuilder represents the initial state when starting a new FilterItem.
@@ -260,10 +257,7 @@ type FilterItemBuilderLackingPredicates interface {
 
 	// WithSequenceNumberHigherThan sets the sequence number boundary (exclusive) for the whole Filter.
 	// This makes time boundaries unavailable (mutually exclusive).
-	//
-	// It sanitizes the input:
-	//   - negative values are converted to 0 (sequences start at 1)
-	WithSequenceNumberHigherThan(sequenceNumber int64) CompletedFilterItemBuilderWithSequenceNumber
+	WithSequenceNumberHigherThan(sequenceNumber uint) CompletedFilterItemBuilderWithSequenceNumber
 
 	// OrMatching finalizes the current FilterItem and starts a new one.
 	OrMatching() EmptyFilterItemBuilder
@@ -293,10 +287,7 @@ type FilterItemBuilderLackingEventTypes interface {
 
 	// WithSequenceNumberHigherThan sets the sequence number boundary (exclusive) for the whole Filter.
 	// This makes time boundaries unavailable (mutually exclusive).
-	//
-	// It sanitizes the input:
-	//   - negative values are converted to 0 (sequences start at 1)
-	WithSequenceNumberHigherThan(sequenceNumber int64) CompletedFilterItemBuilderWithSequenceNumber
+	WithSequenceNumberHigherThan(sequenceNumber uint) CompletedFilterItemBuilderWithSequenceNumber
 
 	// OrMatching finalizes the current FilterItem and starts a new one.
 	OrMatching() EmptyFilterItemBuilder
@@ -318,10 +309,7 @@ type CompletedFilterItemBuilder interface {
 
 	// WithSequenceNumberHigherThan sets the sequence number boundary (exclusive) for the whole Filter.
 	// This makes time boundaries unavailable (mutually exclusive).
-	//
-	// It sanitizes the input:
-	//   - negative values are converted to 0 (sequences start at 1)
-	WithSequenceNumberHigherThan(sequenceNumber int64) CompletedFilterItemBuilderWithSequenceNumber
+	WithSequenceNumberHigherThan(sequenceNumber uint) CompletedFilterItemBuilderWithSequenceNumber
 
 	// OrMatching finalizes the current FilterItem and starts a new one.
 	OrMatching() EmptyFilterItemBuilder
@@ -532,11 +520,8 @@ func (fb filterBuilder) sanitizePredicates(
 }
 
 // sanitizeSequenceNumber converts negative values to 0.
-func (fb filterBuilder) sanitizeSequenceNumber(sequenceNumber int64) int64 {
-	if sequenceNumber < 0 {
-		return 0
-	}
-
+func (fb filterBuilder) sanitizeSequenceNumber(sequenceNumber uint) uint {
+	// uint is always >= 0, so no sanitization needed
 	return sequenceNumber
 }
 
@@ -570,7 +555,7 @@ func (fb filterBuilder) AndOccurredUntil(occurredUntil time.Time) CompletedFilte
 //
 // It sanitizes the input:
 //   - negative values are converted to 0 (sequences start at 1)
-func (fb filterBuilder) WithSequenceNumberHigherThan(sequenceNumber int64) CompletedFilterItemBuilderWithSequenceNumber {
+func (fb filterBuilder) WithSequenceNumberHigherThan(sequenceNumber uint) CompletedFilterItemBuilderWithSequenceNumber {
 	fb.filter.sequenceNumberHigherThan = fb.sanitizeSequenceNumber(sequenceNumber)
 
 	return fb
@@ -604,7 +589,7 @@ func (fb filterBuilder) Finalize() Filter {
 // on filters that are compatible (no time boundaries set).
 type SequenceFilteringCapable interface {
 	// WithSequenceNumberHigherThan sets the sequence number boundary (exclusive) for the reopened Filter.
-	WithSequenceNumberHigherThan(sequenceNumber int64) CompletedFilterItemBuilderWithSequenceNumber
+	WithSequenceNumberHigherThan(sequenceNumber uint) CompletedFilterItemBuilderWithSequenceNumber
 }
 
 // SequenceFilteringIncompatible represents a filter state that cannot accept sequence number filtering.
@@ -624,11 +609,8 @@ type sequenceFilterBuilder struct {
 
 // WithSequenceNumberHigherThan creates a new filter with sequence number filtering.
 // It directly clones the base filter and sets the sequence number, clearing any time boundaries.
-func (sfb *sequenceFilterBuilder) WithSequenceNumberHigherThan(sequenceNumber int64) CompletedFilterItemBuilderWithSequenceNumber {
-	// Sanitize sequence number (same logic as filterBuilder)
-	if sequenceNumber < 0 {
-		sequenceNumber = 0
-	}
+func (sfb *sequenceFilterBuilder) WithSequenceNumberHigherThan(sequenceNumber uint) CompletedFilterItemBuilderWithSequenceNumber {
+	// uint is always >= 0, so no sanitization needed
 
 	// Clone the base filter and modify the sequence number
 	clonedFilter := Filter{
