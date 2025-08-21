@@ -60,7 +60,7 @@ func (h QueryHandler) Handle(ctx context.Context) (BooksInCirculation, error) {
 
 	// Query phase
 	queryPhaseStart := time.Now()
-	storableEvents, _, err := h.eventStore.Query(ctx, filter)
+	storableEvents, maxSeq, err := h.eventStore.Query(ctx, filter)
 	queryPhaseDuration := time.Since(queryPhaseStart)
 	if err != nil {
 		h.recordComponentTiming(ctx, shell.ComponentQuery, shell.StatusError, queryPhaseDuration)
@@ -80,9 +80,9 @@ func (h QueryHandler) Handle(ctx context.Context) (BooksInCirculation, error) {
 	}
 	h.recordComponentTiming(ctx, shell.ComponentUnmarshal, shell.StatusSuccess, unmarshalDuration)
 
-	// Projection phase - delegate to pure core function
+	// Projection phase - delegate to a pure core function with sequence tracking
 	projectionStart := time.Now()
-	result := ProjectBooksInCirculation(history)
+	result := ProjectBooksInCirculation(history, maxSeq)
 	projectionDuration := time.Since(projectionStart)
 	h.recordComponentTiming(ctx, shell.ComponentProjection, shell.StatusSuccess, projectionDuration)
 

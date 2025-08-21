@@ -964,7 +964,7 @@ func (es *EventStore) buildSnapshotUpsertQuery(snapshot eventstore.Snapshot) (sq
 }
 
 // LoadSnapshot retrieves the snapshot for the given projection type and filter.
-// Returns ErrSnapshotNotFound if no snapshot exists.
+// Returns (nil, nil) if no snapshot exists.
 func (es *EventStore) LoadSnapshot(ctx context.Context, projectionType string, filter eventstore.Filter) (*eventstore.Snapshot, error) {
 	if projectionType == "" {
 		return nil, eventstore.ErrEmptyProjectionType
@@ -995,7 +995,7 @@ func (es *EventStore) LoadSnapshot(ctx context.Context, projectionType string, f
 				"filter_hash", filterHash,
 				"duration_ms", es.toMilliseconds(duration),
 			)
-			return nil, eventstore.ErrSnapshotNotFound
+			return nil, nil // Not found is not an error - return nil snapshot
 		}
 
 		es.logError("loading snapshot failed", scanErr, "projection_type", projectionType)

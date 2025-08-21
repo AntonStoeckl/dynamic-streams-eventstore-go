@@ -8,20 +8,26 @@ import (
 )
 
 // ProjectBooksInCirculation implements the query logic to determine all books currently in circulation.
-// This is a pure function with no side effects - it takes the current domain events and a query
-// and returns the projected state showing all books currently in circulation.
+// This is a pure function with no side effects - it takes the current domain events and optionally
+// a base projection to build upon, returning the projected state showing all books currently in circulation.
 //
 // Query Logic:
 //
-//	GIVEN: All events in the system
+//	GIVEN: All events in the system (or incremental events since base projection)
 //	WHEN: BooksInCirculation query is executed
 //	THEN: BooksInCirculation struct is returned with current circulation state
 //	INCLUDES: Books currently in circulation (added but not removed)
 //	EXCLUDES: Books that have been removed from circulation
 //	DETAILS: Includes lending status for each book
-func ProjectBooksInCirculation(history core.DomainEvents) BooksInCirculation {
+func ProjectBooksInCirculation(history core.DomainEvents, maxSequence uint, base ...BooksInCirculation) BooksInCirculation {
 	// Track book circulation state and book information
-	bookInfos := make(map[string]*BookInfo)
+	var bookInfos map[string]*BookInfo
+
+	if len(base) > 0 {
+		bookInfos = convertBooksToMap(base[0].Books) // Start from an existing projection (incremental update)
+	} else {
+		bookInfos = make(map[string]*BookInfo) // Start fresh (full projection)
+	}
 
 	for _, event := range history {
 		switch e := event.(type) {
@@ -69,8 +75,9 @@ func ProjectBooksInCirculation(history core.DomainEvents) BooksInCirculation {
 	})
 
 	return BooksInCirculation{
-		Books: bookList,
-		Count: len(bookList),
+		Books:          bookList,
+		Count:          len(bookList),
+		SequenceNumber: maxSequence,
 	}
 }
 
@@ -86,4 +93,15 @@ func BuildEventFilter() eventstore.Filter {
 			core.BookCopyReturnedByReaderEventType,
 		).
 		Finalize()
+}
+
+// convertBooksToMap converts a slice of BookInfo to a map keyed by BookID for efficient lookup.
+// This is used when starting from a base projection for incremental updates.
+func convertBooksToMap(books []BookInfo) map[string]*BookInfo {
+	bookInfos := make(map[string]*BookInfo, len(books))
+	for i := range books {
+		book := books[i] // Create a copy to avoid taking address of loop variable
+		bookInfos[book.BookID] = &book
+	}
+	return bookInfos
 }

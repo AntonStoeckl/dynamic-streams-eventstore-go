@@ -74,7 +74,7 @@ func Test_LoadSnapshot_IfSnapshotIs_NotFound(t *testing.T) {
 	loadedSnapshot, loadErr := es.LoadSnapshot(ctxWithTimeout, "NonExistentProjection", filter)
 
 	// assert
-	assert.ErrorIs(t, loadErr, eventstore.ErrSnapshotNotFound)
+	assert.NoError(t, loadErr, "LoadSnapshot should not return error for not found")
 	assert.Nil(t, loadedSnapshot, "No snapshot should be returned when not found")
 }
 
@@ -450,8 +450,9 @@ func Test_DeleteSnapshot(t *testing.T) {
 
 	// assert
 	assert.NoError(t, deleteErr, "Deleting snapshot should succeed")
-	_, loadErr = es.LoadSnapshot(ctxWithTimeout, "BooksInCirculation", filter)
-	assert.ErrorIs(t, loadErr, eventstore.ErrSnapshotNotFound, "Snapshot should no longer exist")
+	deletedSnapshot, loadErr := es.LoadSnapshot(ctxWithTimeout, "BooksInCirculation", filter)
+	assert.NoError(t, loadErr, "LoadSnapshot should not return error for not found")
+	assert.Nil(t, deletedSnapshot, "Snapshot should no longer exist")
 }
 
 func Test_DeleteSnapshot_Is_Idempotent(t *testing.T) {

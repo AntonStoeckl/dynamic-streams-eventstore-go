@@ -178,11 +178,13 @@ func main() {
 	cfg := parseFlags()
 
 	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
 
 	// Initialize EventStore (same as simulation)
 	eventStore, err := initializePGXEventStore(ctx, cfg)
 	if err != nil {
-		log.Fatalf("Failed to initialize EventStore: %v", err)
+		log.Panicf("Failed to initialize EventStore: %v", err)
 	}
 
 	// Create query handlers with observability if enabled
@@ -195,22 +197,26 @@ func main() {
 			obsConfig.ContextualLogger != nil)
 	}
 
-	registeredReadersHandler, err := registeredreaders.NewQueryHandler(eventStore,
-		buildRegisteredReadersOptions(obsConfig)...)
+	registeredReadersHandler, err := registeredreaders.NewQueryHandler(eventStore, buildRegisteredReadersOptions(obsConfig)...)
 	if err != nil {
-		log.Fatalf("Failed to create RegisteredReaders handler: %v", err)
+		log.Panicf("Failed to create RegisteredReaders handler: %v", err)
 	}
 
-	booksLentOutHandler, err := bookslentout.NewQueryHandler(eventStore,
-		buildBooksLentOutOptions(obsConfig)...)
+	booksLentOutHandler, err := bookslentout.NewQueryHandler(eventStore, buildBooksLentOutOptions(obsConfig)...)
 	if err != nil {
-		log.Fatalf("Failed to create BooksLentOut handler: %v", err)
+		log.Panicf("Failed to create BooksLentOut handler: %v", err)
 	}
 
-	booksInCirculationHandler, err := booksincirculation.NewQueryHandler(eventStore,
-		buildBooksInCirculationOptions(obsConfig)...)
+	// create a base BooksInCirculation handler and wrap it with the snapshot-aware handler
+
+	baseBooksInCirculationHandler, err := booksincirculation.NewQueryHandler(eventStore, buildBooksInCirculationOptions(obsConfig)...)
 	if err != nil {
-		log.Fatalf("Failed to create BooksInCirculation handler: %v", err)
+		log.Panicf("Failed to create BooksInCirculation handler: %v", err)
+	}
+
+	booksInCirculationHandler, err := booksincirculation.NewSnapshotAwareQueryHandler(baseBooksInCirculationHandler)
+	if err != nil {
+		log.Panicf("Failed to create snapshot-aware BooksInCirculation handler: %v", err)
 	}
 
 	// Query all data
@@ -219,19 +225,19 @@ func main() {
 	// 1. Get all registered readers
 	registeredReadersResult, err := registeredReadersHandler.Handle(ctx)
 	if err != nil {
-		log.Fatalf("Failed to query registered readers: %v", err)
+		log.Panicf("Failed to query registered readers: %v", err)
 	}
 
 	// 2. Get all books lent out
 	booksLentOutResult, err := booksLentOutHandler.Handle(ctx)
 	if err != nil {
-		log.Fatalf("Failed to query books lent out: %v", err)
+		log.Panicf("Failed to query books lent out: %v", err)
 	}
 
 	// 3. Get all books in circulation
 	booksInCirculationResult, err := booksInCirculationHandler.Handle(ctx)
 	if err != nil {
-		log.Fatalf("Failed to query books in circulation: %v", err)
+		log.Panicf("Failed to query books in circulation: %v", err)
 	}
 
 	// Analysis
@@ -377,7 +383,7 @@ func main() {
 	returnBookHandler, err := returnbookcopyfromreader.NewCommandHandler(eventStore,
 		buildReturnBookOptions(obsConfig)...)
 	if err != nil {
-		log.Fatalf("Failed to create ReturnBookCopyFromReader handler: %v", err)
+		log.Panicf("Failed to create ReturnBookCopyFromReader handler: %v", err)
 	}
 
 	// Collect all orphaned lendings for parallel processing

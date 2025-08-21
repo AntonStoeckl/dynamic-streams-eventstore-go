@@ -18,9 +18,6 @@ var (
 	// ErrEmptyFilterHash is returned when an empty filter hash is provided.
 	ErrEmptyFilterHash = errors.New("filter hash must not be empty")
 
-	// ErrSnapshotNotFound is returned when no snapshot exists for the given criteria.
-	ErrSnapshotNotFound = errors.New("snapshot not found")
-
 	// ErrSavingSnapshotFailed is returned when the snapshot save operation fails.
 	ErrSavingSnapshotFailed = errors.New("saving snapshot failed")
 

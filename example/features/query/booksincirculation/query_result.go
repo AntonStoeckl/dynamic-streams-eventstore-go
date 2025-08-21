@@ -21,6 +21,7 @@ type BookInfo struct {
 
 // BooksInCirculation represents the query result containing all books in circulation.
 type BooksInCirculation struct {
-	Books []BookInfo
-	Count int
+	Books          []BookInfo `json:"books"`
+	Count          int        `json:"count"`
+	SequenceNumber uint       `json:"sequenceNumber"`
 }

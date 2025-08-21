@@ -143,6 +143,24 @@ const (
 	// ComponentProjection identifies the projection phase in timing metrics.
 	ComponentProjection = "projection"
 
+	// ComponentSnapshotLoad identifies the snapshot loading phase in snapshot-aware query handlers.
+	ComponentSnapshotLoad = "snapshot_load"
+
+	// ComponentFilterReopen identifies the filter reopening phase in snapshot-aware query handlers.
+	ComponentFilterReopen = "filter_reopen"
+
+	// ComponentIncrementalQuery identifies the incremental query phase in snapshot-aware query handlers.
+	ComponentIncrementalQuery = "incremental_query"
+
+	// ComponentSnapshotDeserialize identifies the snapshot deserialization phase in snapshot-aware query handlers.
+	ComponentSnapshotDeserialize = "snapshot_deserialize"
+
+	// ComponentSnapshotSave identifies the asynchronous snapshot saving phase in snapshot-aware query handlers.
+	ComponentSnapshotSave = "snapshot_save"
+
+	// ComponentIncrementalProjection identifies the incremental projection phase in snapshot-aware query handlers.
+	ComponentIncrementalProjection = "incremental_projection"
+
 	// LogMsgCommandStarted is logged when command processing begins.
 	LogMsgCommandStarted = "command handler started"
 
@@ -161,6 +179,36 @@ const (
 	// LogMsgQueryFailed is logged when query processing fails.
 	LogMsgQueryFailed = "query handler failed"
 
+	// LogMsgSnapshotQuerySuccess is logged when snapshot-aware query processing succeeds.
+	LogMsgSnapshotQuerySuccess = "snapshot-aware query completed"
+
+	// LogMsgSnapshotFallback is logged when snapshot loading fails and falls back to base handler.
+	LogMsgSnapshotFallback = "snapshot fallback to base handler"
+
+	// LogMsgSnapshotHit is logged when snapshot is successfully loaded and used for incremental query.
+	LogMsgSnapshotHit = "snapshot hit: incremental query"
+
+	// LogMsgSnapshotMiss is logged when snapshot loading fails.
+	LogMsgSnapshotMiss = "snapshot miss: falling back to base handler"
+
+	// LogMsgSnapshotIncompatible is logged when filter is incompatible with sequence filtering.
+	LogMsgSnapshotIncompatible = "snapshot incompatible"
+
+	// LogMsgSnapshotSaved is logged when snapshot is successfully saved.
+	LogMsgSnapshotSaved = "snapshot saved"
+
+	// LogMsgSnapshotSaveError is logged when snapshot saving fails.
+	LogMsgSnapshotSaveError = "snapshot save error"
+
+	// LogMsgIncrementalQueryError is logged when incremental query fails.
+	LogMsgIncrementalQueryError = "incremental query error: falling back to base handler"
+
+	// LogMsgEventConversionError is logged when event conversion fails.
+	LogMsgEventConversionError = "event conversion error: falling back to base handler"
+
+	// LogMsgSnapshotDeserializationError is logged when snapshot deserialization fails.
+	LogMsgSnapshotDeserializationError = "snapshot deserialization error: falling back to base handler"
+
 	// LogAttrCommandType identifies the command type in logs.
 	LogAttrCommandType = "command_type"
 
@@ -178,6 +226,27 @@ const (
 
 	// LogAttrError contains error details.
 	LogAttrError = "error"
+
+	// LogAttrSnapshotStatus indicates the snapshot operation status (hit/miss).
+	LogAttrSnapshotStatus = "snapshot_status"
+
+	// LogAttrReason indicates the reason for a fallback or failure.
+	LogAttrReason = "reason"
+
+	// LogAttrOperation indicates which snapshot operation was being performed.
+	LogAttrOperation = "operation"
+
+	// LogAttrFromSequence indicates the starting sequence number for incremental queries.
+	LogAttrFromSequence = "from_sequence"
+
+	// LogAttrToSequence indicates the ending sequence number for incremental queries.
+	LogAttrToSequence = "to_sequence"
+
+	// LogAttrEventCount indicates the number of events processed.
+	LogAttrEventCount = "event_count"
+
+	// LogAttrSequence indicates a sequence number value.
+	LogAttrSequence = "sequence"
 
 	// SpanNameCommandHandle is the tracing span name for command handling.
 	SpanNameCommandHandle = "commandhandler.handle"
