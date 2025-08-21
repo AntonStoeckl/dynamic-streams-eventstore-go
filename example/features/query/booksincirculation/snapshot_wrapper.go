@@ -136,9 +136,15 @@ func (h *SnapshotAwareQueryHandler) Handle(ctx context.Context) (BooksInCirculat
 			shell.LogAttrToSequence, maxSeq,
 			shell.LogAttrEventCount, len(incrementalEvents))
 	}
+
 	h.recordQuerySuccess(ctx, time.Since(queryStart), span, shell.SnapshotReasonHit)
 
 	return result, nil
+}
+
+// BuildSnapshotType builds the projection type for the given queryType.
+func (h *SnapshotAwareQueryHandler) BuildSnapshotType() string {
+	return queryType
 }
 
 // Extracted phase execution methods for clean observability patterns
@@ -150,7 +156,7 @@ func (h *SnapshotAwareQueryHandler) executeSnapshotLoad(
 ) (*eventstore.Snapshot, error) {
 
 	snapshotLoadStart := time.Now()
-	snapshot, err := h.eventStore.LoadSnapshot(ctx, queryType, filter)
+	snapshot, err := h.eventStore.LoadSnapshot(ctx, h.BuildSnapshotType(), filter)
 	snapshotLoadDuration := time.Since(snapshotLoadStart)
 
 	if err != nil {
@@ -335,7 +341,7 @@ func (h *SnapshotAwareQueryHandler) saveUpdatedSnapshot(
 
 	// Build snapshot
 	snapshot, err := eventstore.BuildSnapshot(
-		queryType,
+		h.BuildSnapshotType(),
 		filter.Hash(),
 		maxSequence,
 		data,

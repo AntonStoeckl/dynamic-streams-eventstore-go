@@ -60,7 +60,7 @@ func Test_SnapshotAwareQueryHandler_Handle_SnapshotCreationAndHitWithNoNewEvents
 
 	// Verify that a snapshot was created in the database
 	filter := bookslentout.BuildEventFilter()
-	savedSnapshot, err := wrapper.GetEventStore().LoadSnapshot(ctx, "BooksLentOut", filter)
+	savedSnapshot, err := wrapper.GetEventStore().LoadSnapshot(ctx, snapshotHandler.BuildSnapshotType(), filter)
 	assert.NoError(t, err, "Should be able to load saved snapshot")
 	assert.NotNil(t, savedSnapshot, "Snapshot should exist after first query")
 
@@ -95,7 +95,7 @@ func Test_SnapshotAwareQueryHandler_Handle_SnapshotHitWithNewEvents(t *testing.T
 
 	// Verify that a snapshot was created in the database
 	filter := bookslentout.BuildEventFilter()
-	savedSnapshot, err := wrapper.GetEventStore().LoadSnapshot(ctx, "BooksLentOut", filter)
+	savedSnapshot, err := wrapper.GetEventStore().LoadSnapshot(ctx, snapshotHandler.BuildSnapshotType(), filter)
 	assert.NoError(t, err, "Should be able to load saved snapshot")
 	assert.NotNil(t, savedSnapshot, "Snapshot should exist after first query")
 	assert.Equal(t, uint(3), savedSnapshot.SequenceNumber, "Snapshot should have sequence=3")
@@ -125,7 +125,7 @@ func Test_SnapshotAwareQueryHandler_Handle_SnapshotHitWithNewEvents(t *testing.T
 	time.Sleep(100 * time.Millisecond)
 
 	// Verify that the snapshot was updated with new incremental data
-	updatedSnapshot, err := wrapper.GetEventStore().LoadSnapshot(ctx, "BooksLentOut", filter)
+	updatedSnapshot, err := wrapper.GetEventStore().LoadSnapshot(ctx, snapshotHandler.BuildSnapshotType(), filter)
 	assert.NoError(t, err, "Should be able to load updated snapshot")
 	assert.NotNil(t, updatedSnapshot, "Updated snapshot should exist")
 	assert.Equal(t, uint(6), updatedSnapshot.SequenceNumber, "Updated snapshot should have sequence=6")
