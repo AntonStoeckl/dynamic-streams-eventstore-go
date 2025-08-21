@@ -30,7 +30,7 @@ const (
 	MaxActiveReaders = 1000
 
 	// LibrarianCount defines the number of librarian staff (Acquisitions and Maintenance roles).
-	LibrarianCount = 4
+	LibrarianCount = 8
 
 	// READER BEHAVIOR PATTERNS ...
 
@@ -50,7 +50,7 @@ const (
 	ChanceBorrowAfterReturn = 0.7 // Natural behavior: 70% browse after returning books
 
 	// ChancePreferReadersWithBooks defines the probability to select readers with borrowed books during activation.
-	// This creates a 50/50 balance between encouraging returns and discovering new patterns.
+	// This creates a balance between encouraging returns and discovering new patterns.
 	ChancePreferReadersWithBooks = 0.7 // 70% prefer readers with books, 30% random selection
 
 	// ChanceSyncOnActivation defines the probability to sync reader books when newly activated.
@@ -72,7 +72,7 @@ const (
 	BookRemovalBatchSize = 5
 
 	// LibrarianMaintenanceChance defines the probability to remove old books.
-	LibrarianMaintenanceChance = 0.5
+	LibrarianMaintenanceChance = 0.8
 
 	// AUTO-TUNING SYSTEM ...
 
@@ -80,7 +80,7 @@ const (
 	TargetAvgLatencyMs = 70
 
 	// MaxTimeoutRate defines the timeout threshold as a percentage.
-	MaxTimeoutRate = 0.005
+	MaxTimeoutRate = 0.001
 
 	// ScaleUpIncrement defines the number of readers to add when performing well.
 	ScaleUpIncrement = 10
@@ -91,7 +91,7 @@ const (
 	// BATCH PROCESSING CONFIGURATION ...
 
 	// DefaultConcurrentWorkers defines the number of worker goroutines processing readers in parallel.
-	// This limits concurrent requests to the EventStore (was ActorBatchSize).
+	// This limits concurrent requests to the EventStore.
 	DefaultConcurrentWorkers = 3
 
 	// SIMULATION TIMING ...

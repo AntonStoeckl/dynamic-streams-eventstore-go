@@ -488,8 +488,8 @@ func (s *UnifiedSimulation) isPerformanceGood(avgLatency time.Duration, timeoutR
 
 // isPerformanceBad determines if the current performance is unacceptable.
 func (s *UnifiedSimulation) isPerformanceBad(avgLatency time.Duration, timeoutRate float64) bool {
-	// Use 1.5x the target as a "bad" threshold (simplified from MaxFactorForBadPerformance)
-	badFactor := 1.5
+	// Use 1.1x the target as a "bad" threshold (simplified from MaxFactorForBadPerformance)
+	badFactor := 1.1
 	avgLatencyBad := avgLatency > time.Duration(float64(TargetAvgLatencyMs)*badFactor)*time.Millisecond
 	timeoutBad := timeoutRate > MaxTimeoutRate*badFactor
 
