@@ -44,10 +44,10 @@ const (
 	MaxBooksPerReader = 10
 
 	// ChanceReturnAll defines the probability that readers return all borrowed books.
-	ChanceReturnAll = 0.8 // Natural behavior: 80% return all, 20% keep 1-2 books
+	ChanceReturnAll = 0.85 // Natural behavior: 85% return all, 15% keep 1-2 books
 
 	// ChanceBorrowAfterReturn defines the probability to browse/borrow books after returning.
-	ChanceBorrowAfterReturn = 0.7 // Natural behavior: 70% browse after returning books
+	ChanceBorrowAfterReturn = 0.65 // Natural behavior: 65% browse after returning books
 
 	// ChancePreferReadersWithBooks defines the probability to select readers with borrowed books during activation.
 	// This creates a balance between encouraging returns and discovering new patterns.
