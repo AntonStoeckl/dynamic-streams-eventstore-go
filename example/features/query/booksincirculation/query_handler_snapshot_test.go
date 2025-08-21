@@ -203,7 +203,7 @@ func assertSnapshotMissMetrics(t *testing.T, metricsCollector *MetricsCollectorS
 		"query":         "success", // Fallback to base handler
 		"unmarshal":     "success", // Fallback to base handler
 		"projection":    "success", // Fallback to base handler
-		"snapshot_save": "success", // Save initial snapshot after fallback
+		"snapshot_save": "success", // Save the initial snapshot after fallback
 	}
 
 	assertComponentMetrics(t, componentRecords, expectedComponents)
@@ -215,7 +215,7 @@ func assertSnapshotHitMetrics(t *testing.T, metricsCollector *MetricsCollectorSp
 
 	componentRecords := getComponentMetrics(metricsCollector)
 
-	// We should have 7 snapshot hit parts: all snapshot operations succeed including snapshot save
+	// We should have 7 snapshot hit parts: all snapshot operations succeed, including snapshot save
 	assert.Len(t, componentRecords, 7, "should record exactly 7 component metrics for snapshot hit")
 
 	// Check for snapshot hit components with success status
@@ -226,7 +226,7 @@ func assertSnapshotHitMetrics(t *testing.T, metricsCollector *MetricsCollectorSp
 		"unmarshal":              "success", // Incremental events unmarshal
 		"snapshot_deserialize":   "success", // Snapshot data deserialization
 		"incremental_projection": "success", // Incremental projection
-		"snapshot_save":          "success", // Save updated snapshot with incremental changes
+		"snapshot_save":          "success", // Save the updated snapshot with incremental changes
 	}
 
 	assertComponentMetrics(t, componentRecords, expectedComponents)

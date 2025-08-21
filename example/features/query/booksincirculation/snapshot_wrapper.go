@@ -329,16 +329,7 @@ func (h *SnapshotAwareQueryHandler) saveUpdatedSnapshot(
 	// Serialize projection to JSON
 	data, err := jsoniter.ConfigFastest.Marshal(projection)
 	if err != nil {
-		h.recordComponentTiming(ctx, shell.ComponentSnapshotSave, shell.StatusError, time.Since(snapshotSaveStart))
-		if h.contextualLogger != nil {
-			h.contextualLogger.ErrorContext(ctx, shell.LogMsgSnapshotSaveError,
-				shell.LogAttrOperation, "JSON serialization",
-				shell.LogAttrError, err.Error())
-		} else if h.logger != nil {
-			h.logger.Error(shell.LogMsgSnapshotSaveError,
-				shell.LogAttrOperation, "JSON serialization",
-				shell.LogAttrError, err.Error())
-		}
+		h.recordSnapshotSaveError(ctx, "JSON serialization", err, snapshotSaveStart)
 		return
 	}
 
@@ -350,31 +341,13 @@ func (h *SnapshotAwareQueryHandler) saveUpdatedSnapshot(
 		data,
 	)
 	if err != nil {
-		h.recordComponentTiming(ctx, shell.ComponentSnapshotSave, shell.StatusError, time.Since(snapshotSaveStart))
-		if h.contextualLogger != nil {
-			h.contextualLogger.ErrorContext(ctx, shell.LogMsgSnapshotSaveError,
-				shell.LogAttrOperation, "snapshot build",
-				shell.LogAttrError, err.Error())
-		} else if h.logger != nil {
-			h.logger.Error(shell.LogMsgSnapshotSaveError,
-				shell.LogAttrOperation, "snapshot build",
-				shell.LogAttrError, err.Error())
-		}
+		h.recordSnapshotSaveError(ctx, "snapshot build", err, snapshotSaveStart)
 		return
 	}
 
 	// Save snapshot
 	if err := h.eventStore.SaveSnapshot(ctx, snapshot); err != nil {
-		h.recordComponentTiming(ctx, shell.ComponentSnapshotSave, shell.StatusError, time.Since(snapshotSaveStart))
-		if h.contextualLogger != nil {
-			h.contextualLogger.ErrorContext(ctx, shell.LogMsgSnapshotSaveError,
-				shell.LogAttrOperation, "snapshot save",
-				shell.LogAttrError, err.Error())
-		} else if h.logger != nil {
-			h.logger.Error(shell.LogMsgSnapshotSaveError,
-				shell.LogAttrOperation, "snapshot save",
-				shell.LogAttrError, err.Error())
-		}
+		h.recordSnapshotSaveError(ctx, "snapshot save", err, snapshotSaveStart)
 		return
 	}
 
@@ -466,4 +439,25 @@ func (h *SnapshotAwareQueryHandler) recordComponentTiming(
 ) {
 
 	shell.RecordQueryComponentDuration(ctx, h.metricsCollector, queryType, component, status, duration)
+}
+
+// recordSnapshotSaveError handles error recording and logging for snapshot save operations.
+func (h *SnapshotAwareQueryHandler) recordSnapshotSaveError(
+	ctx context.Context,
+	operation string,
+	err error,
+	startTime time.Time,
+) {
+
+	h.recordComponentTiming(ctx, shell.ComponentSnapshotSave, shell.StatusError, time.Since(startTime))
+
+	if h.contextualLogger != nil {
+		h.contextualLogger.ErrorContext(ctx, shell.LogMsgSnapshotSaveError,
+			shell.LogAttrOperation, operation,
+			shell.LogAttrError, err.Error())
+	} else if h.logger != nil {
+		h.logger.Error(shell.LogMsgSnapshotSaveError,
+			shell.LogAttrOperation, operation,
+			shell.LogAttrError, err.Error())
+	}
 }
