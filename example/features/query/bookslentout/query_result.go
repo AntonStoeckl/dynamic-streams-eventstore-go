@@ -17,6 +17,7 @@ type LendingInfo struct {
 
 // BooksLentOut represents the query result containing all books currently lent out to readers.
 type BooksLentOut struct {
-	Lendings []LendingInfo
-	Count    int
+	Lendings       []LendingInfo `json:"lendings"`
+	Count          int           `json:"count"`
+	SequenceNumber uint          `json:"sequenceNumber"`
 }

@@ -18,9 +18,15 @@ import (
 //	THEN: BooksLentOut struct is returned with current lending state
 //	INCLUDES: All books currently lent to readers (BookID, ReaderID, LentAt)
 //	EXCLUDES: Books that have been returned
-func ProjectBooksLentOut(history core.DomainEvents) BooksLentOut {
+func ProjectBooksLentOut(history core.DomainEvents, maxSequence uint, base ...BooksLentOut) BooksLentOut {
 	// Track lending state
-	lendingInfos := make(map[string]*LendingInfo)
+	var lendingInfos map[string]*LendingInfo
+
+	if len(base) > 0 {
+		lendingInfos = convertLendingsToMap(base[0].Lendings) // Start from an existing projection (incremental update)
+	} else {
+		lendingInfos = make(map[string]*LendingInfo) // Start fresh (full projection)
+	}
 
 	for _, event := range history {
 		switch e := event.(type) {
@@ -50,8 +56,9 @@ func ProjectBooksLentOut(history core.DomainEvents) BooksLentOut {
 	})
 
 	return BooksLentOut{
-		Lendings: lendings,
-		Count:    len(lendings),
+		Lendings:       lendings,
+		Count:          len(lendings),
+		SequenceNumber: maxSequence,
 	}
 }
 
@@ -64,4 +71,16 @@ func BuildEventFilter() eventstore.Filter {
 			core.BookCopyReturnedByReaderEventType,
 		).
 		Finalize()
+}
+
+// convertLendingsToMap converts a slice of LendingInfo to a map keyed by BookID for efficient lookup.
+// This is used when starting from a base projection for incremental updates.
+func convertLendingsToMap(lendings []LendingInfo) map[string]*LendingInfo {
+	lendingInfos := make(map[string]*LendingInfo, len(lendings))
+	for i := range lendings {
+		lending := lendings[i] // Create a copy to avoid taking address of loop variable
+		lendingInfos[lending.BookID] = &lending
+	}
+
+	return lendingInfos
 }

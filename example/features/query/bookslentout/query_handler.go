@@ -60,7 +60,7 @@ func (h QueryHandler) Handle(ctx context.Context) (BooksLentOut, error) {
 	filter := BuildEventFilter()
 
 	// Query phase
-	storableEvents, err := h.executeQuery(ctx, filter)
+	storableEvents, maxSeq, err := h.executeQuery(ctx, filter)
 	if err != nil {
 		h.recordQueryError(ctx, err, time.Since(queryStart), span)
 		return BooksLentOut{}, err
@@ -74,7 +74,7 @@ func (h QueryHandler) Handle(ctx context.Context) (BooksLentOut, error) {
 	}
 
 	// Projection phase
-	result := h.executeProjection(ctx, history)
+	result := h.executeProjection(ctx, history, maxSeq)
 
 	h.recordQuerySuccess(ctx, time.Since(queryStart), span)
 
@@ -160,20 +160,20 @@ func (h QueryHandler) recordQueryTimeout(ctx context.Context, err error, duratio
 func (h QueryHandler) executeQuery(
 	ctx context.Context,
 	filter eventstore.Filter,
-) (eventstore.StorableEvents, error) {
+) (eventstore.StorableEvents, eventstore.MaxSequenceNumberUint, error) {
 
 	queryPhaseStart := time.Now()
-	storableEvents, _, err := h.eventStore.Query(ctx, filter)
+	storableEvents, maxSeq, err := h.eventStore.Query(ctx, filter)
 	queryPhaseDuration := time.Since(queryPhaseStart)
 
 	if err != nil {
 		h.recordComponentTiming(ctx, shell.ComponentQuery, shell.StatusError, queryPhaseDuration)
-		return nil, err
+		return nil, 0, err
 	}
 
 	h.recordComponentTiming(ctx, shell.ComponentQuery, shell.StatusSuccess, queryPhaseDuration)
 
-	return storableEvents, nil
+	return storableEvents, maxSeq, nil
 }
 
 // executeUnmarshal handles the unmarshal phase with proper observability.
@@ -200,10 +200,11 @@ func (h QueryHandler) executeUnmarshal(
 func (h QueryHandler) executeProjection(
 	ctx context.Context,
 	history core.DomainEvents,
+	maxSeq eventstore.MaxSequenceNumberUint,
 ) BooksLentOut {
 
 	projectionStart := time.Now()
-	result := ProjectBooksLentOut(history)
+	result := ProjectBooksLentOut(history, maxSeq)
 	projectionDuration := time.Since(projectionStart)
 
 	h.recordComponentTiming(ctx, shell.ComponentProjection, shell.StatusSuccess, projectionDuration)
