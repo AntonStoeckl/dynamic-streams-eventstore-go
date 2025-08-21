@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
 )
 
@@ -59,32 +60,21 @@ func (h QueryHandler) Handle(ctx context.Context) (BooksInCirculation, error) {
 	filter := BuildEventFilter()
 
 	// Query phase
-	queryPhaseStart := time.Now()
-	storableEvents, maxSeq, err := h.eventStore.Query(ctx, filter)
-	queryPhaseDuration := time.Since(queryPhaseStart)
+	storableEvents, maxSeq, err := h.executeQuery(ctx, filter)
 	if err != nil {
-		h.recordComponentTiming(ctx, shell.ComponentQuery, shell.StatusError, queryPhaseDuration)
 		h.recordQueryError(ctx, err, time.Since(queryStart), span)
 		return BooksInCirculation{}, err
 	}
-	h.recordComponentTiming(ctx, shell.ComponentQuery, shell.StatusSuccess, queryPhaseDuration)
 
 	// Unmarshal phase
-	unmarshalStart := time.Now()
-	history, err := shell.DomainEventsFrom(storableEvents)
-	unmarshalDuration := time.Since(unmarshalStart)
+	history, err := h.executeUnmarshal(ctx, storableEvents)
 	if err != nil {
-		h.recordComponentTiming(ctx, shell.ComponentUnmarshal, shell.StatusError, unmarshalDuration)
 		h.recordQueryError(ctx, err, time.Since(queryStart), span)
 		return BooksInCirculation{}, err
 	}
-	h.recordComponentTiming(ctx, shell.ComponentUnmarshal, shell.StatusSuccess, unmarshalDuration)
 
-	// Projection phase - delegate to a pure core function with sequence tracking
-	projectionStart := time.Now()
-	result := ProjectBooksInCirculation(history, maxSeq)
-	projectionDuration := time.Since(projectionStart)
-	h.recordComponentTiming(ctx, shell.ComponentProjection, shell.StatusSuccess, projectionDuration)
+	// Projection phase
+	result := h.executeProjection(ctx, history, maxSeq)
 
 	h.recordQuerySuccess(ctx, time.Since(queryStart), span)
 
@@ -164,6 +154,62 @@ func (h QueryHandler) recordQueryTimeout(ctx context.Context, err error, duratio
 	shell.RecordQueryMetrics(ctx, h.metricsCollector, queryType, shell.StatusTimeout, duration)
 	shell.FinishQuerySpan(h.tracingCollector, span, shell.StatusTimeout, duration, err)
 	shell.LogQueryError(ctx, h.logger, h.contextualLogger, queryType, err)
+}
+
+// executeQuery handles the query phase with proper observability.
+func (h QueryHandler) executeQuery(
+	ctx context.Context,
+	filter eventstore.Filter,
+) (eventstore.StorableEvents, eventstore.MaxSequenceNumberUint, error) {
+
+	queryPhaseStart := time.Now()
+	storableEvents, maxSeq, err := h.eventStore.Query(ctx, filter)
+	queryPhaseDuration := time.Since(queryPhaseStart)
+
+	if err != nil {
+		h.recordComponentTiming(ctx, shell.ComponentQuery, shell.StatusError, queryPhaseDuration)
+		return nil, 0, err
+	}
+
+	h.recordComponentTiming(ctx, shell.ComponentQuery, shell.StatusSuccess, queryPhaseDuration)
+
+	return storableEvents, maxSeq, nil
+}
+
+// executeUnmarshal handles the unmarshal phase with proper observability.
+func (h QueryHandler) executeUnmarshal(
+	ctx context.Context,
+	storableEvents eventstore.StorableEvents,
+) (core.DomainEvents, error) {
+
+	unmarshalStart := time.Now()
+	history, err := shell.DomainEventsFrom(storableEvents)
+	unmarshalDuration := time.Since(unmarshalStart)
+
+	if err != nil {
+		h.recordComponentTiming(ctx, shell.ComponentUnmarshal, shell.StatusError, unmarshalDuration)
+		return nil, err
+	}
+
+	h.recordComponentTiming(ctx, shell.ComponentUnmarshal, shell.StatusSuccess, unmarshalDuration)
+
+	return history, nil
+}
+
+// executeProjection handles the projection phase with proper observability.
+func (h QueryHandler) executeProjection(
+	ctx context.Context,
+	history core.DomainEvents,
+	maxSeq eventstore.MaxSequenceNumberUint,
+) BooksInCirculation {
+
+	projectionStart := time.Now()
+	result := ProjectBooksInCirculation(history, maxSeq)
+	projectionDuration := time.Since(projectionStart)
+
+	h.recordComponentTiming(ctx, shell.ComponentProjection, shell.StatusSuccess, projectionDuration)
+
+	return result
 }
 
 // recordComponentTiming records component-level timing metrics.
