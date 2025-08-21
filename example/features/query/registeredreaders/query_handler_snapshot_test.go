@@ -137,7 +137,7 @@ func Test_SnapshotAwareQueryHandler_Handle_SnapshotHitWithNewEvents(t *testing.T
 	assert.Equal(t, uint(2), updatedProjection.SequenceNumber, "Updated snapshot projection should have sequence=2")
 }
 
-func setupSnapshotTestWithMetrics(t *testing.T) (context.Context, *registeredreaders.SnapshotAwareQueryHandler, *MetricsCollectorSpy, Wrapper) {
+func setupSnapshotTestWithMetrics(t *testing.T) (context.Context, registeredreaders.SnapshotAwareQueryHandler, *MetricsCollectorSpy, Wrapper) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

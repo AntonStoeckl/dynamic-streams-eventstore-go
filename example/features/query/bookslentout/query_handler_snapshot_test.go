@@ -139,7 +139,7 @@ func Test_SnapshotAwareQueryHandler_Handle_SnapshotHitWithNewEvents(t *testing.T
 }
 
 // Helper function to set up the test environment with metrics spy.
-func setupSnapshotTestWithMetrics(t *testing.T) (context.Context, *bookslentout.SnapshotAwareQueryHandler, *MetricsCollectorSpy, Wrapper) {
+func setupSnapshotTestWithMetrics(t *testing.T) (context.Context, bookslentout.SnapshotAwareQueryHandler, *MetricsCollectorSpy, Wrapper) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

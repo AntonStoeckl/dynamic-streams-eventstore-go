@@ -50,13 +50,13 @@ type SnapshotAwareQueryHandler struct {
 // to the base handler if snapshots are not available or incompatible.
 // Observability components are automatically extracted from the base handler.
 // Returns an error if the base handler's EventStore doesn't support snapshot operations.
-func NewSnapshotAwareQueryHandler(baseHandler QueryHandler) (*SnapshotAwareQueryHandler, error) {
+func NewSnapshotAwareQueryHandler(baseHandler QueryHandler) (SnapshotAwareQueryHandler, error) {
 	snapshotCapableStore, ok := baseHandler.eventStore.(SnapshotCapableEventStore)
 	if !ok {
-		return nil, ErrEventStoreNotSnapshotCapable
+		return SnapshotAwareQueryHandler{}, ErrEventStoreNotSnapshotCapable
 	}
 
-	return &SnapshotAwareQueryHandler{
+	return SnapshotAwareQueryHandler{
 		baseHandler:      baseHandler,
 		eventStore:       snapshotCapableStore,
 		metricsCollector: baseHandler.metricsCollector,

@@ -34,10 +34,10 @@ type HandlerBundle struct {
 	returnBookCopyHandler returnbookcopyfromreader.CommandHandler
 
 	// Query handlers for state refresh.
-	booksInCirculationHandler booksincirculation.QueryHandler
+	booksInCirculationHandler booksincirculation.SnapshotAwareQueryHandler
 	booksLentByReaderHandler  bookslentbyreader.QueryHandler
-	booksLentOutHandler       bookslentout.QueryHandler
-	registeredReadersHandler  registeredreaders.QueryHandler
+	booksLentOutHandler       bookslentout.SnapshotAwareQueryHandler
+	registeredReadersHandler  registeredreaders.SnapshotAwareQueryHandler
 
 	// State access for actor decisions.
 	simulationState *SimulationState
@@ -95,10 +95,14 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 	}
 
 	// Create query handlers with observability options if enabled.
-	booksInCirculationHandler, err := booksincirculation.NewQueryHandler(eventStore,
+	booksInCirculationBaseHandler, err := booksincirculation.NewQueryHandler(eventStore,
 		buildBooksInCirculationOptions(obsConfig)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create BooksInCirculation handler: %w", err)
+	}
+	booksInCirculationHandler, err := booksincirculation.NewSnapshotAwareQueryHandler(booksInCirculationBaseHandler)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create BooksInCirculation snapshot wrapper: %w", err)
 	}
 
 	booksLentByReaderHandler, err := bookslentbyreader.NewQueryHandler(eventStore,
@@ -107,16 +111,24 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 		return nil, fmt.Errorf("failed to create BooksLentByReader handler: %w", err)
 	}
 
-	booksLentOutHandler, err := bookslentout.NewQueryHandler(eventStore,
+	booksLentOutBaseHandler, err := bookslentout.NewQueryHandler(eventStore,
 		buildBooksLentOutOptions(obsConfig)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create BooksLentOut handler: %w", err)
 	}
+	booksLentOutHandler, err := bookslentout.NewSnapshotAwareQueryHandler(booksLentOutBaseHandler)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create BooksLentOut snapshot wrapper: %w", err)
+	}
 
-	registeredReadersHandler, err := registeredreaders.NewQueryHandler(eventStore,
+	registeredReadersBaseHandler, err := registeredreaders.NewQueryHandler(eventStore,
 		buildRegisteredReadersOptions(obsConfig)...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create RegisteredReaders handler: %w", err)
+	}
+	registeredReadersHandler, err := registeredreaders.NewSnapshotAwareQueryHandler(registeredReadersBaseHandler)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create RegisteredReaders snapshot wrapper: %w", err)
 	}
 
 	bundle := &HandlerBundle{
