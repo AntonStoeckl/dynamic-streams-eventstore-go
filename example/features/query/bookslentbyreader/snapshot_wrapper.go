@@ -142,7 +142,7 @@ func (h *SnapshotAwareQueryHandler) Handle(ctx context.Context, query Query) (Bo
 }
 
 // BuildSnapshotType builds the snapshot type for the given queryType and readerID from the query.
-func BuildSnapshotType(query Query) string {
+func (h *SnapshotAwareQueryHandler) BuildSnapshotType(query Query) string {
 	return queryType + ":" + query.ReaderID.String()
 }
 
@@ -156,7 +156,7 @@ func (h *SnapshotAwareQueryHandler) executeSnapshotLoad(
 ) (*eventstore.Snapshot, error) {
 
 	snapshotLoadStart := time.Now()
-	snapshot, err := h.eventStore.LoadSnapshot(ctx, BuildSnapshotType(query), filter)
+	snapshot, err := h.eventStore.LoadSnapshot(ctx, h.BuildSnapshotType(query), filter)
 	snapshotLoadDuration := time.Since(snapshotLoadStart)
 
 	if err != nil {
@@ -343,7 +343,7 @@ func (h *SnapshotAwareQueryHandler) saveUpdatedSnapshot(
 
 	// Build snapshot
 	snapshot, err := eventstore.BuildSnapshot(
-		BuildSnapshotType(query),
+		h.BuildSnapshotType(query),
 		filter.Hash(),
 		maxSequence,
 		data,
