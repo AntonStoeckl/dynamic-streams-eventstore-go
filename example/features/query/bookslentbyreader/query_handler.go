@@ -60,7 +60,7 @@ func (h QueryHandler) Handle(ctx context.Context, query Query) (BooksCurrentlyLe
 	filter := BuildEventFilter(query.ReaderID)
 
 	// Query phase
-	storableEvents, err := h.executeQuery(ctx, filter)
+	storableEvents, maxSeq, err := h.executeQuery(ctx, filter)
 	if err != nil {
 		h.recordQueryError(ctx, err, time.Since(queryStart), span)
 		return BooksCurrentlyLent{}, err
@@ -74,7 +74,7 @@ func (h QueryHandler) Handle(ctx context.Context, query Query) (BooksCurrentlyLe
 	}
 
 	// Projection phase
-	result := h.executeProjection(ctx, history, query)
+	result := h.executeProjection(ctx, history, query, maxSeq)
 
 	h.recordQuerySuccess(ctx, time.Since(queryStart), span)
 
@@ -160,20 +160,20 @@ func (h QueryHandler) recordQueryTimeout(ctx context.Context, err error, duratio
 func (h QueryHandler) executeQuery(
 	ctx context.Context,
 	filter eventstore.Filter,
-) (eventstore.StorableEvents, error) {
+) (eventstore.StorableEvents, eventstore.MaxSequenceNumberUint, error) {
 
 	queryPhaseStart := time.Now()
-	storableEvents, _, err := h.eventStore.Query(ctx, filter)
+	storableEvents, maxSeq, err := h.eventStore.Query(ctx, filter)
 	queryPhaseDuration := time.Since(queryPhaseStart)
 
 	if err != nil {
 		h.recordComponentTiming(ctx, shell.ComponentQuery, shell.StatusError, queryPhaseDuration)
-		return nil, err
+		return nil, 0, err
 	}
 
 	h.recordComponentTiming(ctx, shell.ComponentQuery, shell.StatusSuccess, queryPhaseDuration)
 
-	return storableEvents, nil
+	return storableEvents, maxSeq, nil
 }
 
 // executeUnmarshal handles the unmarshal phase with proper observability.
@@ -201,10 +201,11 @@ func (h QueryHandler) executeProjection(
 	ctx context.Context,
 	history core.DomainEvents,
 	query Query,
+	maxSeq eventstore.MaxSequenceNumberUint,
 ) BooksCurrentlyLent {
 
 	projectionStart := time.Now()
-	result := ProjectBooksCurrentlyLent(history, query)
+	result := Project(history, query, maxSeq)
 	projectionDuration := time.Since(projectionStart)
 
 	h.recordComponentTiming(ctx, shell.ComponentProjection, shell.StatusSuccess, projectionDuration)

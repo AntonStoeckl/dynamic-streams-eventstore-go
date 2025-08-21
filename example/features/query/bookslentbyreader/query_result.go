@@ -16,7 +16,8 @@ type LendingInfo struct {
 
 // BooksCurrentlyLent represents the query result containing books currently lent to a reader.
 type BooksCurrentlyLent struct {
-	ReaderID core.ReaderIDString
-	Books    []LendingInfo
-	Count    int
+	ReaderID       core.ReaderIDString
+	Books          []LendingInfo
+	Count          int
+	SequenceNumber uint
 }
