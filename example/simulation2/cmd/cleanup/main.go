@@ -197,11 +197,16 @@ func main() {
 			obsConfig.ContextualLogger != nil)
 	}
 
-	// create a base RegisteredReaders handler // todo: wrap with snapshot-aware handler
+	// create a base RegisteredReaders handler and wrap it with the snapshot-aware handler
 
-	registeredReadersHandler, err := registeredreaders.NewQueryHandler(eventStore, buildRegisteredReadersOptions(obsConfig)...)
+	baseRegisteredReadersHandler, err := registeredreaders.NewQueryHandler(eventStore, buildRegisteredReadersOptions(obsConfig)...)
 	if err != nil {
 		log.Panicf("Failed to create RegisteredReaders handler: %v", err)
+	}
+
+	registeredReadersHandler, err := registeredreaders.NewSnapshotAwareQueryHandler(baseRegisteredReadersHandler)
+	if err != nil {
+		log.Panicf("Failed to create snapshot-aware RegisteredReaders handler: %v", err)
 	}
 
 	// create a base BooksInCirculation handler and wrap it with the snapshot-aware handler

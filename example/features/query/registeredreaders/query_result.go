@@ -15,6 +15,7 @@ type ReaderInfo struct {
 
 // RegisteredReaders represents the query result containing all registered (non-canceled) readers.
 type RegisteredReaders struct {
-	Readers []ReaderInfo
-	Count   int
+	Readers        []ReaderInfo `json:"readers"`
+	Count          int          `json:"count"`
+	SequenceNumber uint         `json:"sequenceNumber"`
 }
