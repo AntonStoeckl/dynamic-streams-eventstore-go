@@ -185,22 +185,23 @@ func CreateWrapperWithBenchmarkConfig(t testing.TB, options ...postgresengine.Op
 	}
 }
 
-// CleanUp truncates the events table to prepare for the next test.
+// CleanUp truncates both the events and snapshots tables to prepare for the next test.
+// This is needed for tests that use the snapshot functionality.
 func CleanUp(t testing.TB, wrapper Wrapper) {
 	ctx := context.Background()
 
 	switch e := wrapper.(type) {
 	case *PGXPoolWrapper:
-		_, err := e.pool.Exec(ctx, "TRUNCATE TABLE events RESTART IDENTITY")
-		assert.NoError(t, err, "error cleaning up the events table")
+		_, err := e.pool.Exec(ctx, "TRUNCATE TABLE events, snapshots RESTART IDENTITY")
+		assert.NoError(t, err, "error cleaning up the events and snapshots tables")
 
 	case *SQLDBWrapper:
-		_, err := e.db.ExecContext(ctx, "TRUNCATE TABLE events RESTART IDENTITY")
-		assert.NoError(t, err, "error cleaning up the events table")
+		_, err := e.db.ExecContext(ctx, "TRUNCATE TABLE events, snapshots RESTART IDENTITY")
+		assert.NoError(t, err, "error cleaning up the events and snapshots tables")
 
 	case *SQLXWrapper:
-		_, err := e.db.ExecContext(ctx, "TRUNCATE TABLE events RESTART IDENTITY")
-		assert.NoError(t, err, "error cleaning up the events table")
+		_, err := e.db.ExecContext(ctx, "TRUNCATE TABLE events, snapshots RESTART IDENTITY")
+		assert.NoError(t, err, "error cleaning up the events and snapshots tables")
 
 	default:
 		panic(fmt.Sprintf("unsupported wrapper type: %T", e))
