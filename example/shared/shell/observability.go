@@ -146,9 +146,6 @@ const (
 	// ComponentSnapshotLoad identifies the snapshot loading phase in snapshot-aware query handlers.
 	ComponentSnapshotLoad = "snapshot_load"
 
-	// ComponentFilterReopen identifies the filter reopening phase in snapshot-aware query handlers.
-	ComponentFilterReopen = "filter_reopen"
-
 	// ComponentIncrementalQuery identifies the incremental query phase in snapshot-aware query handlers.
 	ComponentIncrementalQuery = "incremental_query"
 

@@ -38,7 +38,7 @@ func Test_QueryHandler_Handle_ReturnsCorrectReadersSortedByRegisteredAt(t *testi
 	registerReadersToLibrary(t, handlers, readers, fakeClock)
 
 	// act
-	result, err := handlers.query.Handle(ctx)
+	result, err := handlers.query.Handle(ctx, registeredreaders.BuildQuery())
 
 	// assert
 	assert.NoError(t, err, "Query should succeed")
@@ -73,7 +73,7 @@ func Test_QueryHandler_Handle_ExcludesCanceledReaders(t *testing.T) {
 	assert.NoError(t, err, "Should cancel reader4 contract")
 
 	// act
-	result, err := handlers.query.Handle(ctx)
+	result, err := handlers.query.Handle(ctx, registeredreaders.BuildQuery())
 
 	// assert
 	assert.NoError(t, err, "Query should succeed")
@@ -97,7 +97,7 @@ func Test_QueryHandler_Handle_ReturnsEmptyResult_WhenNoReadersRegistered(t *test
 	handlers := createAllHandlers(t, wrapper)
 
 	// act
-	result, err := handlers.query.Handle(ctx)
+	result, err := handlers.query.Handle(ctx, registeredreaders.BuildQuery())
 
 	// assert
 	assert.NoError(t, err, "Query should succeed")
@@ -135,7 +135,7 @@ func Test_QueryHandler_Handle_ReturnsCorrectResult_WhenAllReadersAreCanceled(t *
 	assert.NoError(t, err, "Should cancel reader4 contract")
 
 	// act
-	result, err := handlers.query.Handle(ctx)
+	result, err := handlers.query.Handle(ctx, registeredreaders.BuildQuery())
 
 	// assert
 	assert.NoError(t, err, "Query should succeed")
@@ -174,7 +174,7 @@ func Test_QueryHandler_Handle_HandlesMixedRegisterAndCancelOperations(t *testing
 	assert.NoError(t, err, "Should register reader3")
 
 	// act
-	result, err := handlers.query.Handle(ctx)
+	result, err := handlers.query.Handle(ctx, registeredreaders.BuildQuery())
 
 	// assert
 	assert.NoError(t, err, "Query should succeed")

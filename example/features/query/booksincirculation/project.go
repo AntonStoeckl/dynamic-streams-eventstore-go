@@ -19,7 +19,7 @@ import (
 //	INCLUDES: Books currently in circulation (added but not removed)
 //	EXCLUDES: Books that have been removed from circulation
 //	DETAILS: Includes lending status for each book
-func Project(history core.DomainEvents, maxSequence uint, base ...BooksInCirculation) BooksInCirculation {
+func Project(history core.DomainEvents, _ Query, maxSequence uint, base ...BooksInCirculation) BooksInCirculation {
 	// Track book circulation state and book information
 	var bookInfos map[string]*BookInfo
 

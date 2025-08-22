@@ -9,24 +9,11 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
 )
 
-// EventStore defines the interface needed by the QueryHandler for event store operations.
-type EventStore interface {
-	Query(ctx context.Context, filter eventstore.Filter) (
-		eventstore.StorableEvents,
-		eventstore.MaxSequenceNumberUint,
-		error,
-	)
-}
-
-const (
-	queryType = "RegisteredReaders"
-)
-
 // QueryHandler orchestrates the complete query processing workflow.
 // It handles infrastructure concerns like event store interactions, observability instrumentation,
 // and delegates projection logic to the pure core functions.
 type QueryHandler struct {
-	eventStore       EventStore
+	eventStore       shell.QueriesEvents
 	metricsCollector shell.MetricsCollector
 	tracingCollector shell.TracingCollector
 	contextualLogger shell.ContextualLogger
@@ -34,7 +21,7 @@ type QueryHandler struct {
 }
 
 // NewQueryHandler creates a new QueryHandler with the provided EventStore dependency and options.
-func NewQueryHandler(eventStore EventStore, opts ...Option) (QueryHandler, error) {
+func NewQueryHandler(eventStore shell.QueriesEvents, opts ...Option) (QueryHandler, error) {
 	h := QueryHandler{
 		eventStore: eventStore,
 	}
@@ -51,7 +38,7 @@ func NewQueryHandler(eventStore EventStore, opts ...Option) (QueryHandler, error
 // Handle executes the complete query processing workflow: Query -> Project.
 // It queries the current event history, delegates projection logic to the core function,
 // and instruments the operation with comprehensive observability.
-func (h QueryHandler) Handle(ctx context.Context) (RegisteredReaders, error) {
+func (h QueryHandler) Handle(ctx context.Context, query Query) (RegisteredReaders, error) {
 	// Start query handler instrumentation
 	queryStart := time.Now()
 	ctx, span := shell.StartQuerySpan(ctx, h.tracingCollector, queryType)
@@ -74,7 +61,7 @@ func (h QueryHandler) Handle(ctx context.Context) (RegisteredReaders, error) {
 	}
 
 	// Projection phase
-	result := h.executeProjection(ctx, history, maxSeq)
+	result := h.executeProjection(ctx, history, query, maxSeq)
 
 	h.recordQuerySuccess(ctx, time.Since(queryStart), span)
 
@@ -200,11 +187,12 @@ func (h QueryHandler) executeUnmarshal(
 func (h QueryHandler) executeProjection(
 	ctx context.Context,
 	history core.DomainEvents,
+	query Query,
 	maxSeq eventstore.MaxSequenceNumberUint,
 ) RegisteredReaders {
 
 	projectionStart := time.Now()
-	result := Project(history, maxSeq)
+	result := Project(history, query, maxSeq)
 	projectionDuration := time.Since(projectionStart)
 
 	h.recordComponentTiming(ctx, shell.ComponentProjection, shell.StatusSuccess, projectionDuration)
@@ -215,4 +203,31 @@ func (h QueryHandler) executeProjection(
 // recordComponentTiming records component-level timing metrics.
 func (h QueryHandler) recordComponentTiming(ctx context.Context, component string, status string, duration time.Duration) {
 	shell.RecordQueryComponentDuration(ctx, h.metricsCollector, queryType, component, status, duration)
+}
+
+/*** Those methods are necessary to be able to wrap the QueryHandler with a snapshot wrapper ***/
+
+// ExposeEventStore provides access to the EventStore for snapshot wrappers.
+func (h QueryHandler) ExposeEventStore() shell.QueriesEvents {
+	return h.eventStore
+}
+
+// ExposeMetricsCollector provides access to the MetricsCollector for snapshot wrappers.
+func (h QueryHandler) ExposeMetricsCollector() shell.MetricsCollector {
+	return h.metricsCollector
+}
+
+// ExposeTracingCollector provides access to the TracingCollector for snapshot wrappers.
+func (h QueryHandler) ExposeTracingCollector() shell.TracingCollector {
+	return h.tracingCollector
+}
+
+// ExposeContextualLogger provides access to the ContextualLogger for snapshot wrappers.
+func (h QueryHandler) ExposeContextualLogger() shell.ContextualLogger {
+	return h.contextualLogger
+}
+
+// ExposeLogger provides access to the Logger for snapshot wrappers.
+func (h QueryHandler) ExposeLogger() shell.Logger {
+	return h.logger
 }

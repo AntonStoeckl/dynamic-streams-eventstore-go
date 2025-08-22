@@ -237,19 +237,19 @@ func main() {
 	fmt.Printf("%s %s\n", StatusIcon("stats"), Info("Querying database state..."))
 
 	// 1. Get all registered readers
-	registeredReadersResult, err := registeredReadersHandler.Handle(ctx)
+	registeredReadersResult, err := registeredReadersHandler.Handle(ctx, registeredreaders.Query{})
 	if err != nil {
 		log.Panicf("Failed to query registered readers: %v", err)
 	}
 
 	// 2. Get all books lent out
-	booksLentOutResult, err := booksLentOutHandler.Handle(ctx)
+	booksLentOutResult, err := booksLentOutHandler.Handle(ctx, bookslentout.Query{})
 	if err != nil {
 		log.Panicf("Failed to query books lent out: %v", err)
 	}
 
 	// 3. Get all books in circulation
-	booksInCirculationResult, err := booksInCirculationHandler.Handle(ctx)
+	booksInCirculationResult, err := booksInCirculationHandler.Handle(ctx, booksincirculation.Query{})
 	if err != nil {
 		log.Panicf("Failed to query books in circulation: %v", err)
 	}

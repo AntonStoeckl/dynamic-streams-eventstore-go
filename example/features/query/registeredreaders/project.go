@@ -18,7 +18,7 @@ import (
 //	THEN: RegisteredReaders struct is returned with current registration state
 //	INCLUDES: Readers currently registered (registered but not canceled)
 //	EXCLUDES: Readers that have had their contracts canceled
-func Project(history core.DomainEvents, maxSequence uint, base ...RegisteredReaders) RegisteredReaders {
+func Project(history core.DomainEvents, _ Query, maxSequence uint, base ...RegisteredReaders) RegisteredReaders {
 	// Track reader registration state and reader information
 	var readers map[string]*ReaderInfo
 

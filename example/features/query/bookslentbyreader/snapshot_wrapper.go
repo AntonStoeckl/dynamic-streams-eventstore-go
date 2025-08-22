@@ -195,13 +195,10 @@ func (h *SnapshotAwareQueryHandler) executeFilterReopen(
 	baseFilter eventstore.Filter,
 ) (eventstore.SequenceFilteringCapable, error) {
 
-	filterReopenStart := time.Now()
 	reopened := baseFilter.ReopenForSequenceFiltering()
 	capable, ok := reopened.(eventstore.SequenceFilteringCapable)
-	filterReopenDuration := time.Since(filterReopenStart)
 
 	if !ok {
-		h.recordComponentTiming(ctx, shell.ComponentFilterReopen, shell.StatusError, filterReopenDuration)
 		var reason string
 		if incompatible, ok := reopened.(eventstore.SequenceFilteringIncompatible); ok {
 			reason = incompatible.CannotAddSequenceFiltering()
@@ -215,8 +212,6 @@ func (h *SnapshotAwareQueryHandler) executeFilterReopen(
 		}
 		return nil, ErrFilterNotSequenceCapable
 	}
-
-	h.recordComponentTiming(ctx, shell.ComponentFilterReopen, shell.StatusSuccess, filterReopenDuration)
 
 	return capable, nil
 }

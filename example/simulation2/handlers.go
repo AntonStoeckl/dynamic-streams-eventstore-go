@@ -324,7 +324,7 @@ func (hb *HandlerBundle) ExecuteReturnBook(ctx context.Context, bookID, readerID
 func (hb *HandlerBundle) QueryBooksInCirculation(ctx context.Context) (booksincirculation.BooksInCirculation, error) {
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(BooksInCirculationQueryTimeoutSeconds*float64(time.Second)))
 	defer cancel()
-	result, err := hb.booksInCirculationHandler.Handle(timeoutCtx)
+	result, err := hb.booksInCirculationHandler.Handle(timeoutCtx, booksincirculation.Query{})
 
 	return result, err
 }
@@ -347,7 +347,7 @@ func (hb *HandlerBundle) QueryBooksLentByReader(ctx context.Context, readerID uu
 func (hb *HandlerBundle) QueryBooksLentOut(ctx context.Context) (bookslentout.BooksLentOut, error) {
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(BooksLentOutQueryTimeoutSeconds*float64(time.Second)))
 	defer cancel()
-	result, err := hb.booksLentOutHandler.Handle(timeoutCtx)
+	result, err := hb.booksLentOutHandler.Handle(timeoutCtx, bookslentout.Query{})
 
 	return result, err
 }
@@ -357,7 +357,7 @@ func (hb *HandlerBundle) QueryBooksLentOut(ctx context.Context) (bookslentout.Bo
 func (hb *HandlerBundle) QueryRegisteredReaders(ctx context.Context) (registeredreaders.RegisteredReaders, error) {
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(RegisteredReadersQueryTimeoutSeconds*float64(time.Second)))
 	defer cancel()
-	result, err := hb.registeredReadersHandler.Handle(timeoutCtx)
+	result, err := hb.registeredReadersHandler.Handle(timeoutCtx, registeredreaders.Query{})
 
 	return result, err
 }

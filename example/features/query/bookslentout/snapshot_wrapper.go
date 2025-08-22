@@ -69,7 +69,7 @@ func NewSnapshotAwareQueryHandler(baseHandler QueryHandler) (SnapshotAwareQueryH
 // Handle executes the snapshot-aware query processing workflow.
 // It attempts to load an existing snapshot and perform incremental updates,
 // falling back to the base handler if snapshots are unavailable or incompatible.
-func (h *SnapshotAwareQueryHandler) Handle(ctx context.Context) (BooksLentOut, error) {
+func (h *SnapshotAwareQueryHandler) Handle(ctx context.Context, query Query) (BooksLentOut, error) {
 	// Start query handler instrumentation
 	queryStart := time.Now()
 	ctx, span := shell.StartQuerySpan(ctx, h.tracingCollector, queryType)
@@ -81,36 +81,36 @@ func (h *SnapshotAwareQueryHandler) Handle(ctx context.Context) (BooksLentOut, e
 	// Snapshot Load phase
 	snapshot, err := h.executeSnapshotLoad(ctx, baseFilter)
 	if err != nil {
-		return h.recordFallbackAndExecute(ctx, queryStart, span, shell.SnapshotReasonError)
+		return h.recordFallbackAndExecute(ctx, query, queryStart, span, shell.SnapshotReasonError)
 	}
 
 	// Fall back and then save the data as a snapshot
 	if snapshot == nil {
-		return h.recordFallbackAndExecute(ctx, queryStart, span, shell.SnapshotReasonMiss)
+		return h.recordFallbackAndExecute(ctx, query, queryStart, span, shell.SnapshotReasonMiss)
 	}
 
 	// Filter Reopening phase
 	sequenceCapableFilter, err := h.executeFilterReopen(ctx, baseFilter)
 	if err != nil {
-		return h.recordFallbackAndExecute(ctx, queryStart, span, shell.SnapshotReasonFilterIncompatible)
+		return h.recordFallbackAndExecute(ctx, query, queryStart, span, shell.SnapshotReasonFilterIncompatible)
 	}
 
 	// Incremental Query phase
 	storableEvents, maxSeq, err := h.executeIncrementalQuery(ctx, sequenceCapableFilter, snapshot.SequenceNumber)
 	if err != nil {
-		return h.recordFallbackAndExecute(ctx, queryStart, span, shell.SnapshotReasonIncrementalQueryError)
+		return h.recordFallbackAndExecute(ctx, query, queryStart, span, shell.SnapshotReasonIncrementalQueryError)
 	}
 
 	// Unmarshal phase
 	incrementalEvents, err := h.executeUnmarshal(ctx, storableEvents)
 	if err != nil {
-		return h.recordFallbackAndExecute(ctx, queryStart, span, shell.SnapshotReasonUnmarshalError)
+		return h.recordFallbackAndExecute(ctx, query, queryStart, span, shell.SnapshotReasonUnmarshalError)
 	}
 
 	// Snapshot Deserialization phase
 	baseProjection, err := h.executeSnapshotDeserialization(ctx, snapshot)
 	if err != nil {
-		return h.recordFallbackAndExecute(ctx, queryStart, span, shell.SnapshotReasonDeserializeError)
+		return h.recordFallbackAndExecute(ctx, query, queryStart, span, shell.SnapshotReasonDeserializeError)
 	}
 
 	// Determine the final sequence number (max of snapshot and incremental query)
@@ -120,7 +120,7 @@ func (h *SnapshotAwareQueryHandler) Handle(ctx context.Context) (BooksLentOut, e
 	}
 
 	// Incremental Projection phase
-	result := h.executeIncrementalProjection(ctx, incrementalEvents, baseProjection, finalSequence)
+	result := h.executeIncrementalProjection(ctx, incrementalEvents, query, baseProjection, finalSequence)
 
 	// Save the updated snapshot with incremental changes
 	h.saveUpdatedSnapshot(ctx, baseFilter, finalSequence, result)
@@ -195,13 +195,10 @@ func (h *SnapshotAwareQueryHandler) executeFilterReopen(
 	baseFilter eventstore.Filter,
 ) (eventstore.SequenceFilteringCapable, error) {
 
-	filterReopenStart := time.Now()
 	reopened := baseFilter.ReopenForSequenceFiltering()
 	capable, ok := reopened.(eventstore.SequenceFilteringCapable)
-	filterReopenDuration := time.Since(filterReopenStart)
 
 	if !ok {
-		h.recordComponentTiming(ctx, shell.ComponentFilterReopen, shell.StatusError, filterReopenDuration)
 		var reason string
 		if incompatible, ok := reopened.(eventstore.SequenceFilteringIncompatible); ok {
 			reason = incompatible.CannotAddSequenceFiltering()
@@ -215,8 +212,6 @@ func (h *SnapshotAwareQueryHandler) executeFilterReopen(
 		}
 		return nil, ErrFilterNotSequenceCapable
 	}
-
-	h.recordComponentTiming(ctx, shell.ComponentFilterReopen, shell.StatusSuccess, filterReopenDuration)
 
 	return capable, nil
 }
@@ -303,12 +298,13 @@ func (h *SnapshotAwareQueryHandler) executeSnapshotDeserialization(
 func (h *SnapshotAwareQueryHandler) executeIncrementalProjection(
 	ctx context.Context,
 	incrementalEvents core.DomainEvents,
+	query Query,
 	baseProjection BooksLentOut,
 	maxSequence eventstore.MaxSequenceNumberUint,
 ) BooksLentOut {
 
 	incrementalProjectionStart := time.Now()
-	result := Project(incrementalEvents, maxSequence, baseProjection)
+	result := Project(incrementalEvents, query, maxSequence, baseProjection)
 	incrementalProjectionDuration := time.Since(incrementalProjectionStart)
 
 	h.recordComponentTiming(ctx, shell.ComponentIncrementalProjection, shell.StatusSuccess, incrementalProjectionDuration)
@@ -399,6 +395,7 @@ func (h *SnapshotAwareQueryHandler) recordQuerySuccess(
 // recordFallbackAndExecute records the fallback scenario and delegates to base handler.
 func (h *SnapshotAwareQueryHandler) recordFallbackAndExecute(
 	ctx context.Context,
+	query Query,
 	queryStart time.Time,
 	span shell.SpanContext,
 	fallbackReason string,
@@ -421,7 +418,7 @@ func (h *SnapshotAwareQueryHandler) recordFallbackAndExecute(
 	}
 
 	// Delegate to base handler
-	result, err := h.baseHandler.Handle(ctx)
+	result, err := h.baseHandler.Handle(ctx, query)
 	if err != nil {
 		return result, err
 	}

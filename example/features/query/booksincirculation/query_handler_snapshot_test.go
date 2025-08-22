@@ -26,7 +26,7 @@ func Test_SnapshotAwareQueryHandler_Handle_SnapshotMiss(t *testing.T) {
 	metricsCollector.Reset()
 
 	// Act: Query using snapshot handler (should miss snapshot and fall back to base handler)
-	result, err := snapshotHandler.Handle(ctx)
+	result, err := snapshotHandler.Handle(ctx, booksincirculation.BuildQuery())
 	assert.NoError(t, err, "Snapshot handler should work")
 	assert.Equal(t, 1, result.Count, "Should have 1 book")
 
@@ -46,7 +46,7 @@ func Test_SnapshotAwareQueryHandler_Handle_SnapshotCreationAndHitWithNoNewEvents
 
 	// First query: Should miss snapshot and fall back to base handler
 	// If wrapper works correctly, it should create a snapshot after a successful fallback
-	result, err := snapshotHandler.Handle(ctx)
+	result, err := snapshotHandler.Handle(ctx, booksincirculation.BuildQuery())
 	assert.NoError(t, err, "First query should work")
 	assert.Equal(t, 1, result.Count, "Should have 1 book")
 
@@ -66,7 +66,7 @@ func Test_SnapshotAwareQueryHandler_Handle_SnapshotCreationAndHitWithNoNewEvents
 	metricsCollector.Reset()
 
 	// Second query: Should hit the snapshot created by the first query (if wrapper creates snapshots automatically)
-	hitResult, err := snapshotHandler.Handle(ctx)
+	hitResult, err := snapshotHandler.Handle(ctx, booksincirculation.BuildQuery())
 	assert.NoError(t, err, "Second query should work")
 	assert.Equal(t, 1, hitResult.Count, "Should have 1 book")
 	assert.Equal(t, result, hitResult, "Results should be identical")
@@ -83,7 +83,7 @@ func Test_SnapshotAwareQueryHandler_Handle_SnapshotHitWithNewEvents(t *testing.T
 	createTestBook(ctx, t, wrapper)
 
 	// First query: Should miss snapshot and fall back to base handler, then create snapshot
-	result1, err := snapshotHandler.Handle(ctx)
+	result1, err := snapshotHandler.Handle(ctx, booksincirculation.BuildQuery())
 	assert.NoError(t, err, "First query should work")
 	assert.Equal(t, 1, result1.Count, "Should have 1 book initially")
 	assert.Equal(t, uint(1), result1.SequenceNumber, "Should have sequence=1")
@@ -105,7 +105,7 @@ func Test_SnapshotAwareQueryHandler_Handle_SnapshotHitWithNewEvents(t *testing.T
 	metricsCollector.Reset()
 
 	// Second query: Should hit snapshot and process incremental events (new book)
-	result2, err := snapshotHandler.Handle(ctx)
+	result2, err := snapshotHandler.Handle(ctx, booksincirculation.BuildQuery())
 	assert.NoError(t, err, "Second query should work")
 	assert.Equal(t, 2, result2.Count, "Should have 2 books after incremental processing")
 	assert.Equal(t, uint(2), result2.SequenceNumber, "Should have sequence=2 after processing new events")

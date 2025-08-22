@@ -57,7 +57,7 @@ func Test_QueryHandler_Handle_ReturnsLentBooksSortedByLentAt(t *testing.T) {
 	assert.NoError(t, err, "Should lend book2")
 
 	// act
-	result, err := handlers.query.Handle(ctx)
+	result, err := handlers.query.Handle(ctx, bookslentout.BuildQuery())
 
 	// assert
 	assert.NoError(t, err, "Query should succeed")
@@ -97,7 +97,7 @@ func Test_QueryHandler_Handle_ExcludesReturnedBooks(t *testing.T) {
 	assert.NoError(t, err, "Should return book3")
 
 	// act
-	result, err := handlers.query.Handle(ctx)
+	result, err := handlers.query.Handle(ctx, bookslentout.BuildQuery())
 
 	// assert
 	assert.NoError(t, err, "Query should succeed")
@@ -125,7 +125,7 @@ func Test_QueryHandler_Handle_ReturnsEmptyResult_WhenNoBooksLent(t *testing.T) {
 	registerTestReaders(t, handlers, readers, fakeClock)
 
 	// act
-	result, err := handlers.query.Handle(ctx)
+	result, err := handlers.query.Handle(ctx, bookslentout.BuildQuery())
 
 	// assert
 	assert.NoError(t, err, "Query should succeed")
@@ -153,7 +153,7 @@ func Test_QueryHandler_Handle_ReturnsCorrectLendingDetails(t *testing.T) {
 	assert.NoError(t, err, "Should lend book1 to reader1")
 
 	// act
-	result, err := handlers.query.Handle(ctx)
+	result, err := handlers.query.Handle(ctx, bookslentout.BuildQuery())
 
 	// assert
 	assert.NoError(t, err, "Query should succeed")

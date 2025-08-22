@@ -18,7 +18,7 @@ import (
 //	THEN: BooksLentOut struct is returned with current lending state
 //	INCLUDES: All books currently lent to readers (BookID, ReaderID, LentAt)
 //	EXCLUDES: Books that have been returned
-func Project(history core.DomainEvents, maxSequence uint, base ...BooksLentOut) BooksLentOut {
+func Project(history core.DomainEvents, _ Query, maxSequence uint, base ...BooksLentOut) BooksLentOut {
 	// Track lending state
 	var lendingInfos map[string]*LendingInfo
 

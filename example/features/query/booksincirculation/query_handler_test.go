@@ -48,7 +48,7 @@ func Test_QueryHandler_Handle_ReturnsCorrectBooksSortedByAddedAt(t *testing.T) {
 	addBooksToLibrary(t, handlers, books, fakeClock)
 
 	// act
-	result, err := handlers.query.Handle(ctx)
+	result, err := handlers.query.Handle(ctx, booksincirculation.BuildQuery())
 
 	// assert
 	assert.NoError(t, err, "Query should succeed")
@@ -85,7 +85,7 @@ func Test_QueryHandler_Handle_ReturnsCorrectLendingStatus(t *testing.T) {
 	assert.NoError(t, err, "Should lend book3")
 
 	// act
-	result, err := handlers.query.Handle(ctx)
+	result, err := handlers.query.Handle(ctx, booksincirculation.BuildQuery())
 
 	// assert
 	assert.NoError(t, err, "Query should succeed")
@@ -115,7 +115,7 @@ func Test_QueryHandler_Handle_ExcludesRemovedBooks(t *testing.T) {
 	assert.NoError(t, err, "Should remove book4 from circulation")
 
 	// act
-	result, err := handlers.query.Handle(ctx)
+	result, err := handlers.query.Handle(ctx, booksincirculation.BuildQuery())
 
 	// assert
 	assert.NoError(t, err, "Query should succeed")
@@ -160,7 +160,7 @@ func Test_QueryHandler_Handle_IncludesReturnedBooksAsAvailable(t *testing.T) {
 	assert.NoError(t, err, "Should return book2")
 
 	// act
-	result, err := handlers.query.Handle(ctx)
+	result, err := handlers.query.Handle(ctx, booksincirculation.BuildQuery())
 
 	// assert
 	assert.NoError(t, err, "Query should succeed")
@@ -189,7 +189,7 @@ func Test_QueryHandler_Handle_ReturnsEmptyResult_WhenNoBooksInCirculation(t *tes
 	handlers := createAllCommandHandlers(t, wrapper)
 
 	// act
-	result, err := handlers.query.Handle(ctx)
+	result, err := handlers.query.Handle(ctx, booksincirculation.BuildQuery())
 
 	// assert
 	assert.NoError(t, err, "Query should succeed")
@@ -227,7 +227,7 @@ func Test_QueryHandler_Handle_ReturnsCorrectResult_WhenAllBooksAreRemoved(t *tes
 	assert.NoError(t, err, "Should remove book4 from circulation")
 
 	// act
-	result, err := handlers.query.Handle(ctx)
+	result, err := handlers.query.Handle(ctx, booksincirculation.BuildQuery())
 
 	// assert
 	assert.NoError(t, err, "Query should succeed")

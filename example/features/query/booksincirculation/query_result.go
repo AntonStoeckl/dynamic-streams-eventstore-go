@@ -25,3 +25,8 @@ type BooksInCirculation struct {
 	Count          int
 	SequenceNumber uint
 }
+
+// GetSequenceNumber returns the sequence number of the last event in the event history that was used to build the projection.
+func (r BooksInCirculation) GetSequenceNumber() uint {
+	return r.SequenceNumber
+}

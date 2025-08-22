@@ -21,3 +21,8 @@ type BooksCurrentlyLent struct {
 	Count          int
 	SequenceNumber uint
 }
+
+// GetSequenceNumber returns the sequence number of the last event in the event history that was used to build the projection.
+func (r BooksCurrentlyLent) GetSequenceNumber() uint {
+	return r.SequenceNumber
+}
