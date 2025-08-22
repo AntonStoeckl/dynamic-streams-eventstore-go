@@ -23,6 +23,7 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/bookslentout"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/registeredreaders"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/snapshot"
 )
 
 // Config holds the command-line configuration for the cleanup tool.
@@ -197,38 +198,74 @@ func main() {
 			obsConfig.ContextualLogger != nil)
 	}
 
-	// create a base RegisteredReaders handler and wrap it with the snapshot-aware handler
+	// create a base RegisteredReaders handler and wrap it with the generic snapshot wrapper
 
 	baseRegisteredReadersHandler, err := registeredreaders.NewQueryHandler(eventStore, buildRegisteredReadersOptions(obsConfig)...)
 	if err != nil {
 		log.Panicf("Failed to create RegisteredReaders handler: %v", err)
 	}
 
-	registeredReadersHandler, err := registeredreaders.NewSnapshotAwareQueryHandler(baseRegisteredReadersHandler)
+	registeredReadersHandler, err := snapshot.NewGenericSnapshotWrapper[
+		registeredreaders.Query,
+		registeredreaders.RegisteredReaders,
+	](
+		baseRegisteredReadersHandler,
+		registeredreaders.Project,
+		func(_ registeredreaders.Query) eventstore.Filter {
+			return registeredreaders.BuildEventFilter()
+		},
+		func(queryType string, _ registeredreaders.Query) string {
+			return queryType
+		},
+	)
 	if err != nil {
 		log.Panicf("Failed to create snapshot-aware RegisteredReaders handler: %v", err)
 	}
 
-	// create a base BooksInCirculation handler and wrap it with the snapshot-aware handler
+	// create a base BooksLentOut handler and wrap it with the generic snapshot wrapper
 
 	baseBooksLentOutHandler, err := bookslentout.NewQueryHandler(eventStore, buildBooksLentOutOptions(obsConfig)...)
 	if err != nil {
 		log.Panicf("Failed to create BooksLentOut handler: %v", err)
 	}
 
-	booksLentOutHandler, err := bookslentout.NewSnapshotAwareQueryHandler(baseBooksLentOutHandler)
+	booksLentOutHandler, err := snapshot.NewGenericSnapshotWrapper[
+		bookslentout.Query,
+		bookslentout.BooksLentOut,
+	](
+		baseBooksLentOutHandler,
+		bookslentout.Project,
+		func(_ bookslentout.Query) eventstore.Filter {
+			return bookslentout.BuildEventFilter()
+		},
+		func(queryType string, _ bookslentout.Query) string {
+			return queryType
+		},
+	)
 	if err != nil {
 		log.Panicf("Failed to create snapshot-aware BooksLentOut handler: %v", err)
 	}
 
-	// create a base BooksInCirculation handler and wrap it with the snapshot-aware handler
+	// create a base BooksInCirculation handler and wrap it with the generic snapshot wrapper
 
 	baseBooksInCirculationHandler, err := booksincirculation.NewQueryHandler(eventStore, buildBooksInCirculationOptions(obsConfig)...)
 	if err != nil {
 		log.Panicf("Failed to create BooksInCirculation handler: %v", err)
 	}
 
-	booksInCirculationHandler, err := booksincirculation.NewSnapshotAwareQueryHandler(baseBooksInCirculationHandler)
+	booksInCirculationHandler, err := snapshot.NewGenericSnapshotWrapper[
+		booksincirculation.Query,
+		booksincirculation.BooksInCirculation,
+	](
+		baseBooksInCirculationHandler,
+		booksincirculation.Project,
+		func(_ booksincirculation.Query) eventstore.Filter {
+			return booksincirculation.BuildEventFilter()
+		},
+		func(queryType string, _ booksincirculation.Query) string {
+			return queryType
+		},
+	)
 	if err != nil {
 		log.Panicf("Failed to create snapshot-aware BooksInCirculation handler: %v", err)
 	}

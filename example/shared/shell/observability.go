@@ -188,9 +188,6 @@ const (
 	// LogMsgSnapshotMiss is logged when snapshot loading fails.
 	LogMsgSnapshotMiss = "snapshot miss: falling back to base handler"
 
-	// LogMsgSnapshotIncompatible is logged when the filter is incompatible with sequence filtering.
-	LogMsgSnapshotIncompatible = "snapshot incompatible"
-
 	// LogMsgSnapshotSaved is logged when the snapshot is successfully saved.
 	LogMsgSnapshotSaved = "snapshot saved"
 
@@ -256,9 +253,6 @@ const (
 
 	// SnapshotReasonMiss indicates that no snapshot was found.
 	SnapshotReasonMiss = "snapshot_miss"
-
-	// SnapshotReasonFilterIncompatible indicates that the filter is incompatible with sequence filtering.
-	SnapshotReasonFilterIncompatible = "filter_incompatible"
 
 	// SnapshotReasonIncrementalQueryError indicates that the incremental query failed.
 	SnapshotReasonIncrementalQueryError = "incremental_query_error"

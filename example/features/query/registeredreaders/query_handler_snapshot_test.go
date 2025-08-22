@@ -9,8 +9,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/command/registerreader"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/registeredreaders"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/snapshot"
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"                 //nolint:revive
 	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper" //nolint:revive
 )
@@ -58,7 +60,7 @@ func Test_SnapshotAwareQueryHandler_Handle_SnapshotCreationAndHitWithNoNewEvents
 
 	// Verify that a snapshot was created in the database
 	filter := registeredreaders.BuildEventFilter()
-	savedSnapshot, err := wrapper.GetEventStore().LoadSnapshot(ctx, snapshotHandler.BuildSnapshotType(), filter)
+	savedSnapshot, err := wrapper.GetEventStore().LoadSnapshot(ctx, snapshotHandler.BuildSnapshotType(registeredreaders.BuildQuery()), filter)
 	assert.NoError(t, err, "Should be able to load saved snapshot")
 	assert.NotNil(t, savedSnapshot, "Snapshot should exist after first query")
 
@@ -93,7 +95,7 @@ func Test_SnapshotAwareQueryHandler_Handle_SnapshotHitWithNewEvents(t *testing.T
 
 	// Verify that a snapshot was created in the database
 	filter := registeredreaders.BuildEventFilter()
-	savedSnapshot, err := wrapper.GetEventStore().LoadSnapshot(ctx, snapshotHandler.BuildSnapshotType(), filter)
+	savedSnapshot, err := wrapper.GetEventStore().LoadSnapshot(ctx, snapshotHandler.BuildSnapshotType(registeredreaders.BuildQuery()), filter)
 	assert.NoError(t, err, "Should be able to load saved snapshot")
 	assert.NotNil(t, savedSnapshot, "Snapshot should exist after first query")
 	assert.Equal(t, uint(1), savedSnapshot.SequenceNumber, "Snapshot should have sequence=1")
@@ -124,7 +126,7 @@ func Test_SnapshotAwareQueryHandler_Handle_SnapshotHitWithNewEvents(t *testing.T
 
 	// Verify that the snapshot was updated with incremental changes
 	filter = registeredreaders.BuildEventFilter()
-	updatedSnapshot, err := wrapper.GetEventStore().LoadSnapshot(ctx, snapshotHandler.BuildSnapshotType(), filter)
+	updatedSnapshot, err := wrapper.GetEventStore().LoadSnapshot(ctx, snapshotHandler.BuildSnapshotType(registeredreaders.BuildQuery()), filter)
 	assert.NoError(t, err, "Should be able to load updated snapshot")
 	assert.NotNil(t, updatedSnapshot, "Updated snapshot should exist")
 	assert.Equal(t, uint(2), updatedSnapshot.SequenceNumber, "Updated snapshot should have sequence=2")
@@ -137,7 +139,13 @@ func Test_SnapshotAwareQueryHandler_Handle_SnapshotHitWithNewEvents(t *testing.T
 	assert.Equal(t, uint(2), updatedProjection.SequenceNumber, "Updated snapshot projection should have sequence=2")
 }
 
-func setupSnapshotTestWithMetrics(t *testing.T) (context.Context, registeredreaders.SnapshotAwareQueryHandler, *MetricsCollectorSpy, Wrapper) {
+func setupSnapshotTestWithMetrics(t *testing.T) (
+	context.Context,
+	*snapshot.GenericSnapshotWrapper[registeredreaders.Query, registeredreaders.RegisteredReaders],
+	*MetricsCollectorSpy,
+	Wrapper,
+) {
+
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -156,7 +164,19 @@ func setupSnapshotTestWithMetrics(t *testing.T) (context.Context, registeredread
 	)
 	assert.NoError(t, err, "Should create base query handler with metrics")
 
-	snapshotHandler, err := registeredreaders.NewSnapshotAwareQueryHandler(baseHandler)
+	snapshotHandler, err := snapshot.NewGenericSnapshotWrapper[
+		registeredreaders.Query,
+		registeredreaders.RegisteredReaders,
+	](
+		baseHandler,
+		registeredreaders.Project,
+		func(_ registeredreaders.Query) eventstore.Filter {
+			return registeredreaders.BuildEventFilter()
+		},
+		func(queryType string, _ registeredreaders.Query) string {
+			return queryType
+		},
+	)
 	assert.NoError(t, err, "Should create snapshot-aware query handler")
 
 	return ctx, snapshotHandler, metricsCollector, wrapper
@@ -217,13 +237,12 @@ func assertSnapshotHitMetrics(t *testing.T, metricsCollector *MetricsCollectorSp
 
 	componentRecords := getComponentMetrics(metricsCollector)
 
-	// We should have 7 snapshot hit parts: all snapshot operations succeed, including snapshot save
-	assert.Len(t, componentRecords, 7, "should record exactly 7 component metrics for snapshot hit")
+	// We should have 6 snapshot hit parts: all snapshot operations succeed, including snapshot save
+	assert.Len(t, componentRecords, 6, "should record exactly 6 component metrics for snapshot hit")
 
 	// Check for snapshot hit components with success status
 	expectedComponents := map[string]string{
 		"snapshot_load":          "success", // Snapshot hit
-		"filter_reopen":          "success", // Incremental query setup
 		"incremental_query":      "success", // Incremental query execution
 		"unmarshal":              "success", // Incremental events unmarshal
 		"snapshot_deserialize":   "success", // Snapshot data deserialization

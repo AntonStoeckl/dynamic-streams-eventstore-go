@@ -152,6 +152,12 @@ func (w *GenericSnapshotWrapper[Q, R]) Handle(ctx context.Context, query Q) (R, 
 	return result, nil
 }
 
+// BuildSnapshotType returns the snapshot type string for this handler.
+// Tests use this to query for saved snapshots.
+func (w *GenericSnapshotWrapper[Q, R]) BuildSnapshotType(query Q) string {
+	return w.snapshotTypeFunc(query.QueryType(), query)
+}
+
 /*** Phase execution methods for clean observability patterns ***/
 
 // executeSnapshotLoad handles the snapshot loading phase with proper observability.

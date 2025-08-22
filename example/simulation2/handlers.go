@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/command/addbookcopy"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/command/cancelreadercontract"
@@ -21,6 +22,7 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/bookslentbyreader"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/bookslentout"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/registeredreaders"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/snapshot"
 )
 
 // HandlerBundle contains all command and query handlers for the simulation.
@@ -34,10 +36,10 @@ type HandlerBundle struct {
 	returnBookCopyHandler returnbookcopyfromreader.CommandHandler
 
 	// Query handlers for state refresh.
-	booksInCirculationHandler booksincirculation.SnapshotAwareQueryHandler
-	booksLentByReaderHandler  bookslentbyreader.SnapshotAwareQueryHandler
-	booksLentOutHandler       bookslentout.SnapshotAwareQueryHandler
-	registeredReadersHandler  registeredreaders.SnapshotAwareQueryHandler
+	booksInCirculationHandler *snapshot.GenericSnapshotWrapper[booksincirculation.Query, booksincirculation.BooksInCirculation]
+	booksLentByReaderHandler  *snapshot.GenericSnapshotWrapper[bookslentbyreader.Query, bookslentbyreader.BooksCurrentlyLent]
+	booksLentOutHandler       *snapshot.GenericSnapshotWrapper[bookslentout.Query, bookslentout.BooksLentOut]
+	registeredReadersHandler  *snapshot.GenericSnapshotWrapper[registeredreaders.Query, registeredreaders.RegisteredReaders]
 
 	// State access for actor decisions.
 	simulationState *SimulationState
@@ -94,7 +96,19 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 		return nil, fmt.Errorf("failed to create BooksInCirculation handler: %w", err)
 	}
 
-	booksInCirculationHandler, err := booksincirculation.NewSnapshotAwareQueryHandler(booksInCirculationBaseHandler)
+	booksInCirculationHandler, err := snapshot.NewGenericSnapshotWrapper[
+		booksincirculation.Query,
+		booksincirculation.BooksInCirculation,
+	](
+		booksInCirculationBaseHandler,
+		booksincirculation.Project,
+		func(_ booksincirculation.Query) eventstore.Filter {
+			return booksincirculation.BuildEventFilter()
+		},
+		func(queryType string, _ booksincirculation.Query) string {
+			return queryType
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create BooksInCirculation snapshot wrapper: %w", err)
 	}
@@ -104,7 +118,19 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 		return nil, fmt.Errorf("failed to create BooksLentByReader handler: %w", err)
 	}
 
-	booksLentByReaderHandler, err := bookslentbyreader.NewSnapshotAwareQueryHandler(booksLentByReaderBaseHandler)
+	booksLentByReaderHandler, err := snapshot.NewGenericSnapshotWrapper[
+		bookslentbyreader.Query,
+		bookslentbyreader.BooksCurrentlyLent,
+	](
+		booksLentByReaderBaseHandler,
+		bookslentbyreader.Project,
+		func(q bookslentbyreader.Query) eventstore.Filter {
+			return bookslentbyreader.BuildEventFilter(q.ReaderID)
+		},
+		func(queryType string, q bookslentbyreader.Query) string {
+			return queryType + ":" + q.ReaderID.String()
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create BooksLentByReader snapshot wrapper: %w", err)
 	}
@@ -114,7 +140,19 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 		return nil, fmt.Errorf("failed to create BooksLentOut handler: %w", err)
 	}
 
-	booksLentOutHandler, err := bookslentout.NewSnapshotAwareQueryHandler(booksLentOutBaseHandler)
+	booksLentOutHandler, err := snapshot.NewGenericSnapshotWrapper[
+		bookslentout.Query,
+		bookslentout.BooksLentOut,
+	](
+		booksLentOutBaseHandler,
+		bookslentout.Project,
+		func(_ bookslentout.Query) eventstore.Filter {
+			return bookslentout.BuildEventFilter()
+		},
+		func(queryType string, _ bookslentout.Query) string {
+			return queryType
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create BooksLentOut snapshot wrapper: %w", err)
 	}
@@ -124,7 +162,19 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 		return nil, fmt.Errorf("failed to create RegisteredReaders handler: %w", err)
 	}
 
-	registeredReadersHandler, err := registeredreaders.NewSnapshotAwareQueryHandler(registeredReadersBaseHandler)
+	registeredReadersHandler, err := snapshot.NewGenericSnapshotWrapper[
+		registeredreaders.Query,
+		registeredreaders.RegisteredReaders,
+	](
+		registeredReadersBaseHandler,
+		registeredreaders.Project,
+		func(_ registeredreaders.Query) eventstore.Filter {
+			return registeredreaders.BuildEventFilter()
+		},
+		func(queryType string, _ registeredreaders.Query) string {
+			return queryType
+		},
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create RegisteredReaders snapshot wrapper: %w", err)
 	}
