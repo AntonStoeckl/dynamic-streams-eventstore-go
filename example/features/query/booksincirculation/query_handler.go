@@ -204,7 +204,7 @@ func (h QueryHandler) executeProjection(
 ) BooksInCirculation {
 
 	projectionStart := time.Now()
-	result := ProjectBooksInCirculation(history, maxSeq)
+	result := Project(history, maxSeq)
 	projectionDuration := time.Since(projectionStart)
 
 	h.recordComponentTiming(ctx, shell.ComponentProjection, shell.StatusSuccess, projectionDuration)

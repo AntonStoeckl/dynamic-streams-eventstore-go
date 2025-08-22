@@ -7,7 +7,7 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
 
-// ProjectRegisteredReaders implements the query logic to determine all readers currently registered.
+// Project implements the query logic to determine all readers currently registered.
 // This is a pure function with no side effects - it takes the current domain events and optionally
 // a base projection to build upon, returning the projected state showing all readers currently registered.
 //
@@ -18,7 +18,7 @@ import (
 //	THEN: RegisteredReaders struct is returned with current registration state
 //	INCLUDES: Readers currently registered (registered but not canceled)
 //	EXCLUDES: Readers that have had their contracts canceled
-func ProjectRegisteredReaders(history core.DomainEvents, maxSequence uint, base ...RegisteredReaders) RegisteredReaders {
+func Project(history core.DomainEvents, maxSequence uint, base ...RegisteredReaders) RegisteredReaders {
 	// Track reader registration state and reader information
 	var readers map[string]*ReaderInfo
 

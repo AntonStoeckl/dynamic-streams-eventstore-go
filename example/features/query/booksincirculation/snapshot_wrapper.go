@@ -308,7 +308,7 @@ func (h *SnapshotAwareQueryHandler) executeIncrementalProjection(
 ) BooksInCirculation {
 
 	incrementalProjectionStart := time.Now()
-	result := ProjectBooksInCirculation(incrementalEvents, maxSequence, baseProjection)
+	result := Project(incrementalEvents, maxSequence, baseProjection)
 	incrementalProjectionDuration := time.Since(incrementalProjectionStart)
 
 	h.recordComponentTiming(ctx, shell.ComponentIncrementalProjection, shell.StatusSuccess, incrementalProjectionDuration)

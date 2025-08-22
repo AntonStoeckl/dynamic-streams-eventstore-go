@@ -7,7 +7,7 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
 
-// ProjectBooksLentOut implements the query logic to determine all books currently lent out to readers.
+// Project implements the query logic to determine all books currently lent out to readers.
 // This is a pure function with no side effects - it takes the current domain events and a query
 // and returns the projected state showing all books currently lent out with reader information.
 //
@@ -18,7 +18,7 @@ import (
 //	THEN: BooksLentOut struct is returned with current lending state
 //	INCLUDES: All books currently lent to readers (BookID, ReaderID, LentAt)
 //	EXCLUDES: Books that have been returned
-func ProjectBooksLentOut(history core.DomainEvents, maxSequence uint, base ...BooksLentOut) BooksLentOut {
+func Project(history core.DomainEvents, maxSequence uint, base ...BooksLentOut) BooksLentOut {
 	// Track lending state
 	var lendingInfos map[string]*LendingInfo
 

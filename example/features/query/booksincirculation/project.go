@@ -7,7 +7,7 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
 
-// ProjectBooksInCirculation implements the query logic to determine all books currently in circulation.
+// Project implements the query logic to determine all books currently in circulation.
 // This is a pure function with no side effects - it takes the current domain events and optionally
 // a base projection to build upon, returning the projected state showing all books currently in circulation.
 //
@@ -19,7 +19,7 @@ import (
 //	INCLUDES: Books currently in circulation (added but not removed)
 //	EXCLUDES: Books that have been removed from circulation
 //	DETAILS: Includes lending status for each book
-func ProjectBooksInCirculation(history core.DomainEvents, maxSequence uint, base ...BooksInCirculation) BooksInCirculation {
+func Project(history core.DomainEvents, maxSequence uint, base ...BooksInCirculation) BooksInCirculation {
 	// Track book circulation state and book information
 	var bookInfos map[string]*BookInfo
 
