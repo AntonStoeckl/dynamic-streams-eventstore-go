@@ -63,6 +63,7 @@ services:
       - "5433:5432"
     networks:
       - postgres-cluster
+    shm_size: '2g'
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U test -d eventstore"]
       interval: 10s
@@ -99,6 +100,7 @@ services:
       - "5434:5432"
     networks:
       - postgres-cluster
+    shm_size: '3g'
     depends_on:
       postgres_benchmark_master:
         condition: service_healthy
