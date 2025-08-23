@@ -27,7 +27,7 @@ const (
 	MinActiveReaders = 50
 
 	// MaxActiveReaders defines the upper safety limit.
-	MaxActiveReaders = 1000
+	MaxActiveReaders = 500
 
 	// LibrarianCount defines the number of librarian staff (Acquisitions and Maintenance roles).
 	LibrarianCount = 8
@@ -106,7 +106,7 @@ const (
 	CommandTimeoutSeconds = 5.0
 
 	// BatchTimeoutSeconds defines timeout for entire batch processing cycles.
-	BatchTimeoutSeconds = 60.0
+	BatchTimeoutSeconds = 120.0
 
 	// BooksInCirculationQueryTimeoutSeconds defines the timeout for this (relatively slow) query.
 	BooksInCirculationQueryTimeoutSeconds = 180.0
