@@ -118,7 +118,7 @@ const (
 	RegisteredReadersQueryTimeoutSeconds = 20.0
 
 	// BooksLentByReaderQueryTimeoutSeconds defines the timeout for this (fast) query.
-	BooksLentByReaderQueryTimeoutSeconds = 0.5 // 500 ms
+	BooksLentByReaderQueryTimeoutSeconds = 2.0
 
 	// V1 SIMPLIFICATIONS - Advanced behavior patterns (not implemented in v1)!
 
