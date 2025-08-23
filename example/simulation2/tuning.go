@@ -21,13 +21,13 @@ const (
 	// ACTOR POOL CONFIGURATION ...
 
 	// InitialActiveReaders defines the conservative starting point for active readers.
-	InitialActiveReaders = 500
+	InitialActiveReaders = 300
 
 	// MinActiveReaders defines the minimum scale limit.
 	MinActiveReaders = 50
 
 	// MaxActiveReaders defines the upper safety limit.
-	MaxActiveReaders = 500
+	MaxActiveReaders = 300
 
 	// LibrarianCount defines the number of librarian staff (Acquisitions and Maintenance roles).
 	LibrarianCount = 8
