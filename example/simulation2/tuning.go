@@ -27,8 +27,8 @@ const (
 	// This also serves as the initial starting point.
 	DefaultMaxActiveReaders = 300
 
-	// LibrarianCount defines the number of librarian staff (Acquisitions and Maintenance roles).
-	LibrarianCount = 8
+	// DefaultLibrarianCount defines the default number of librarian staff (Acquisitions and Maintenance roles).
+	DefaultLibrarianCount = 8
 
 	// READER BEHAVIOR PATTERNS ...
 
@@ -69,8 +69,8 @@ const (
 	// BookRemovalBatchSize defines the number of books removed when above the maximum.
 	BookRemovalBatchSize = 5
 
-	// LibrarianMaintenanceChance defines the probability to remove old books.
-	LibrarianMaintenanceChance = 0.8
+	// LibrarianWorkProbability defines the probability for librarians to work (both additions and removals).
+	LibrarianWorkProbability = 0.4
 
 	// AUTO-TUNING SYSTEM ...
 

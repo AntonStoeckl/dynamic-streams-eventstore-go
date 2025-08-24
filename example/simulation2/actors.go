@@ -318,7 +318,7 @@ func (l *LibrarianActor) manageBookAdditions(ctx context.Context, handlers *Hand
 		return l.addBooks(ctx, handlers, BookAdditionBatchSize)
 	} else if currentBooks < MaxBooks {
 		// Normal operations: Occasional additions
-		if rand.Float64() < LibrarianMaintenanceChance { //nolint:gosec // Weak random OK for simulation - 10% chance
+		if rand.Float64() < LibrarianWorkProbability { //nolint:gosec // Weak random OK for simulation
 			return l.addBooks(ctx, handlers, 1)
 		}
 	}
@@ -337,7 +337,7 @@ func (l *LibrarianActor) manageBookRemovals(ctx context.Context, handlers *Handl
 		return l.removeBooks(ctx, handlers, BookRemovalBatchSize)
 	} else if currentBooks > MinBooks {
 		// Normal maintenance
-		if rand.Float64() < LibrarianMaintenanceChance { //nolint:gosec // Weak random OK for simulation
+		if rand.Float64() < LibrarianWorkProbability { //nolint:gosec // Weak random OK for simulation
 			return l.removeBooks(ctx, handlers, 1)
 		}
 	}

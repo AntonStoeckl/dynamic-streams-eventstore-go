@@ -104,6 +104,7 @@ func logSimulationConfiguration(cfg Config) {
 	log.Printf("  - Population: %d-%d readers, %d-%d books",
 		MinReaders, MaxReaders, MinBooks, MaxBooks)
 	log.Printf("  - Concurrent Workers: %d", cfg.Workers)
+	log.Printf("  - Librarian Staff: %d", cfg.LibrarianCount)
 	log.Printf("  - Auto-tuning: avg<%dms/op target",
 		TargetAvgLatencyMs)
 }

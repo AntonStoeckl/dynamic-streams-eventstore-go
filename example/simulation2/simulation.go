@@ -101,7 +101,7 @@ func NewSimulation(
 
 		activeReaders:   make([]*ReaderActor, 0, cfg.MaxActiveReaders),
 		inactiveReaders: make([]*ReaderActor, 0, MaxReaders),
-		librarians:      make([]*LibrarianActor, 0, LibrarianCount),
+		librarians:      make([]*LibrarianActor, 0, cfg.LibrarianCount),
 
 		recentBatches:            make([]BatchMetrics, 0, 10),
 		maxBatchHistory:          10,
@@ -138,7 +138,7 @@ func (s *Simulation) initializeActorPools() error {
 
 	// Create librarians
 	librarianRoles := []LibrarianRole{Acquisitions, Maintenance}
-	for i := 0; i < LibrarianCount; i++ {
+	for i := 0; i < s.cfg.LibrarianCount; i++ {
 		role := librarianRoles[i%len(librarianRoles)]
 		librarian := NewLibrarianActor(role)
 		s.librarians = append(s.librarians, librarian)
@@ -247,10 +247,8 @@ func (s *Simulation) runMainLoop(cfg Config) error {
 			// Every batch: Auto-tuning (immediate feedback)
 			s.autoTuneFromRecentMetrics()
 
-			// Every 5 batches: Do Librarian work
-			if cycleNum%5 == 0 {
-				s.processLibrarians()
-			}
+			// Every batch: Librarians work
+			s.processLibrarians()
 
 			// Every 10 batches: Population management
 			if cycleNum%10 == 0 {
