@@ -24,7 +24,7 @@ CREATE INDEX if not exists idx_snapshots_created_at ON snapshots(created_at DESC
 
 -- Optimized statistics targets for performance (2025-08-23)
 CREATE INDEX if not exists idx_events_metadata_gin ON events USING gin(metadata jsonb_path_ops);
-ALTER TABLE events ALTER COLUMN payload SET STATISTICS 750;         -- Balanced for GIN index performance -> 850
+ALTER TABLE events ALTER COLUMN payload SET STATISTICS 500;         -- Balanced for GIN index performance -> 850
 ALTER TABLE events ALTER COLUMN event_type SET STATISTICS 100;       -- Reduced for faster ANALYZE
 ALTER TABLE events ALTER COLUMN metadata SET STATISTICS 100;         -- Less critical
 ALTER TABLE events ALTER COLUMN sequence_number SET STATISTICS 100;  -- Using default
