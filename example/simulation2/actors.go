@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 	"time"
 
@@ -261,8 +262,8 @@ func (r *ReaderActor) browseAndBorrow(ctx context.Context, handlers *HandlerBund
 	return operationCount, nil
 }
 
-// ShouldCancelContract determines if this reader wants to cancel their library contract.
-func (r *ReaderActor) ShouldCancelContract() bool {
+// ShouldCancelContract determines if this reader wants to cancel their library contract using dynamic probability.
+func (r *ReaderActor) ShouldCancelContract(totalReaders int) bool {
 	if r.Lifecycle != Registered && r.Lifecycle != AtHome {
 		return false
 	}
@@ -272,8 +273,9 @@ func (r *ReaderActor) ShouldCancelContract() bool {
 		return false
 	}
 
-	// Random chance based on the tuning parameter
-	return rand.Float64() < ReaderCancellationRate //nolint:gosec // Weak random OK for simulation
+	// Use dynamic probability based on the current reader population
+	_, cancelProb := calculateReaderProbabilities(totalReaders)
+	return rand.Float64() < cancelProb //nolint:gosec // Weak random OK for simulation
 }
 
 // =================================================================
@@ -282,65 +284,52 @@ func (r *ReaderActor) ShouldCancelContract() bool {
 
 // LibrarianActor represents library staff managing the book collection.
 type LibrarianActor struct {
-	ID   uuid.UUID
-	Role LibrarianRole // Acquisitions or Maintenance
+	ID       uuid.UUID
+	Role     LibrarianRole // Acquisitions or Maintenance
+	Momentum float64       // -1.0 (removing trend) to +1.0 (adding trend)
 }
 
 // NewLibrarianActor creates a new librarian with the specified role.
 func NewLibrarianActor(role LibrarianRole) *LibrarianActor {
 	return &LibrarianActor{
-		ID:   uuid.New(),
-		Role: role,
+		ID:       uuid.New(),
+		Role:     role,
+		Momentum: 0.0, // Start with neutral momentum
 	}
 }
 
-// Work performs librarian duties based on their role and current state using memory state for fast operations.
+// Work performs librarian duties using a dynamic probability system with momentum, waves, and bursts.
 // Returns the number of operations performed and any error.
-func (l *LibrarianActor) Work(ctx context.Context, handlers *HandlerBundle, state *SimulationState) (int, error) {
+func (l *LibrarianActor) Work(ctx context.Context, handlers *HandlerBundle, state *SimulationState, cycleNum int64) (int, error) {
+	// Get current book count for dynamic probability calculations
+	currentBooks := state.GetStats().TotalBooks
+
+	// Check for burst mode first (occasional extremes)
+	if rand.Float64() < BurstChance { //nolint:gosec // Weak random OK for simulation
+		return l.handleBurstMode(ctx, handlers, currentBooks)
+	}
+
+	// Calculate dynamic probabilities based on current position, momentum, and waves
+	addProb, removeProb := l.calculateDynamicProbabilities(currentBooks, cycleNum)
+
+	// Apply role-based logic with dynamic probabilities
 	switch l.Role {
 	case Acquisitions:
-		return l.manageBookAdditions(ctx, handlers, state)
+		if rand.Float64() < addProb { //nolint:gosec // Weak random OK for simulation
+			operationCount, err := l.addBooks(ctx, handlers, 1)
+			l.updateMomentum(operationCount > 0, true) // true = addition
+			return operationCount, err
+		}
 	case Maintenance:
-		return l.manageBookRemovals(ctx, handlers, state)
-	default:
-		return 0, nil
-	}
-}
-
-// manageBookAdditions adds new books to the collection when needed using fast memory state.
-// Returns the number of operations performed and any error.
-func (l *LibrarianActor) manageBookAdditions(ctx context.Context, handlers *HandlerBundle, state *SimulationState) (int, error) {
-	// Get the current book count from memory state (fast operation)
-	currentBooks := state.GetStats().TotalBooks
-
-	if currentBooks < MinBooks {
-		// Urgent: Add books quickly to reach minimum
-		return l.addBooks(ctx, handlers, BookAdditionBatchSize)
-	} else if currentBooks < MaxBooks {
-		// Normal operations: Occasional additions
-		if rand.Float64() < LibrarianWorkProbability { //nolint:gosec // Weak random OK for simulation
-			return l.addBooks(ctx, handlers, 1)
+		if rand.Float64() < removeProb { //nolint:gosec // Weak random OK for simulation
+			operationCount, err := l.removeBooks(ctx, handlers, 1)
+			l.updateMomentum(operationCount > 0, false) // false = removal
+			return operationCount, err
 		}
 	}
 
-	return 0, nil
-}
-
-// manageBookRemovals removes old/damaged books when above maximum using the fast memory state.
-// Returns the number of operations performed and any error.
-func (l *LibrarianActor) manageBookRemovals(ctx context.Context, handlers *HandlerBundle, state *SimulationState) (int, error) {
-	// Get the current book count from memory state (fast operation)
-	currentBooks := state.GetStats().TotalBooks
-
-	if currentBooks > MaxBooks {
-		// Need to reduce inventory
-		return l.removeBooks(ctx, handlers, BookRemovalBatchSize)
-	} else if currentBooks > MinBooks {
-		// Normal maintenance
-		if rand.Float64() < LibrarianWorkProbability { //nolint:gosec // Weak random OK for simulation
-			return l.removeBooks(ctx, handlers, 1)
-		}
-	}
+	// Decay momentum even when not working
+	l.updateMomentum(false, true) // neutral update
 
 	return 0, nil
 }
@@ -396,4 +385,100 @@ func (l *LibrarianActor) removeBooks(ctx context.Context, handlers *HandlerBundl
 	}
 
 	return operationCount, nil
+}
+
+// calculateDynamicProbabilities computes add/remove probabilities using a multi-layered system.
+func (l *LibrarianActor) calculateDynamicProbabilities(currentBooks int, cycleNum int64) (addProb, removeProb float64) {
+	// 1. Distance-based base probability (your original idea!)
+	bookRange := float64(MaxBooks - MinBooks)
+	position := float64(currentBooks-MinBooks) / bookRange // 0.0 to 1.0
+
+	// Inverse relationship: near min = high add rate, near max = high remove rate
+	baseAddProb := (1.0 - position) * LibrarianWorkProbability
+	baseRemoveProb := position * LibrarianWorkProbability
+
+	// 2. Random walk component (prevents equilibrium)
+	randomWalk := (rand.Float64() - 0.5) * BaseRandomness //nolint:gosec // Weak random OK for simulation
+	addProb = baseAddProb + randomWalk
+	removeProb = baseRemoveProb - randomWalk // Opposite direction
+
+	// 3. Wave patterns (natural fluctuations)
+	wavePhase := float64(cycleNum) * 0.05 // Slow oscillation
+	waveFactor := math.Sin(wavePhase) * WaveAmplitude
+	addProb *= 1.0 + waveFactor
+	removeProb *= 1.0 - waveFactor // Opposite wave
+
+	// 4. Momentum influence (trend following)
+	addProb *= 1.0 + l.Momentum*MomentumInfluence
+	removeProb *= 1.0 - l.Momentum*MomentumInfluence
+
+	// 5. Clamp to valid probability range
+	addProb = math.Max(0.0, math.Min(1.0, addProb))
+	removeProb = math.Max(0.0, math.Min(1.0, removeProb))
+
+	return addProb, removeProb
+}
+
+// handleBurstMode manages occasional extreme book management for full range usage.
+func (l *LibrarianActor) handleBurstMode(ctx context.Context, handlers *HandlerBundle, currentBooks int) (int, error) {
+	midpoint := (MinBooks + MaxBooks) / 2
+
+	if currentBooks < midpoint {
+		// Acquisition burst - add many books quickly
+		operationCount, err := l.addBooks(ctx, handlers, AcquisitionBurstSize)
+		l.updateMomentum(operationCount > 0, true) // Strong positive momentum
+		return operationCount, err
+	}
+
+	// Clearance burst - remove many books quickly
+	operationCount, err := l.removeBooks(ctx, handlers, ClearanceBurstSize)
+	l.updateMomentum(operationCount > 0, false) // Strong negative momentum
+	return operationCount, err
+}
+
+// updateMomentum adjusts librarian momentum based on recent actions.
+func (l *LibrarianActor) updateMomentum(actionSuccessful, isAddition bool) {
+	if actionSuccessful {
+		if isAddition {
+			// Successful addition increases positive momentum
+			l.Momentum = l.Momentum*MomentumDecay + 0.2
+		} else {
+			// Successful removal increases negative momentum
+			l.Momentum = l.Momentum*MomentumDecay - 0.2
+		}
+	} else {
+		// No action or failure - just decay momentum toward zero
+		l.Momentum *= MomentumDecay
+	}
+
+	// Clamp momentum to valid range
+	l.Momentum = math.Max(-1.0, math.Min(1.0, l.Momentum))
+}
+
+// calculateReaderProbabilities computes registration/cancellation probabilities based on current population.
+func calculateReaderProbabilities(currentReaders int) (registerProb, cancelProb float64) {
+	// Calculate position within the reader range, allowing values outside [0,1] for urgency
+	readerRange := float64(MaxReaders - MinReaders) // 1000 reader range
+	position := float64(currentReaders-MinReaders) / readerRange
+
+	// Don't clamp - allow negative/above 1.0 for urgent corrections
+	// position < 0.0 = below minimum (urgent registration needed)
+	// position > 1.0 = above maximum (urgent cancellation needed)
+
+	// Distance-based probabilities with urgency multiplier
+	// Below min (negative position): extra high register, zero cancel
+	// Above max (>1.0 position): zero register, extra high cancel
+	baseRegisterProb := math.Max(0.0, (1.0-position)*BaseRegisterRate)
+	baseCancelProb := math.Max(0.0, position*BaseCancelRate)
+
+	// Add random walk component (prevents equilibrium)
+	randomWalk := (rand.Float64() - 0.5) * ReaderRandomness //nolint:gosec // Weak random OK for simulation
+	registerProb = baseRegisterProb + randomWalk
+	cancelProb = baseCancelProb - randomWalk // Opposite direction
+
+	// Clamp to valid probability range
+	registerProb = math.Max(0.0, math.Min(1.0, registerProb))
+	cancelProb = math.Max(0.0, math.Min(1.0, cancelProb))
+
+	return registerProb, cancelProb
 }

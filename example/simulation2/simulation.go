@@ -80,6 +80,12 @@ type PerformanceStats struct {
 	CurrentThroughputOpsPerSec float64
 	TimeoutRate                float64
 	LastAdjustmentReason       string
+
+	// Rolling window averages and metadata
+	RollingAvgLatencyMs        int64
+	RollingThroughputOpsPerSec float64
+	RollingWindowSize          int
+	RollingTimeSpan            time.Duration
 }
 
 // NewSimulation creates a new simulation.
@@ -129,12 +135,17 @@ func (s *Simulation) initializeActorPools() error {
 		return fmt.Errorf("failed to load initial state from EventStore: %w", err)
 	}
 
+	// Get existing readers from the loaded state
+	existingReaders := s.state.GetRegisteredReaders()
+	totalExistingReaders := len(existingReaders)
+
 	stats := s.state.GetStats()
-	fmt.Printf("%s %s %s %s, %s %s, %s %s\n",
+	fmt.Printf("%s %s %s %s, %s %s, %s %s, %s %s\n",
 		Success("✅"), BrightGreen("Complete state loaded:"),
-		Bold(fmt.Sprintf("%d", stats.TotalBooks)), Info("total books"),
+		Bold(fmt.Sprintf("%d", stats.TotalBooks)), Info("books"),
 		Bold(fmt.Sprintf("%d", stats.AvailableBooks)), BrightGreen("available"),
-		Bold(fmt.Sprintf("%d", stats.BooksLentOut)), BrightYellow("lent out"))
+		Bold(fmt.Sprintf("%d", stats.BooksLentOut)), BrightYellow("lent out"),
+		Bold(fmt.Sprintf("%d", totalExistingReaders)), Blue("readers"))
 
 	// Create librarians
 	librarianRoles := []LibrarianRole{Acquisitions, Maintenance}
@@ -143,11 +154,6 @@ func (s *Simulation) initializeActorPools() error {
 		librarian := NewLibrarianActor(role)
 		s.librarians = append(s.librarians, librarian)
 	}
-
-	// Get existing readers from the loaded state
-	existingReaders := s.state.GetRegisteredReaders()
-	totalExistingReaders := len(existingReaders)
-	fmt.Printf("%s %s %s %s\n", StatusIcon("books"), Info("Found"), Bold(fmt.Sprintf("%d", totalExistingReaders)), Info("existing readers from loaded state"))
 
 	// Create actors for existing readers
 	for _, readerID := range existingReaders {
@@ -163,28 +169,8 @@ func (s *Simulation) initializeActorPools() error {
 		s.inactiveReaders = append(s.inactiveReaders, reader)
 	}
 
-	// Create new readers if needed
-	readersToCreate := MinReaders - totalExistingReaders
-	if readersToCreate > 0 {
-		log.Printf("📚 Creating %d new readers to reach minimum...", readersToCreate)
-
-		for i := 0; i < readersToCreate; i++ {
-			persona := CasualReader
-			if i < readersToCreate/10 {
-				persona = PowerUser
-			}
-
-			reader := NewReaderActor(persona)
-			reader.Lifecycle = Registered
-
-			if err := s.handlers.ExecuteRegisterReader(s.ctx, reader.ID); err != nil {
-				log.Printf("⚠️  Failed to register reader %s: %v", reader.ID, err)
-				continue
-			}
-
-			s.inactiveReaders = append(s.inactiveReaders, reader)
-		}
-	}
+	// NOTE: We no longer batch-create readers to reach minimum during startup.
+	// The dynamic population management system will handle registration naturally during simulation.
 
 	// Populate actor BorrowedBooks from the loaded state
 	s.synchronizeActorBorrowedBooksFromLoadedState()
@@ -248,12 +234,10 @@ func (s *Simulation) runMainLoop(cfg Config) error {
 			s.autoTuneFromRecentMetrics()
 
 			// Every batch: Librarians work
-			s.processLibrarians()
+			s.processLibrarians(cycleNum)
 
-			// Every 10 batches: Population management
-			if cycleNum%10 == 0 {
-				s.adjustPopulationIfNeeded()
-			}
+			// Every cycle: Dynamic population management for responsive behavior
+			s.adjustPopulationDynamically()
 
 			// Update stats
 			s.stats.TotalCycles = cycleNum
@@ -390,10 +374,17 @@ func (s *Simulation) autoTuneFromRecentMetrics() {
 	avgLatency, throughput := s.calculateLatestBatchMetrics()
 	timeoutRate := s.calculateTimeoutRateFromBatches()
 
-	// Update stats
+	// Update current stats
 	s.stats.CurrentAvgLatencyMs = avgLatency.Milliseconds()
 	s.stats.CurrentThroughputOpsPerSec = throughput
 	s.stats.TimeoutRate = timeoutRate
+
+	// Calculate rolling averages for display
+	rollingMetrics := s.calculateRollingAverageMetrics()
+	s.stats.RollingAvgLatencyMs = rollingMetrics.AvgLatency.Milliseconds()
+	s.stats.RollingThroughputOpsPerSec = rollingMetrics.Throughput
+	s.stats.RollingWindowSize = rollingMetrics.WindowSize
+	s.stats.RollingTimeSpan = rollingMetrics.TimeSpan
 
 	// Determine performance state
 	performanceGood := s.isPerformanceGood(avgLatency, timeoutRate)
@@ -444,6 +435,55 @@ func (s *Simulation) calculateLatestBatchMetrics() (avgLatency time.Duration, th
 	return avgLatency, throughput
 }
 
+// RollingMetrics contains rolling average data and metadata.
+type RollingMetrics struct {
+	AvgLatency time.Duration
+	Throughput float64
+	WindowSize int
+	TimeSpan   time.Duration
+}
+
+// calculateRollingAverageMetrics calculates rolling average latency and throughput from recent batches.
+func (s *Simulation) calculateRollingAverageMetrics() RollingMetrics {
+	if len(s.recentBatches) == 0 {
+		return RollingMetrics{}
+	}
+
+	// Use configurable window size for rolling average
+	windowSize := min(RollingWindowSize, len(s.recentBatches))
+	startIdx := len(s.recentBatches) - windowSize
+
+	var totalLatency time.Duration
+	var totalOps int
+	var totalDuration time.Duration
+	var latencyCount int
+
+	for i := startIdx; i < len(s.recentBatches); i++ {
+		batch := s.recentBatches[i]
+		for _, lat := range batch.OperationLatencies {
+			totalLatency += lat
+			latencyCount++
+		}
+		totalOps += batch.OperationCount
+		totalDuration += batch.BatchDuration
+	}
+
+	result := RollingMetrics{
+		WindowSize: windowSize,
+		TimeSpan:   totalDuration,
+	}
+
+	if latencyCount > 0 {
+		result.AvgLatency = totalLatency / time.Duration(latencyCount)
+	}
+
+	if totalDuration > 0 {
+		result.Throughput = float64(totalOps) / totalDuration.Seconds()
+	}
+
+	return result
+}
+
 // calculateTimeoutRateFromBatches calculates the timeout rate from recent batches.
 func (s *Simulation) calculateTimeoutRateFromBatches() float64 {
 	totalTimeouts := 0
@@ -473,6 +513,24 @@ func (s *Simulation) calculateAverage(durations []time.Duration) time.Duration {
 	}
 
 	return total / time.Duration(len(durations))
+}
+
+// formatTimeSpan formats a duration for display in the rolling window.
+// Returns a human-readable string like "1min 5sec" or "32sec" without fractional seconds.
+func formatTimeSpan(duration time.Duration) string {
+	if duration == 0 {
+		return "0sec"
+	}
+
+	totalSeconds := int(duration.Seconds())
+
+	if totalSeconds >= 60 {
+		minutes := totalSeconds / 60
+		seconds := totalSeconds - (minutes * 60)
+		return fmt.Sprintf("%dmin %dsec", minutes, seconds)
+	}
+
+	return fmt.Sprintf("%dsec", totalSeconds)
 }
 
 // =================================================================
@@ -676,14 +734,14 @@ func (s *Simulation) adjustActiveReaderCount(targetCount int) {
 	s.stats.CurrentActiveReaders = len(s.activeReaders)
 }
 
-// processLibrarians handles librarian work.
-func (s *Simulation) processLibrarians() {
+// processLibrarians handles librarian work with a dynamic probability system.
+func (s *Simulation) processLibrarians(cycleNum int64) {
 	for _, librarian := range s.librarians {
 		if s.ctx.Err() != nil {
 			return
 		}
 
-		operationCount, err := librarian.Work(s.ctx, s.handlers, s.state)
+		operationCount, err := librarian.Work(s.ctx, s.handlers, s.state, cycleNum)
 		if err != nil {
 			log.Printf("⚠️  Librarian %s work failed: %v", librarian.ID, err)
 		}
@@ -691,31 +749,38 @@ func (s *Simulation) processLibrarians() {
 	}
 }
 
-// adjustPopulationIfNeeded manages reader registration and cancellation.
-func (s *Simulation) adjustPopulationIfNeeded() {
+// adjustPopulationDynamically manages reader population using a probability-based system.
+func (s *Simulation) adjustPopulationDynamically() {
 	totalReaders := len(s.activeReaders) + len(s.inactiveReaders)
 
-	if totalReaders < MinReaders {
-		// Need more readers
-		newReaders := min(10, MinReaders-totalReaders)
-		for i := 0; i < newReaders; i++ {
-			reader := NewReaderActor(CasualReader)
-			reader.Lifecycle = Registered
+	// Calculate dynamic probabilities based on the current population
+	registerProb, cancelProb := calculateReaderProbabilities(totalReaders)
 
-			if err := s.handlers.ExecuteRegisterReader(s.ctx, reader.ID); err != nil {
-				log.Printf("⚠️  Failed to register reader %s: %v", reader.ID, err)
-				continue
-			}
+	// Attempt registration (probability-based, no hard limits)
+	if rand.Float64() < registerProb { //nolint:gosec // Weak random OK for simulation
+		reader := NewReaderActor(CasualReader)
+		reader.Lifecycle = Registered
 
+		if err := s.handlers.ExecuteRegisterReader(s.ctx, reader.ID); err == nil {
 			s.inactiveReaders = append(s.inactiveReaders, reader)
+			s.state.RegisterReader(reader.ID)
 		}
-		log.Printf("📈 Registered %d new readers (total: %d)", newReaders, totalReaders+newReaders)
+	}
 
-	} else if totalReaders > MaxReaders {
-		// Too many readers
-		readersToCancel := min(5, totalReaders-MaxReaders)
-		s.cancelExcessReaders(readersToCancel)
-		log.Printf("📉 Canceled %d readers (total: %d)", readersToCancel, totalReaders-readersToCancel)
+	// Attempt cancellation from inactive readers (probability-based, no hard limits)
+	if len(s.inactiveReaders) > 0 && rand.Float64() < cancelProb { //nolint:gosec // Weak random OK for simulation
+		// Select a random inactive reader for cancellation
+		randomIndex := rand.Intn(len(s.inactiveReaders)) //nolint:gosec // Weak random OK for simulation
+		reader := s.inactiveReaders[randomIndex]
+
+		// Only cancel if they have no borrowed books
+		if len(reader.BorrowedBooks) == 0 {
+			if err := s.handlers.ExecuteCancelReader(s.ctx, reader.ID); err == nil {
+				// Remove from inactive readers
+				s.inactiveReaders = append(s.inactiveReaders[:randomIndex], s.inactiveReaders[randomIndex+1:]...)
+				s.state.CancelReader(reader.ID)
+			}
+		}
 	}
 }
 
@@ -736,29 +801,6 @@ func (s *Simulation) handleReaderCancellation(reader *ReaderActor) {
 	s.state.CancelReader(reader.ID)
 
 	// Remove from active pool in next rotation
-}
-
-// cancelExcessReaders removes readers when above the maximum.
-func (s *Simulation) cancelExcessReaders(count int) {
-	canceled := 0
-
-	// Cancel from inactive readers first
-	for i := len(s.inactiveReaders) - 1; i >= 0 && canceled < count; i-- {
-		reader := s.inactiveReaders[i]
-
-		borrowedBooks := s.state.GetReaderBorrowedBooks(reader.ID)
-		if len(borrowedBooks) == 0 {
-			if err := s.handlers.ExecuteCancelReader(s.ctx, reader.ID); err != nil {
-				log.Printf("%s Failed to cancel reader contract %s: %s", BusinessError("⚠️"), reader.ID, BusinessError(err.Error()))
-				continue
-			}
-
-			s.inactiveReaders = append(s.inactiveReaders[:i], s.inactiveReaders[i+1:]...)
-			s.state.CancelReader(reader.ID)
-			reader.Lifecycle = Canceled
-			canceled++
-		}
-	}
 }
 
 // syncSingleReader synchronizes borrowed books for a reader.
@@ -857,8 +899,11 @@ func (s *Simulation) processWorker(
 		}
 
 		// Handle contract cancellation (only if no context timeout)
-		if ctx.Err() == nil && reader.ShouldCancelContract() {
-			s.handleReaderCancellation(reader)
+		if ctx.Err() == nil {
+			totalReaders := len(s.activeReaders) + len(s.inactiveReaders)
+			if reader.ShouldCancelContract(totalReaders) {
+				s.handleReaderCancellation(reader)
+			}
 		}
 
 		result.readersProcessed++
@@ -878,12 +923,28 @@ func (s *Simulation) processWorker(
 }
 
 func (s *Simulation) logPerformance() {
-	// Get book statistics for comprehensive logging
+	// Get book statistics and reader counts for comprehensive logging
 	stateStats := s.state.GetStats()
+	totalReaders := len(s.activeReaders) + len(s.inactiveReaders)
 
-	log.Printf("%s %s",
-		Performance("🎯"),
-		Performance(fmt.Sprintf("Performance: avg=%dms/op, %.1f ops/sec, timeouts=%.1f%%, active=%d readers | Books: %d total, %d lent out",
-			s.stats.CurrentAvgLatencyMs, s.stats.CurrentThroughputOpsPerSec, s.stats.TimeoutRate*100,
-			len(s.activeReaders), stateStats.TotalBooks, stateStats.BooksLentOut)))
+	// Build the performance log: Performance | Rolling | Books | Readers
+	perfMsg := fmt.Sprintf("%s | %s | %s | %s",
+		// Current performance (BrightBlue)
+		Performance(fmt.Sprintf("Performance: avg=%dms/op, %.1f ops/sec, t/o=%.1f%%, active=%d readers",
+			s.stats.CurrentAvgLatencyMs, s.stats.CurrentThroughputOpsPerSec,
+			s.stats.TimeoutRate*100, len(s.activeReaders))),
+
+		// Rolling average (Cyan - different blue shade)
+		Cyan(fmt.Sprintf("Rolling(%d: %s): avg=%dms/op, %.1f ops/sec",
+			s.stats.RollingWindowSize, formatTimeSpan(s.stats.RollingTimeSpan),
+			s.stats.RollingAvgLatencyMs, s.stats.RollingThroughputOpsPerSec)),
+
+		// Books section (Blue)
+		Blue(fmt.Sprintf("Books: %d, %d lent out",
+			stateStats.TotalBooks, stateStats.BooksLentOut)),
+
+		// Readers section (Magenta - matches existing reader color)
+		Magenta(fmt.Sprintf("Readers: %d", totalReaders)))
+
+	log.Printf("%s %s", Performance("🎯"), perfMsg)
 }

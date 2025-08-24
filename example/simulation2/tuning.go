@@ -58,19 +58,42 @@ const (
 	// ChanceVisitDirectly defines the probability that readers visit the library directly.
 	ChanceVisitDirectly = 0.8
 
-	// POPULATION DYNAMICS ...
+	// DYNAMIC READER POPULATION SYSTEM ...
 
-	// ReaderCancellationRate defines the probability to cancel when above min readers.
-	ReaderCancellationRate = 0.01
+	// BaseRegisterRate defines the maximum registration probability at minimum readers.
+	BaseRegisterRate = 0.30
 
-	// BookAdditionBatchSize defines the number of books added when below the minimum.
-	BookAdditionBatchSize = 10
+	// BaseCancelRate defines the maximum cancellation probability at maximum readers.
+	BaseCancelRate = 0.24
 
-	// BookRemovalBatchSize defines the number of books removed when above the maximum.
-	BookRemovalBatchSize = 5
+	// ReaderRandomness defines the strength of the random walk for reader population.
+	ReaderRandomness = 0.06
 
-	// LibrarianWorkProbability defines the probability for librarians to work (both additions and removals).
+	// DYNAMIC BOOKS MANAGEMENT SYSTEM ...
+
+	// LibrarianWorkProbability defines the base probability for librarians to work.
 	LibrarianWorkProbability = 0.4
+
+	// BaseRandomness defines the strength of a random walk to prevent equilibrium.
+	BaseRandomness = 0.3
+
+	// WaveAmplitude defines the strength of sine wave patterns for natural fluctuations.
+	WaveAmplitude = 0.2
+
+	// BurstChance defines the probability of burst mode for occasional extremes.
+	BurstChance = 0.02
+
+	// MomentumDecay defines how quickly librarian momentum fades (0.0 to 1.0).
+	MomentumDecay = 0.8
+
+	// MomentumInfluence defines how much momentum affects probabilities.
+	MomentumInfluence = 0.3
+
+	// AcquisitionBurstSize defines the number of books added during acquisition bursts.
+	AcquisitionBurstSize = 20
+
+	// ClearanceBurstSize defines the number of books removed during clearance bursts.
+	ClearanceBurstSize = 15
 
 	// AUTO-TUNING SYSTEM ...
 
@@ -85,6 +108,9 @@ const (
 
 	// ScaleDownIncrement defines the number of readers to remove when overloaded.
 	ScaleDownIncrement = 20
+
+	// RollingWindowSize defines the number of recent batches used for rolling average calculations.
+	RollingWindowSize = 10
 
 	// BATCH PROCESSING CONFIGURATION ...
 
@@ -117,21 +143,6 @@ const (
 
 	// BooksLentByReaderQueryTimeoutSeconds defines the timeout for this (fast) query.
 	BooksLentByReaderQueryTimeoutSeconds = 2.0
-
-	// V1 SIMPLIFICATIONS - Advanced behavior patterns (not implemented in v1)!
-
-	// Future reader behavior patterns (commented for v1).
-	// ChanceKeepOneOrTwo         = 0.2   // 20% keep 1-2 unfinished books.
-	// ChanceStayHome             = 0.4   // 40% stay home today.
-	// ReaderRegistrationRate     = 0.7   // 70% chance to register when below max.
-	// ThinkingTimeMs             = 1000  // Brief pause between major activities.
-
-	// ERROR SCENARIOS (v2 - Not implemented in v1)!
-
-	// Future error injection rates (commented for v1).
-	// IdempotentRepeatRate           = 0.005 // 0.5% duplicate operations.
-	// LibraryManagerConflictRate     = 0.02  // 2% manager conflicts.
-	// ReaderBorrowRemovedBookRate    = 0.005 // 0.5% borrow removed books.
 )
 
 // ReaderPersona represents different types of library users (future enhancement).
