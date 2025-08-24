@@ -785,7 +785,6 @@ func (es *EventStore) validateAppendResult(
 func (es *EventStore) addWhereClause(filter eventstore.Filter, selectStmt *goqu.SelectDataset) *goqu.SelectDataset {
 	itemsExpressions := es.buildFilterItemsExpressions(filter)
 	occurredAtExpressions := es.buildOccurredAtExpressions(filter)
-
 	sequenceExpressions := es.buildSequenceExpressions(filter)
 
 	selectStmt = selectStmt.Where(
