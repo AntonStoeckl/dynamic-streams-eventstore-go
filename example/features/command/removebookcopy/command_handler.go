@@ -2,6 +2,7 @@ package removebookcopy
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
@@ -77,7 +78,13 @@ func (h CommandHandler) Handle(ctx context.Context, command Command) error {
 	}, retryOptions...)
 
 	if err != nil {
+		if errors.Is(err, shell.ErrIdempotentOperation) {
+			h.recordCommandSuccess(ctx, shell.StatusIdempotent, time.Since(commandStart), span)
+			return nil
+		}
+
 		h.recordCommandError(ctx, err, time.Since(commandStart), span)
+
 		return err
 	}
 
@@ -117,7 +124,7 @@ func (h CommandHandler) executeCommand(ctx context.Context, command Command) err
 	h.recordComponentTiming(ctx, shell.ComponentDecide, shell.StatusSuccess, decideDuration)
 
 	if !result.HasEventToAppend() {
-		return nil // nothing to do
+		return shell.ErrIdempotentOperation // nothing to do
 	}
 
 	// Append phase - single event to append
