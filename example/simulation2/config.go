@@ -19,6 +19,7 @@ import (
 type Config struct {
 	ObservabilityEnabled bool
 	Workers              int
+	MaxActiveReaders     int
 }
 
 // ObservabilityConfig holds the observability adapters for command handlers.
@@ -31,8 +32,9 @@ type ObservabilityConfig struct {
 
 func parseFlags() Config {
 	var (
-		observability = flag.Bool("observability-enabled", false, "Enable OpenTelemetry observability")
-		workers       = flag.Int("workers", DefaultConcurrentWorkers, "Number of concurrent workers")
+		observability    = flag.Bool("observability-enabled", false, "Enable OpenTelemetry observability")
+		workers          = flag.Int("workers", DefaultConcurrentWorkers, "Number of concurrent workers")
+		maxActiveReaders = flag.Int("max-readers", DefaultMaxActiveReaders, "Maximum number of active readers")
 	)
 
 	flag.Parse()
@@ -40,6 +42,7 @@ func parseFlags() Config {
 	return Config{
 		ObservabilityEnabled: *observability,
 		Workers:              *workers,
+		MaxActiveReaders:     *maxActiveReaders,
 	}
 }
 

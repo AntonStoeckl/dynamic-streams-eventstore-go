@@ -205,7 +205,7 @@ func (hb *HandlerBundle) GetSimulationState() *SimulationState {
 	return hb.simulationState
 }
 
-// recordMetrics logs operation timing and errors (simplified for unified simulation).
+// recordMetrics logs operation timing and errors (simplified for simulation).
 func (hb *HandlerBundle) recordMetrics(ctx context.Context, start time.Time, err error) {
 	duration := time.Since(start)
 
@@ -240,7 +240,7 @@ func (hb *HandlerBundle) recordMetrics(ctx context.Context, start time.Time, err
 		log.Printf("🐌 SLOW: Operation took %v (no timeout)", duration)
 	}
 
-	// Note: Unified simulation gets metrics directly from batch processing
+	// Note: Simulation gets metrics directly from batch processing
 	// No need to send metrics to LoadController
 }
 

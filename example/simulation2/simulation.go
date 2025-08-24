@@ -15,12 +15,12 @@ import (
 )
 
 // =================================================================
-// UNIFIED SIMULATION - Single loop for batch processing and auto-tuning
+// SIMULATION - Single loop for batch processing and auto-tuning
 // =================================================================
 
-// UnifiedSimulation replaces the complex scheduler/controller architecture
+// Simulation replaces the complex scheduler/controller architecture
 // with a single, sequential loop that provides immediate feedback.
-type UnifiedSimulation struct {
+type Simulation struct {
 	// Context and control
 	ctx      context.Context
 	cancel   context.CancelFunc
@@ -30,6 +30,7 @@ type UnifiedSimulation struct {
 	eventStore *postgresengine.EventStore
 	state      *SimulationState
 	handlers   *HandlerBundle
+	cfg        Config
 
 	// Actor pools (no locks needed - single threaded!)
 	activeReaders   []*ReaderActor
@@ -47,7 +48,7 @@ type UnifiedSimulation struct {
 	lastPopulationAdjustment time.Time
 
 	// Statistics
-	stats UnifiedStats
+	stats PerformanceStats
 }
 
 // BatchMetrics contains performance data from a single batch.
@@ -67,8 +68,8 @@ type batchResult struct {
 	readersProcessed   int
 }
 
-// UnifiedStats tracks overall simulation performance.
-type UnifiedStats struct {
+// PerformanceStats tracks overall simulation performance.
+type PerformanceStats struct {
 	TotalCycles                int64
 	TotalOperations            int64
 	AutoTuneAdjustments        int64
@@ -81,28 +82,30 @@ type UnifiedStats struct {
 	LastAdjustmentReason       string
 }
 
-// NewUnifiedSimulation creates a new unified simulation.
-func NewUnifiedSimulation(
+// NewSimulation creates a new simulation.
+func NewSimulation(
 	ctx context.Context,
 	eventStore *postgresengine.EventStore,
 	state *SimulationState,
 	handlers *HandlerBundle,
-) (*UnifiedSimulation, error) {
-	sim := &UnifiedSimulation{
+	cfg Config,
+) (*Simulation, error) {
+	sim := &Simulation{
 		ctx:        ctx,
 		cancel:     func() {}, // Managed by caller
 		eventStore: eventStore,
 		state:      state,
 		handlers:   handlers,
+		cfg:        cfg,
 		stopChan:   make(chan struct{}),
 
-		activeReaders:   make([]*ReaderActor, 0, MaxActiveReaders),
+		activeReaders:   make([]*ReaderActor, 0, cfg.MaxActiveReaders),
 		inactiveReaders: make([]*ReaderActor, 0, MaxReaders),
 		librarians:      make([]*LibrarianActor, 0, LibrarianCount),
 
 		recentBatches:            make([]BatchMetrics, 0, 10),
 		maxBatchHistory:          10,
-		targetActiveCount:        InitialActiveReaders,
+		targetActiveCount:        cfg.MaxActiveReaders,
 		lastPopulationAdjustment: time.Now(),
 	}
 
@@ -117,7 +120,7 @@ func NewUnifiedSimulation(
 // initializeActorPools creates the initial reader and librarian populations
 //
 //nolint:funlen
-func (s *UnifiedSimulation) initializeActorPools() error {
+func (s *Simulation) initializeActorPools() error {
 	log.Printf("%s %s", StatusIcon("working"), Info("Initializing actor pools..."))
 
 	// Load all state from the database first
@@ -195,9 +198,9 @@ func (s *UnifiedSimulation) initializeActorPools() error {
 	return nil
 }
 
-// Start begins the unified simulation loop.
-func (s *UnifiedSimulation) Start(cfg Config) error {
-	log.Printf("%s %s", Success("🚀"), Success("Starting unified simulation..."))
+// Start begins the simulation loop.
+func (s *Simulation) Start(cfg Config) error {
+	log.Printf("%s %s", Success("🚀"), Success("Starting simulation..."))
 	log.Printf("🎯 Auto-tune targets: avg<%dms/op, timeouts<%.1f%%",
 		TargetAvgLatencyMs, MaxTimeoutRate*100)
 
@@ -206,13 +209,13 @@ func (s *UnifiedSimulation) Start(cfg Config) error {
 }
 
 // Stop gracefully shuts down the simulation.
-func (s *UnifiedSimulation) Stop() error {
-	log.Printf("🛑 Stopping unified simulation...")
+func (s *Simulation) Stop() error {
+	log.Printf("🛑 Stopping simulation...")
 
 	close(s.stopChan)
 	// Note: Caller manages context cancellation
 
-	log.Printf("✅ Unified simulation stopped")
+	log.Printf("✅ Simulation stopped")
 	return nil
 }
 
@@ -221,7 +224,7 @@ func (s *UnifiedSimulation) Stop() error {
 // =================================================================
 
 // runMainLoop is the single, sequential loop that handles everything.
-func (s *UnifiedSimulation) runMainLoop(cfg Config) error {
+func (s *Simulation) runMainLoop(cfg Config) error {
 	cycleNum := int64(0)
 	log.Printf("%s %s", AutoTune("🔄"), AutoTune("Main simulation loop started"))
 
@@ -272,7 +275,7 @@ func (s *UnifiedSimulation) runMainLoop(cfg Config) error {
 // =================================================================
 
 // processBatch processes all active readers using a worker pool pattern.
-func (s *UnifiedSimulation) processBatch(cfg Config, cycleNum int64) BatchMetrics {
+func (s *Simulation) processBatch(cfg Config, cycleNum int64) BatchMetrics {
 	batchStart := time.Now()
 
 	if len(s.activeReaders) == 0 {
@@ -303,7 +306,7 @@ func (s *UnifiedSimulation) processBatch(cfg Config, cycleNum int64) BatchMetric
 }
 
 // executeWorkerPool sets up worker pool, processes readers, and collects results.
-func (s *UnifiedSimulation) executeWorkerPool(batchCtx context.Context, cfg Config, cycleNum int64) (int, []time.Duration, int, bool, int) {
+func (s *Simulation) executeWorkerPool(batchCtx context.Context, cfg Config, cycleNum int64) (int, []time.Duration, int, bool, int) {
 	// Create channels for work distribution (no locks needed!)
 	numWorkers := cfg.Workers
 
@@ -357,7 +360,7 @@ func (s *UnifiedSimulation) executeWorkerPool(batchCtx context.Context, cfg Conf
 }
 
 // logBatchCompletion logs the completion of a batch with performance metrics.
-func (s *UnifiedSimulation) logBatchCompletion(
+func (s *Simulation) logBatchCompletion(
 	cycleNum int64,
 	totalOperations int,
 	batchDuration time.Duration,
@@ -384,7 +387,7 @@ func (s *UnifiedSimulation) logBatchCompletion(
 // =================================================================
 
 // autoTuneFromRecentMetrics analyzes recent batch metrics and adjusts the active reader count.
-func (s *UnifiedSimulation) autoTuneFromRecentMetrics() {
+func (s *Simulation) autoTuneFromRecentMetrics() {
 	// Calculate current performance from the latest batch
 	avgLatency, throughput := s.calculateLatestBatchMetrics()
 	timeoutRate := s.calculateTimeoutRateFromBatches()
@@ -408,7 +411,7 @@ func (s *UnifiedSimulation) autoTuneFromRecentMetrics() {
 }
 
 // recordBatchMetrics adds batch metrics to the recent history.
-func (s *UnifiedSimulation) recordBatchMetrics(metrics BatchMetrics) {
+func (s *Simulation) recordBatchMetrics(metrics BatchMetrics) {
 	s.recentBatches = append(s.recentBatches, metrics)
 
 	// Maintain the sliding window
@@ -422,7 +425,7 @@ func (s *UnifiedSimulation) recordBatchMetrics(metrics BatchMetrics) {
 // =================================================================
 
 // calculateLatestBatchMetrics calculates average latency and throughput from the most recent batch.
-func (s *UnifiedSimulation) calculateLatestBatchMetrics() (avgLatency time.Duration, throughput float64) {
+func (s *Simulation) calculateLatestBatchMetrics() (avgLatency time.Duration, throughput float64) {
 	if len(s.recentBatches) == 0 {
 		return 0, 0
 	}
@@ -444,7 +447,7 @@ func (s *UnifiedSimulation) calculateLatestBatchMetrics() (avgLatency time.Durat
 }
 
 // calculateTimeoutRateFromBatches calculates the timeout rate from recent batches.
-func (s *UnifiedSimulation) calculateTimeoutRateFromBatches() float64 {
+func (s *Simulation) calculateTimeoutRateFromBatches() float64 {
 	totalTimeouts := 0
 	totalAttempts := 0
 
@@ -461,7 +464,7 @@ func (s *UnifiedSimulation) calculateTimeoutRateFromBatches() float64 {
 }
 
 // calculateAverage calculates the average duration from a slice.
-func (s *UnifiedSimulation) calculateAverage(durations []time.Duration) time.Duration {
+func (s *Simulation) calculateAverage(durations []time.Duration) time.Duration {
 	if len(durations) == 0 {
 		return 0
 	}
@@ -479,7 +482,7 @@ func (s *UnifiedSimulation) calculateAverage(durations []time.Duration) time.Dur
 // =================================================================
 
 // isPerformanceGood determines if the current performance meets targets.
-func (s *UnifiedSimulation) isPerformanceGood(avgLatency time.Duration, timeoutRate float64) bool {
+func (s *Simulation) isPerformanceGood(avgLatency time.Duration, timeoutRate float64) bool {
 	avgLatencyGood := avgLatency < time.Duration(TargetAvgLatencyMs)*time.Millisecond
 	timeoutGood := timeoutRate < MaxTimeoutRate
 
@@ -487,7 +490,7 @@ func (s *UnifiedSimulation) isPerformanceGood(avgLatency time.Duration, timeoutR
 }
 
 // isPerformanceBad determines if the current performance is unacceptable.
-func (s *UnifiedSimulation) isPerformanceBad(avgLatency time.Duration, timeoutRate float64) bool {
+func (s *Simulation) isPerformanceBad(avgLatency time.Duration, timeoutRate float64) bool {
 	// Use 1.1x the target as a "bad" threshold (simplified from MaxFactorForBadPerformance)
 	badFactor := 1.1
 	avgLatencyBad := avgLatency > time.Duration(float64(TargetAvgLatencyMs)*badFactor)*time.Millisecond
@@ -497,7 +500,7 @@ func (s *UnifiedSimulation) isPerformanceBad(avgLatency time.Duration, timeoutRa
 }
 
 // calculateAdjustment determines the adjustment needed based on performance.
-func (s *UnifiedSimulation) calculateAdjustment(performanceGood, performanceBad bool) (adjustment int, reason string) {
+func (s *Simulation) calculateAdjustment(performanceGood, performanceBad bool) (adjustment int, reason string) {
 	switch {
 	case performanceGood && !performanceBad:
 		s.consecutiveGoodCycles++
@@ -529,9 +532,9 @@ func (s *UnifiedSimulation) calculateAdjustment(performanceGood, performanceBad 
 }
 
 // applyAdjustment adjusts the active reader count.
-func (s *UnifiedSimulation) applyAdjustment(adjustment int, reason string) {
+func (s *Simulation) applyAdjustment(adjustment int, reason string) {
 	currentCount := len(s.activeReaders)
-	newCount := max(MinActiveReaders, min(currentCount+adjustment, MaxActiveReaders))
+	newCount := max(MinActiveReaders, min(currentCount+adjustment, s.cfg.MaxActiveReaders))
 
 	if newCount != currentCount {
 		s.adjustActiveReaderCount(newCount)
@@ -550,7 +553,7 @@ func (s *UnifiedSimulation) applyAdjustment(adjustment int, reason string) {
 }
 
 // rotateActiveReaders swaps ALL active readers to ensure fair participation.
-func (s *UnifiedSimulation) rotateActiveReaders() {
+func (s *Simulation) rotateActiveReaders() {
 	targetCount := len(s.activeReaders)
 	if targetCount == 0 || len(s.inactiveReaders) == 0 {
 		return
@@ -587,7 +590,7 @@ func (s *UnifiedSimulation) rotateActiveReaders() {
 
 // selectReaderFromInactive selects a reader from the inactive pool using smart selection logic.
 // Returns the selected reader and its index in the inactive readers slice.
-func (s *UnifiedSimulation) selectReaderFromInactive() (*ReaderActor, int) {
+func (s *Simulation) selectReaderFromInactive() (*ReaderActor, int) {
 	if len(s.inactiveReaders) == 0 {
 		return nil, -1
 	}
@@ -623,9 +626,9 @@ func (s *UnifiedSimulation) selectReaderFromInactive() (*ReaderActor, int) {
 }
 
 // adjustActiveReaderCount changes the number of active readers.
-func (s *UnifiedSimulation) adjustActiveReaderCount(targetCount int) {
+func (s *Simulation) adjustActiveReaderCount(targetCount int) {
 	currentCount := len(s.activeReaders)
-	targetCount = max(MinActiveReaders, min(targetCount, MaxActiveReaders))
+	targetCount = max(MinActiveReaders, min(targetCount, s.cfg.MaxActiveReaders))
 
 	if targetCount > currentCount {
 		// Need more active readers
@@ -676,7 +679,7 @@ func (s *UnifiedSimulation) adjustActiveReaderCount(targetCount int) {
 }
 
 // processLibrarians handles librarian work.
-func (s *UnifiedSimulation) processLibrarians() {
+func (s *Simulation) processLibrarians() {
 	for _, librarian := range s.librarians {
 		if s.ctx.Err() != nil {
 			return
@@ -691,7 +694,7 @@ func (s *UnifiedSimulation) processLibrarians() {
 }
 
 // adjustPopulationIfNeeded manages reader registration and cancellation.
-func (s *UnifiedSimulation) adjustPopulationIfNeeded() {
+func (s *Simulation) adjustPopulationIfNeeded() {
 	totalReaders := len(s.activeReaders) + len(s.inactiveReaders)
 
 	if totalReaders < MinReaders {
@@ -719,7 +722,7 @@ func (s *UnifiedSimulation) adjustPopulationIfNeeded() {
 }
 
 // handleReaderCancellation processes a reader cancellation.
-func (s *UnifiedSimulation) handleReaderCancellation(reader *ReaderActor) {
+func (s *Simulation) handleReaderCancellation(reader *ReaderActor) {
 	// Only cancel if the reader has no borrowed books
 	borrowedBooks := s.state.GetReaderBorrowedBooks(reader.ID)
 	if len(borrowedBooks) > 0 {
@@ -738,7 +741,7 @@ func (s *UnifiedSimulation) handleReaderCancellation(reader *ReaderActor) {
 }
 
 // cancelExcessReaders removes readers when above the maximum.
-func (s *UnifiedSimulation) cancelExcessReaders(count int) {
+func (s *Simulation) cancelExcessReaders(count int) {
 	canceled := 0
 
 	// Cancel from inactive readers first
@@ -761,7 +764,7 @@ func (s *UnifiedSimulation) cancelExcessReaders(count int) {
 }
 
 // syncSingleReader synchronizes borrowed books for a reader.
-func (s *UnifiedSimulation) syncSingleReader(actor *ReaderActor) error {
+func (s *Simulation) syncSingleReader(actor *ReaderActor) error {
 	readerBooks, err := s.handlers.QueryBooksLentByReader(s.ctx, actor.ID)
 	if err != nil {
 		return fmt.Errorf("failed to query books for reader %s: %w", actor.ID, err)
@@ -782,7 +785,7 @@ func (s *UnifiedSimulation) syncSingleReader(actor *ReaderActor) error {
 }
 
 // synchronizeActorBorrowedBooksFromLoadedState populates ALL actor BorrowedBooks from the loaded state.
-func (s *UnifiedSimulation) synchronizeActorBorrowedBooksFromLoadedState() {
+func (s *Simulation) synchronizeActorBorrowedBooksFromLoadedState() {
 	stats := s.state.GetStats()
 	totalLentBooks := stats.BooksLentOut
 
@@ -811,7 +814,7 @@ func (s *UnifiedSimulation) synchronizeActorBorrowedBooksFromLoadedState() {
 }
 
 // processWorker processes readers from a channel using the worker pool pattern.
-func (s *UnifiedSimulation) processWorker(
+func (s *Simulation) processWorker(
 	ctx context.Context,
 	readers <-chan *ReaderActor, // receive-only channel
 	results chan<- batchResult, // send-only channel
@@ -876,7 +879,7 @@ func (s *UnifiedSimulation) processWorker(
 	}
 }
 
-func (s *UnifiedSimulation) logPerformance() {
+func (s *Simulation) logPerformance() {
 	// Get book statistics for comprehensive logging
 	stateStats := s.state.GetStats()
 

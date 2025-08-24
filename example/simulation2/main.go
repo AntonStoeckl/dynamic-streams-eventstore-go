@@ -44,8 +44,8 @@ func run() error {
 	simulationCtx, simulationCancel := context.WithCancel(ctx)
 	defer simulationCancel()
 
-	// Initialize unified simulation.
-	_, simulation, err := initializeUnifiedSimulation(simulationCtx, eventStore, cfg)
+	// Initialize simulation.
+	_, simulation, err := initializeSimulation(simulationCtx, eventStore, cfg)
 	if err != nil {
 		return err
 	}
@@ -100,7 +100,7 @@ func logDBAdapter() {
 func logSimulationConfiguration(cfg Config) {
 	log.Printf("📊 Simulation Configuration:")
 	log.Printf("  - Active Readers: %d (initial), %d-%d (auto-tuned)",
-		InitialActiveReaders, MinActiveReaders, MaxActiveReaders)
+		cfg.MaxActiveReaders, MinActiveReaders, cfg.MaxActiveReaders)
 	log.Printf("  - Population: %d-%d readers, %d-%d books",
 		MinReaders, MaxReaders, MinBooks, MaxBooks)
 	log.Printf("  - Concurrent Workers: %d", cfg.Workers)
@@ -108,8 +108,8 @@ func logSimulationConfiguration(cfg Config) {
 		TargetAvgLatencyMs)
 }
 
-func initializeUnifiedSimulation(ctx context.Context, eventStore *postgresengine.EventStore, cfg Config) (*HandlerBundle, *UnifiedSimulation, error) {
-	log.Printf("🏗️  Initializing unified simulation...")
+func initializeSimulation(ctx context.Context, eventStore *postgresengine.EventStore, cfg Config) (*HandlerBundle, *Simulation, error) {
+	log.Printf("🏗️  Initializing simulation...")
 
 	// Create handlers for all library operations.
 	handlers, err := NewHandlerBundle(eventStore, cfg) //nolint:contextcheck // Initialization code, context created internally
@@ -120,16 +120,16 @@ func initializeUnifiedSimulation(ctx context.Context, eventStore *postgresengine
 	// Create the simulation state for fast lookups.
 	state := NewSimulationState()
 
-	// Create the unified simulation.
-	simulation, err := NewUnifiedSimulation(ctx, eventStore, state, handlers)
+	// Create the simulation.
+	simulation, err := NewSimulation(ctx, eventStore, state, handlers, cfg)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create unified simulation: %w", err)
+		return nil, nil, fmt.Errorf("failed to create simulation: %w", err)
 	}
 
 	// Connect simulation state to handlers for actor decisions.
 	handlers.SetSimulationState(state)
 
-	// NOTE: No need for load controller or async metrics - unified simulation handles everything directly
+	// NOTE: No need for load controller or async metrics - simulation handles everything directly
 
 	return handlers, simulation, nil
 }
@@ -138,26 +138,26 @@ func logStartup() {
 	log.Printf("⏳ Simulation will start in %d seconds...", SetupPhaseDelaySeconds)
 	time.Sleep(time.Duration(SetupPhaseDelaySeconds) * time.Second)
 
-	log.Printf("🚀 Unified simulation starting...")
-	log.Printf("💡 Immediate auto-tuning with 1-second feedback loop")
+	log.Printf("🚀 Simulation starting...")
+	log.Printf("💡 Immediate auto-tuning after every batch")
 	log.Printf("Press Ctrl+C to stop...")
 }
 
-func gracefulShutdown(simulation *UnifiedSimulation) {
+func gracefulShutdown(simulation *Simulation) {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 
-	log.Printf("🔄 Shutting down unified simulation...")
+	log.Printf("🔄 Shutting down simulation...")
 
-	// Stop the unified simulation.
+	// Stop the simulation.
 	if err := simulation.Stop(); err != nil {
-		log.Printf("⚠️  Error stopping unified simulation: %v", err)
+		log.Printf("⚠️  Error stopping simulation: %v", err)
 	}
 
 	select {
 	case <-shutdownCtx.Done():
 		log.Printf("⚠️  Shutdown timeout exceeded")
 	default:
-		log.Printf("✅ Unified Library Simulation stopped gracefully")
+		log.Printf("✅ Library Simulation stopped gracefully")
 	}
 }
