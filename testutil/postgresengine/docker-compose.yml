@@ -43,7 +43,7 @@ services:
   postgres_benchmark_master:
     image: postgres:17.5-alpine
     container_name: postgres_benchmark_master
-    command: postgres -c config_file=/etc/postgresql/postgresql.conf -c hba_file=/etc/postgresql/pg_hba.conf
+    command: /scripts/startup-wrapper.sh
     environment:
       POSTGRES_USER: test
       POSTGRES_PASSWORD: test
@@ -56,6 +56,8 @@ services:
       - ./initdb/03-replication-setup.sql:/docker-entrypoint-initdb.d/03-replication-setup.sql
       - ./initdb/05-replication-monitoring.sql:/docker-entrypoint-initdb.d/05-replication-monitoring.sql
       - ./initdb/99-prevent-alter-system.sql:/docker-entrypoint-initdb.d/99-prevent-alter-system.sql
+      - ./scripts/startup-wrapper.sh:/scripts/startup-wrapper.sh:ro
+      - ./tuning/apply-catalog-tuning.sql:/tuning/apply-catalog-tuning.sql:ro
       - ./tuning/benchmarkdb-master-postgresql.conf:/etc/postgresql/postgresql.conf
       - ./hba/hba.conf:/etc/postgresql/pg_hba.conf
       - pgdata_benchmark_master:/var/lib/postgresql/data
