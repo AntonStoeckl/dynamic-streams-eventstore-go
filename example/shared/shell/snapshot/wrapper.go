@@ -15,7 +15,7 @@ import (
 
 const (
 	// snapshotSaveTimeout is the timeout for snapshot save operations to prevent hanging.
-	snapshotSaveTimeout = 30 * time.Second
+	snapshotSaveTimeout = 60 * time.Second
 )
 
 var (
