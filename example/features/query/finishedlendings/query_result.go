@@ -17,7 +17,8 @@ type LendingInfo struct {
 // FinishedLendings represents the query result containing all lending cycles that have been completed.
 type FinishedLendings struct {
 	Lendings       []LendingInfo
-	Count          int
+	Count          int // Number of items in Lendings slice (after MaxResults limit applied)
+	TotalCount     int // Total number of finished lendings available (before MaxResults limit)
 	SequenceNumber uint
 }
 

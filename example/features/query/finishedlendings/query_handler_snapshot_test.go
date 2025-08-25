@@ -31,7 +31,7 @@ func Test_SnapshotAwareQueryHandler_Handle_SnapshotMiss(t *testing.T) {
 	metricsCollector.Reset()
 
 	// Act: Query using snapshot handler (should miss snapshot and fall back to base handler)
-	result, err := snapshotHandler.Handle(ctx, finishedlendings.BuildQuery())
+	result, err := snapshotHandler.Handle(ctx, finishedlendings.BuildQuery(0))
 	assert.NoError(t, err, "Snapshot handler should work")
 	assert.Equal(t, 1, result.Count, "Should have 1 finished lending")
 
@@ -51,7 +51,7 @@ func Test_SnapshotAwareQueryHandler_Handle_SnapshotCreationAndHitWithNoNewEvents
 
 	// First query: Should miss snapshot and fall back to base handler
 	// If wrapper works correctly, it should create a snapshot after a successful fallback
-	result, err := snapshotHandler.Handle(ctx, finishedlendings.BuildQuery())
+	result, err := snapshotHandler.Handle(ctx, finishedlendings.BuildQuery(0))
 	assert.NoError(t, err, "First query should work")
 	assert.Equal(t, 1, result.Count, "Should have 1 finished lending")
 
@@ -63,7 +63,7 @@ func Test_SnapshotAwareQueryHandler_Handle_SnapshotCreationAndHitWithNoNewEvents
 
 	// Verify that a snapshot was created in the database
 	filter := finishedlendings.BuildEventFilter()
-	savedSnapshot, err := wrapper.GetEventStore().LoadSnapshot(ctx, snapshotHandler.BuildSnapshotType(finishedlendings.BuildQuery()), filter)
+	savedSnapshot, err := wrapper.GetEventStore().LoadSnapshot(ctx, snapshotHandler.BuildSnapshotType(finishedlendings.BuildQuery(0)), filter)
 	assert.NoError(t, err, "Should be able to load saved snapshot")
 	assert.NotNil(t, savedSnapshot, "Snapshot should exist after first query")
 
@@ -71,7 +71,7 @@ func Test_SnapshotAwareQueryHandler_Handle_SnapshotCreationAndHitWithNoNewEvents
 	metricsCollector.Reset()
 
 	// Second query: Should hit the snapshot created by the first query (if wrapper creates snapshots automatically)
-	hitResult, err := snapshotHandler.Handle(ctx, finishedlendings.BuildQuery())
+	hitResult, err := snapshotHandler.Handle(ctx, finishedlendings.BuildQuery(0))
 	assert.NoError(t, err, "Second query should work")
 	assert.Equal(t, 1, hitResult.Count, "Should have 1 finished lending")
 	assert.Equal(t, result, hitResult, "Results should be identical")
@@ -88,7 +88,7 @@ func Test_SnapshotAwareQueryHandler_Handle_SnapshotHitWithNewEvents(t *testing.T
 	createTestFinishedLending(ctx, t, wrapper)
 
 	// First query: Should miss snapshot and fall back to base handler, then create snapshot
-	result1, err := snapshotHandler.Handle(ctx, finishedlendings.BuildQuery())
+	result1, err := snapshotHandler.Handle(ctx, finishedlendings.BuildQuery(0))
 	assert.NoError(t, err, "First query should work")
 	assert.Equal(t, 1, result1.Count, "Should have 1 finished lending initially")
 	assert.Equal(t, uint(4), result1.SequenceNumber, "Should have sequence=4 (add + register + lend + return)")
@@ -98,7 +98,7 @@ func Test_SnapshotAwareQueryHandler_Handle_SnapshotHitWithNewEvents(t *testing.T
 
 	// Verify that a snapshot was created in the database
 	filter := finishedlendings.BuildEventFilter()
-	savedSnapshot, err := wrapper.GetEventStore().LoadSnapshot(ctx, snapshotHandler.BuildSnapshotType(finishedlendings.BuildQuery()), filter)
+	savedSnapshot, err := wrapper.GetEventStore().LoadSnapshot(ctx, snapshotHandler.BuildSnapshotType(finishedlendings.BuildQuery(0)), filter)
 	assert.NoError(t, err, "Should be able to load saved snapshot")
 	assert.NotNil(t, savedSnapshot, "Snapshot should exist after first query")
 	assert.Equal(t, uint(4), savedSnapshot.SequenceNumber, "Snapshot should have sequence=4")
@@ -110,7 +110,7 @@ func Test_SnapshotAwareQueryHandler_Handle_SnapshotHitWithNewEvents(t *testing.T
 	metricsCollector.Reset()
 
 	// Second query: Should hit snapshot and process incremental events (new finished lending)
-	result2, err := snapshotHandler.Handle(ctx, finishedlendings.BuildQuery())
+	result2, err := snapshotHandler.Handle(ctx, finishedlendings.BuildQuery(0))
 	assert.NoError(t, err, "Second query should work")
 	assert.Equal(t, 2, result2.Count, "Should have 2 finished lendings after incremental processing")
 	assert.Equal(t, uint(8), result2.SequenceNumber, "Should have sequence=8 after processing new events")
@@ -130,7 +130,7 @@ func Test_SnapshotAwareQueryHandler_Handle_SnapshotHitWithNewEvents(t *testing.T
 
 	// Verify that the snapshot was updated with incremental changes
 	filter = finishedlendings.BuildEventFilter()
-	updatedSnapshot, err := wrapper.GetEventStore().LoadSnapshot(ctx, snapshotHandler.BuildSnapshotType(finishedlendings.BuildQuery()), filter)
+	updatedSnapshot, err := wrapper.GetEventStore().LoadSnapshot(ctx, snapshotHandler.BuildSnapshotType(finishedlendings.BuildQuery(0)), filter)
 	assert.NoError(t, err, "Should be able to load updated snapshot")
 	assert.NotNil(t, updatedSnapshot, "Updated snapshot should exist")
 	assert.Equal(t, uint(8), updatedSnapshot.SequenceNumber, "Updated snapshot should have sequence=8")

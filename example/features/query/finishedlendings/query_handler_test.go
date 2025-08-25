@@ -43,7 +43,7 @@ func Test_QueryHandler_Handle_ReturnsEmptyResult_WhenNoLendingsConducted(t *test
 	setupBooksAndReaders(t, handlers, entities, fakeClock)
 
 	// act
-	result, err := handlers.query.Handle(ctx, finishedlendings.BuildQuery())
+	result, err := handlers.query.Handle(ctx, finishedlendings.BuildQuery(0))
 
 	// assert
 	assert.NoError(t, err, "Query should succeed")
@@ -82,7 +82,7 @@ func Test_QueryHandler_Handle_IncludesFinishedLendingsSortedByReturnedAt(t *test
 	assert.NoError(t, err, "Should return book2 from reader2")
 
 	// act
-	result, err := handlers.query.Handle(ctx, finishedlendings.BuildQuery())
+	result, err := handlers.query.Handle(ctx, finishedlendings.BuildQuery(0))
 
 	// assert
 	assert.NoError(t, err, "Query should succeed")
@@ -111,7 +111,7 @@ func Test_QueryHandler_Handle_ReturnsEmptyResult_WhenNoBooksAddedOrReadersRegist
 	handlers := createAllHandlers(t, wrapper)
 
 	// act - nothing added
-	result, err := handlers.query.Handle(ctx, finishedlendings.BuildQuery())
+	result, err := handlers.query.Handle(ctx, finishedlendings.BuildQuery(0))
 
 	// assert
 	assert.NoError(t, err, "Query should succeed")
@@ -147,7 +147,7 @@ func Test_QueryHandler_Handle_IgnoresOngoingLendings(t *testing.T) {
 	// Note: book2 is NOT returned, so it should not appear in finished lendings
 
 	// act
-	result, err := handlers.query.Handle(ctx, finishedlendings.BuildQuery())
+	result, err := handlers.query.Handle(ctx, finishedlendings.BuildQuery(0))
 
 	// assert
 	assert.NoError(t, err, "Query should succeed")
@@ -198,7 +198,7 @@ func Test_QueryHandler_Handle_HandlesComplexLendingScenarios(t *testing.T) {
 	assert.NoError(t, err, "Should return book2 from reader1")
 
 	// act
-	result, err := handlers.query.Handle(ctx, finishedlendings.BuildQuery())
+	result, err := handlers.query.Handle(ctx, finishedlendings.BuildQuery(0))
 
 	// assert
 	assert.NoError(t, err, "Query should succeed")
@@ -243,7 +243,7 @@ func Test_QueryHandler_Handle_IdempotentReturns_ShowsEachLendingOnce(t *testing.
 	assert.NoError(t, err, "Should handle idempotent return (second time)")
 
 	// act
-	result, err := handlers.query.Handle(ctx, finishedlendings.BuildQuery())
+	result, err := handlers.query.Handle(ctx, finishedlendings.BuildQuery(0))
 
 	// assert
 	assert.NoError(t, err, "Query should succeed")

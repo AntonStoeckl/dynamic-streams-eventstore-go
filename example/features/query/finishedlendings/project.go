@@ -18,12 +18,19 @@ import (
 //	THEN: FinishedLendings struct is returned
 //	INCLUDES: Books that have been returned (indicating a completed lending cycle)
 //	EXCLUDES: Books that are still lent out or have never been lent
-func Project(history core.DomainEvents, _ Query, maxSequence uint, base ...FinishedLendings) FinishedLendings {
+//
+// Respects query parameters:
+//   - OrderBy: Controls sort order (oldest first vs. newest first)
+//   - MaxResults: Limits number of results returned
+func Project(history core.DomainEvents, query Query, maxSequence uint, base ...FinishedLendings) FinishedLendings {
 	// Track finished lending state
 	lendings := make(map[string]*LendingInfo) // Key format: BookID-ReaderID
 
+	totalCount := 0
+
 	if len(base) > 0 {
 		lendings = convertLendingsToMap(base[0].Lendings) // Start from an existing projection (incremental update)
+		totalCount = base[0].TotalCount
 	}
 
 	for _, event := range history {
@@ -35,21 +42,39 @@ func Project(history core.DomainEvents, _ Query, maxSequence uint, base ...Finis
 				ReaderID:   e.ReaderID,
 				ReturnedAt: e.OccurredAt,
 			}
+
+			totalCount++
 		}
 	}
 
-	// Convert map to slice and sort by ReturnedAt (oldest first)
+	// Convert map to slice
 	lendingList := make([]LendingInfo, 0, len(lendings))
 	for _, lendingPtr := range lendings {
 		lendingList = append(lendingList, *lendingPtr)
 	}
-	slices.SortFunc(lendingList, func(a, b LendingInfo) int {
-		return a.ReturnedAt.Compare(b.ReturnedAt)
-	})
+
+	// Sort based on query OrderBy parameter
+	switch query.OrderBy {
+	case OrderByNewestReturn:
+		slices.SortFunc(lendingList, func(a, b LendingInfo) int {
+			return b.ReturnedAt.Compare(a.ReturnedAt) // Descending (newest first)
+		})
+
+	default: // OrderByOldestReturn or any other value
+		slices.SortFunc(lendingList, func(a, b LendingInfo) int {
+			return a.ReturnedAt.Compare(b.ReturnedAt) // Ascending (oldest first)
+		})
+	}
+
+	// Apply MaxResults limit if specified
+	if query.MaxResults > 0 && len(lendingList) > int(query.MaxResults) {
+		lendingList = lendingList[:query.MaxResults]
+	}
 
 	return FinishedLendings{
 		Lendings:       lendingList,
 		Count:          len(lendingList),
+		TotalCount:     totalCount,
 		SequenceNumber: maxSequence,
 	}
 }
