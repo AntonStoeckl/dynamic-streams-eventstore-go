@@ -13,7 +13,7 @@
   "panels": [
     {
       "id": 1,
-      "title": "Successful EventStore.Append()/sec",
+      "title": "Successful Append/sec",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -26,7 +26,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "expr": "rate(eventstore_append_method_duration_seconds_count{status=\"success\"}[1m])",
-          "legendFormat": "Successful Appends/sec",
+          "legendFormat": "Append/sec",
           "refId": "A"
         }
       ],
@@ -48,7 +48,7 @@
     },
     {
       "id": 2,
-      "title": "Successful EventStore.Query()/sec",
+      "title": "Successful Query/sec",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -60,8 +60,8 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(eventstore_query_method_duration_seconds_count{status=\"success\"}[1m])",
-          "legendFormat": "Successful Queries/sec",
+          "expr": "sum by (database_target) (rate(eventstore_query_method_duration_seconds_count{status=\"success\"}[1m]))",
+          "legendFormat": "Query({{database_target}})/sec",
           "refId": "A"
         }
       ],
@@ -83,7 +83,7 @@
     },
     {
       "id": 5,
-      "title": "SQL Insert/sec",
+      "title": "SQL INSERT/sec",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -96,7 +96,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "expr": "rate(eventstore_append_sql_duration_seconds_count[1m])",
-          "legendFormat": "SQL INSERT Operations/sec",
+          "legendFormat": "INSERT/sec",
           "refId": "A"
         }
       ],
@@ -118,7 +118,7 @@
     },
     {
       "id": 6,
-      "title": "SQL Select/sec",
+      "title": "SQL SELECT/sec",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -130,8 +130,8 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(eventstore_query_sql_duration_seconds_count[1m])",
-          "legendFormat": "SQL SELECT Operations/sec",
+          "expr": "sum by (database_target) (rate(eventstore_query_sql_duration_seconds_count[1m]))",
+          "legendFormat": "SELECT({{database_target}})/sec",
           "refId": "A"
         }
       ],
@@ -153,7 +153,7 @@
     },
     {
       "id": 15,
-      "title": "Average EventStore.Append() Duration",
+      "title": "Average Append Duration",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -166,7 +166,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "expr": "rate(eventstore_append_method_duration_seconds_sum{status=\"success\"}[1m]) / rate(eventstore_append_method_duration_seconds_count{status=\"success\"}[1m]) * 1000",
-          "legendFormat": "Avg Successful Append Duration (ms)",
+          "legendFormat": "Avg Append Duration (ms)",
           "refId": "A"
         }
       ],
@@ -188,7 +188,7 @@
     },
     {
       "id": 16,
-      "title": "Average EventStore.Query() Duration",
+      "title": "Average Query Duration",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -200,8 +200,8 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(eventstore_query_method_duration_seconds_sum{status=\"success\"}[1m]) / rate(eventstore_query_method_duration_seconds_count{status=\"success\"}[1m]) * 1000",
-          "legendFormat": "Avg Successful Query Duration (ms)",
+          "expr": "sum by (database_target) (rate(eventstore_query_method_duration_seconds_sum{status=\"success\"}[1m]) / rate(eventstore_query_method_duration_seconds_count{status=\"success\"}[1m]) * 1000)",
+          "legendFormat": "Avg Query Duration({{database_target}}) (ms)",
           "refId": "A"
         }
       ],
@@ -236,7 +236,7 @@
             "uid": "PBFA97CFB590B2093"
           },
           "expr": "rate(eventstore_append_sql_duration_seconds_sum{status=\"success\"}[1m]) / rate(eventstore_append_sql_duration_seconds_count{status=\"success\"}[1m]) * 1000",
-          "legendFormat": "Avg SQL INSERT Duration (ms)",
+          "legendFormat": "Avg INSERT Duration (ms)",
           "refId": "A"
         }
       ],
@@ -270,8 +270,8 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(eventstore_query_sql_duration_seconds_sum{status=\"success\"}[1m]) / rate(eventstore_query_sql_duration_seconds_count{status=\"success\"}[1m]) * 1000",
-          "legendFormat": "Avg SQL SELECT Duration (ms)",
+          "expr": "sum by (database_target) (rate(eventstore_query_sql_duration_seconds_sum{status=\"success\"}[1m]) / rate(eventstore_query_sql_duration_seconds_count{status=\"success\"}[1m]) * 1000)",
+          "legendFormat": "Avg SELECT Duration({{database_target}}) (ms)",
           "refId": "A"
         }
       ],
@@ -375,7 +375,7 @@
     },
     {
       "id": 3,
-      "title": "EventStore.Append() Errors/sec",
+      "title": "Append Errors/sec",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -410,7 +410,7 @@
     },
     {
       "id": 4,
-      "title": "EventStore.Query() Errors/sec",
+      "title": "Query Errors/sec",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -422,8 +422,8 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(eventstore_query_method_duration_seconds_count{status=\"error\"}[1m])",
-          "legendFormat": "Query Errors/sec",
+          "expr": "sum by (database_target) (rate(eventstore_query_method_duration_seconds_count{status=\"error\"}[1m]))",
+          "legendFormat": "Query Errors({{database_target}})/sec",
           "refId": "A"
         }
       ],
@@ -445,7 +445,7 @@
     },
     {
       "id": 11,
-      "title": "Canceled EventStore.Append()/sec",
+      "title": "Canceled Append/sec",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -457,7 +457,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "eventstore_append_canceled_total",
+          "expr": "rate(eventstore_append_canceled_total[1m])",
           "legendFormat": "Canceled Append/sec",
           "refId": "A"
         }
@@ -480,7 +480,7 @@
     },
     {
       "id": 12,
-      "title": "Canceled EventStore.Query()/sec",
+      "title": "Canceled Query/sec",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -492,7 +492,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "eventstore_query_canceled_total",
+          "expr": "sum by (database_target) (rate(eventstore_query_canceled_total[1m]))",
           "legendFormat": "Canceled Query/sec",
           "refId": "A"
         }
@@ -515,7 +515,7 @@
     },
     {
       "id": 13,
-      "title": "Timed-Out EventStore.Append()/sec",
+      "title": "Timed-Out Append/sec",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -550,7 +550,7 @@
     },
     {
       "id": 14,
-      "title": "Timed-Out EventStore.Query()/sec",
+      "title": "Timed-Out Query/sec",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -562,8 +562,8 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(eventstore_query_timeout_total[1m])",
-          "legendFormat": "Timed-Out Query/sec",
+          "expr": "sum by (database_target) (rate(eventstore_query_timeout_total[1m]))",
+          "legendFormat": "Timed-Out Query({{database_target}})/sec",
           "refId": "A"
         }
       ],

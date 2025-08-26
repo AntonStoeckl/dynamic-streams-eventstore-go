@@ -130,7 +130,23 @@ const (
 	spanAttrErrorType    = "error_type"
 	spanAttrEventType    = "event_type"
 	spanAttrExpectedSeq  = "expected_seq"
+
+	// Database target constants for metrics labeling.
+	databaseTargetPrimary = "primary"
+	databaseTargetReplica = "replica"
 )
+
+// ===== DATABASE TARGET UTILITIES =====
+// Helper functions for determining database routing targets
+
+// getDatabaseTarget determines which database target was used based on the consistency level in context.
+// Returns "primary" for strong consistency (default) or "replica" for eventual consistency.
+func getDatabaseTarget(ctx context.Context) string {
+	if eventstore.GetConsistencyLevel(ctx) == eventstore.EventualConsistency {
+		return databaseTargetReplica
+	}
+	return databaseTargetPrimary
+}
 
 // ===== BASIC LOGGING UTILITIES =====
 // Low-level logging functions that don't require context awareness
@@ -229,6 +245,7 @@ func (es *EventStore) recordErrorMetricsContext(ctx context.Context, operation, 
 			spanAttrOperation: operation,
 			"status":          statusError,
 			spanAttrErrorType: errorType,
+			"database_target": getDatabaseTarget(ctx),
 		}
 
 		// Use context-aware method if available
@@ -251,6 +268,7 @@ func (es *EventStore) recordDurationMetricsContext(
 		labels := map[string]string{
 			spanAttrOperation: operation,
 			"status":          status,
+			"database_target": getDatabaseTarget(ctx),
 		}
 
 		// Use context-aware method if available
@@ -274,6 +292,7 @@ func (es *EventStore) recordValueMetricsContext(
 		labels := map[string]string{
 			spanAttrOperation: operation,
 			"status":          status,
+			"database_target": getDatabaseTarget(ctx),
 		}
 
 		// Use context-aware method if available
@@ -286,11 +305,12 @@ func (es *EventStore) recordValueMetricsContext(
 }
 
 // recordConcurrencyConflictMetrics records concurrency conflict metricsCollector if the metricsCollector collector is configured.
-func (es *EventStore) recordConcurrencyConflictMetrics(operation string) {
+func (es *EventStore) recordConcurrencyConflictMetrics(ctx context.Context, operation string) {
 	if es.metricsCollector != nil {
 		labels := map[string]string{
 			spanAttrOperation: operation,
 			"conflict_type":   "concurrency",
+			"database_target": getDatabaseTarget(ctx),
 		}
 		es.metricsCollector.IncrementCounter(metricConcurrencyConflicts, labels)
 	}
@@ -302,6 +322,7 @@ func (es *EventStore) recordCancelledMetricsContext(ctx context.Context, operati
 		labels := map[string]string{
 			spanAttrOperation: operation,
 			"status":          statusCanceled,
+			"database_target": getDatabaseTarget(ctx),
 		}
 
 		var metricName string
@@ -328,6 +349,7 @@ func (es *EventStore) recordTimeoutMetricsContext(ctx context.Context, operation
 		labels := map[string]string{
 			spanAttrOperation: operation,
 			"status":          statusTimeout,
+			"database_target": getDatabaseTarget(ctx),
 		}
 
 		var metricName string
@@ -704,6 +726,7 @@ func (qmo *queryMetricsObserver) recordComponentSuccess(component string, durati
 		spanAttrOperation: operationQuery,
 		"component":       component,
 		"status":          statusSuccess,
+		"database_target": getDatabaseTarget(qmo.ctx),
 	}
 
 	if contextualCollector, ok := qmo.es.metricsCollector.(eventstore.ContextualMetricsCollector); ok {
@@ -756,6 +779,7 @@ func (amo *appendMetricsObserver) recordComponentSuccess(component string, durat
 		spanAttrOperation: operationAppend,
 		"component":       component,
 		"status":          statusSuccess,
+		"database_target": getDatabaseTarget(amo.ctx),
 	}
 
 	if contextualCollector, ok := amo.es.metricsCollector.(eventstore.ContextualMetricsCollector); ok {
@@ -788,7 +812,7 @@ func (amo *appendMetricsObserver) recordTimeout(duration time.Duration) {
 
 // recordConcurrencyConflict records metrics for concurrency conflicts during append operations.
 func (amo *appendMetricsObserver) recordConcurrencyConflict() {
-	amo.es.recordConcurrencyConflictMetrics(operationAppend)
+	amo.es.recordConcurrencyConflictMetrics(amo.ctx, operationAppend)
 }
 
 // ===== INSTRUMENTATION SETUP & COMPLETION =====
