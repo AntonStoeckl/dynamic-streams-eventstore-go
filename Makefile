@@ -4,6 +4,8 @@
 .PHONY: test-generic test-factory test-observability test-pgx test-sql test-sqlx test-all-adapters
 .PHONY: benchmark benchmark-pgx benchmark-sql benchmark-sqlx benchmark-all
 .PHONY: build-fixtures run-generate run-import fixtures-generate fixtures-import
+.PHONY: restart-benchmark-db restart-test-db restart-observability-stack
+.PHONY: stop-benchmark-db stop-test-db stop-observability-stack
 
 # Default target
 help:
@@ -35,6 +37,14 @@ help:
 	@echo "  run-import         Import CSV data (build if needed)"
 	@echo "  fixtures-generate  Alias for run-generate"
 	@echo "  fixtures-import    Alias for run-import"
+	@echo ""
+	@echo "Container Management:"
+	@echo "  restart-benchmark-db       Restart benchmark database stack (master + replica)"
+	@echo "  restart-test-db           Restart test database"
+	@echo "  restart-observability-stack  Restart observability stack (Grafana, Prometheus, Jaeger)"
+	@echo "  stop-benchmark-db         Stop benchmark database stack"
+	@echo "  stop-test-db              Stop test database"
+	@echo "  stop-observability-stack  Stop observability stack"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  lint               Run golangci-lint on all code"
@@ -184,7 +194,6 @@ lint:
 	@golangci-lint run
 	@echo "✅ Linting complete"
 
-
 fmt:
 	@echo "Formatting code..."
 	@go fmt ./...
@@ -196,3 +205,40 @@ clean:
 	@rm -f cpu.prof mem.prof trace.out
 	@rm -f $(GENERATE_BIN) $(IMPORT_BIN)
 	@echo "✅ Cleanup complete"
+
+# Container management targets
+restart-benchmark-db:
+	@echo "🔄 Restarting benchmark database stack (master + replica)..."
+	@docker compose -f testutil/postgresengine/docker-compose.yml down postgres_benchmark_master postgres_benchmark_replica > /dev/null 2>&1
+	@docker compose -f testutil/postgresengine/docker-compose.yml up -d postgres_benchmark_master postgres_benchmark_replica > /dev/null 2>&1
+	@echo "✅ Benchmark database stack restarted (master: localhost:5433, replica: localhost:5434)"
+
+restart-test-db:
+	@echo "🔄 Restarting test database..."
+	@docker compose -f testutil/postgresengine/docker-compose.yml down postgres_test > /dev/null 2>&1
+	@docker compose -f testutil/postgresengine/docker-compose.yml up -d postgres_test > /dev/null 2>&1
+	@echo "✅ Test database restarted (localhost:5432)"
+
+restart-observability-stack:
+	@echo "🔄 Restarting observability stack..."
+	@docker compose -f testutil/observability/docker-compose.yml down > /dev/null 2>&1
+	@docker compose -f testutil/observability/docker-compose.yml up -d > /dev/null 2>&1
+	@echo "✅ Observability stack restarted:"
+	@echo "   - Grafana: http://localhost:3000 (admin/secretpw)"
+	@echo "   - Prometheus: http://localhost:9090"
+	@echo "   - Jaeger: http://localhost:16686"
+
+stop-benchmark-db:
+	@echo "🛑 Stopping benchmark database stack (master + replica)..."
+	@docker compose -f testutil/postgresengine/docker-compose.yml down postgres_benchmark_master postgres_benchmark_replica > /dev/null 2>&1
+	@echo "✅ Benchmark database stack stopped"
+
+stop-test-db:
+	@echo "🛑 Stopping test database..."
+	@docker compose -f testutil/postgresengine/docker-compose.yml down postgres_test > /dev/null 2>&1
+	@echo "✅ Test database stopped"
+
+stop-observability-stack:
+	@echo "🛑 Stopping observability stack..."
+	@docker compose -f testutil/observability/docker-compose.yml down > /dev/null 2>&1
+	@echo "✅ Observability stack stopped"
