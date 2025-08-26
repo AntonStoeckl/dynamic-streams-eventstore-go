@@ -42,6 +42,6 @@ func (q Query) QueryType() string {
 }
 
 // SnapshotType returns the unique snapshot type identifier that includes query parameters.
-func SnapshotType(queryType string, q Query) string {
+func (q Query) SnapshotType() string {
 	return fmt.Sprintf("%s:%d:%d", queryType, q.MaxResults, q.OrderBy)
 }

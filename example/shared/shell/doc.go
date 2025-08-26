@@ -21,7 +21,7 @@
 // ## Infrastructure Interfaces
 // - QueriesEvents - Shared abstraction for event store query operations
 // - ExposesSnapshotWrapperDependencies - Dependency exposure for snapshot optimization
-// - FilterBuilderFunc[Q], SnapshotTypeFunc[Q] - Function type signatures
+// - FilterBuilderFunc[Q] - Function type signature
 //
 // ## Observability Patterns
 // - MetricsCollector, TracingCollector, ContextualLogger interfaces

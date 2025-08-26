@@ -177,9 +177,6 @@ func setupSnapshotTestWithMetrics(t *testing.T) (
 		func(_ finishedlendings.Query) eventstore.Filter {
 			return finishedlendings.BuildEventFilter()
 		},
-		func(queryType string, _ finishedlendings.Query) string {
-			return queryType
-		},
 	)
 	assert.NoError(t, err, "Should create snapshot-aware query handler")
 

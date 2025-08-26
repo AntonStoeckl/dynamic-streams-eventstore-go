@@ -1,6 +1,8 @@
 package bookslentbyreader
 
 import (
+	"fmt"
+
 	"github.com/google/uuid"
 )
 
@@ -23,4 +25,9 @@ func BuildQuery(readerID uuid.UUID) Query {
 // QueryType returns the query type.
 func (q Query) QueryType() string {
 	return queryType
+}
+
+// SnapshotType returns the unique snapshot type identifier that includes query parameters.
+func (q Query) SnapshotType() string {
+	return fmt.Sprintf("%s:%s", queryType, q.ReaderID.String())
 }

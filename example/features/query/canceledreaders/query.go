@@ -17,3 +17,8 @@ func BuildQuery() Query {
 func (q Query) QueryType() string {
 	return queryType
 }
+
+// SnapshotType returns the unique snapshot type identifier that includes query parameters.
+func (q Query) SnapshotType() string {
+	return queryType
+}

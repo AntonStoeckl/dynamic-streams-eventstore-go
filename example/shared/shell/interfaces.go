@@ -36,6 +36,7 @@ type ExposesSnapshotWrapperDependencies interface {
 // Queries can range from simple parameter-less requests to complex multi-parameter filters.
 type Query interface {
 	QueryType() string
+	SnapshotType() string
 }
 
 // QueryResult represents the contract for all query result types (projections).
@@ -74,13 +75,3 @@ type ProjectionFunc[Q Query, R QueryResult] func(
 // For parameter-less queries, they return a filter without predicates (only filter by event types).
 // The filter determines which events are retrieved for projection building.
 type FilterBuilderFunc[Q Query] func(query Q) eventstore.Filter
-
-// SnapshotTypeFunc generates unique snapshot identifiers from query type and parameters.
-// The identifier must be deterministic and unique for each query/parameter combination.
-// For queries with parameters (e.g., ReaderID), include them in the identifier.
-// For parameter-less queries, return just the query type string.
-// Examples:
-//
-//	"BooksInCirculation"
-//	"BooksLentByReader:123e4567-e89b-12d3-a456-426614174000".
-type SnapshotTypeFunc[Q Query] func(queryType string, query Q) string

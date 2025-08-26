@@ -45,7 +45,6 @@ type GenericSnapshotWrapper[Q shell.Query, R shell.QueryResult] struct {
 	eventStore       QueriesEventsAndHandlesSnapshots
 	projectFunc      shell.ProjectionFunc[Q, R]
 	filterBuilder    shell.FilterBuilderFunc[Q]
-	snapshotTypeFunc shell.SnapshotTypeFunc[Q]
 	metricsCollector shell.MetricsCollector
 	tracingCollector shell.TracingCollector
 	contextualLogger shell.ContextualLogger
@@ -61,7 +60,6 @@ func NewGenericSnapshotWrapper[Q shell.Query, R shell.QueryResult](
 	baseHandler shell.QueryHandler[Q, R],
 	projectFunc shell.ProjectionFunc[Q, R],
 	filterBuilder shell.FilterBuilderFunc[Q],
-	snapshotTypeFunc shell.SnapshotTypeFunc[Q],
 ) (*GenericSnapshotWrapper[Q, R], error) {
 	baseEventStore := baseHandler.ExposeEventStore()
 
@@ -78,7 +76,6 @@ func NewGenericSnapshotWrapper[Q shell.Query, R shell.QueryResult](
 		eventStore:       snapshotCapableEventStore,
 		projectFunc:      projectFunc,
 		filterBuilder:    filterBuilder,
-		snapshotTypeFunc: snapshotTypeFunc,
 		metricsCollector: baseHandler.ExposeMetricsCollector(),
 		tracingCollector: baseHandler.ExposeTracingCollector(),
 		contextualLogger: baseHandler.ExposeContextualLogger(),
@@ -155,7 +152,7 @@ func (w *GenericSnapshotWrapper[Q, R]) Handle(ctx context.Context, query Q) (R, 
 // BuildSnapshotType returns the snapshot type string for this handler.
 // Tests use this to query for saved snapshots.
 func (w *GenericSnapshotWrapper[Q, R]) BuildSnapshotType(query Q) string {
-	return w.snapshotTypeFunc(query.QueryType(), query)
+	return query.SnapshotType()
 }
 
 /*** Phase execution methods for clean observability patterns ***/
@@ -168,7 +165,7 @@ func (w *GenericSnapshotWrapper[Q, R]) executeSnapshotLoad(
 ) (*eventstore.Snapshot, error) {
 	queryType := query.QueryType()
 	snapshotLoadStart := time.Now()
-	snapshotType := w.snapshotTypeFunc(queryType, query)
+	snapshotType := query.SnapshotType()
 	snapshot, err := w.eventStore.LoadSnapshot(ctx, snapshotType, filter)
 	snapshotLoadDuration := time.Since(snapshotLoadStart)
 
@@ -322,7 +319,7 @@ func (w *GenericSnapshotWrapper[Q, R]) saveUpdatedSnapshot(
 	}
 
 	// Build snapshot
-	snapshotType := w.snapshotTypeFunc(queryType, query)
+	snapshotType := query.SnapshotType()
 	snapshot, err := eventstore.BuildSnapshot(
 		snapshotType,
 		filter.Hash(),

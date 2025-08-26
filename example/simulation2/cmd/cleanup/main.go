@@ -386,9 +386,6 @@ func main() {
 		func(_ registeredreaders.Query) eventstore.Filter {
 			return registeredreaders.BuildEventFilter()
 		},
-		func(queryType string, _ registeredreaders.Query) string {
-			return queryType
-		},
 	)
 	if err != nil {
 		log.Panicf("Failed to create snapshot-aware RegisteredReaders handler: %v", err)
@@ -409,9 +406,6 @@ func main() {
 		bookslentout.Project,
 		func(_ bookslentout.Query) eventstore.Filter {
 			return bookslentout.BuildEventFilter()
-		},
-		func(queryType string, _ bookslentout.Query) string {
-			return queryType
 		},
 	)
 	if err != nil {
@@ -434,9 +428,6 @@ func main() {
 		func(_ booksincirculation.Query) eventstore.Filter {
 			return booksincirculation.BuildEventFilter()
 		},
-		func(queryType string, _ booksincirculation.Query) string {
-			return queryType
-		},
 	)
 	if err != nil {
 		log.Panicf("Failed to create snapshot-aware BooksInCirculation handler: %v", err)
@@ -457,9 +448,6 @@ func main() {
 		canceledreaders.Project,
 		func(_ canceledreaders.Query) eventstore.Filter {
 			return canceledreaders.BuildEventFilter()
-		},
-		func(queryType string, _ canceledreaders.Query) string {
-			return queryType
 		},
 	)
 	if err != nil {
@@ -482,9 +470,6 @@ func main() {
 		func(_ removedbooks.Query) eventstore.Filter {
 			return removedbooks.BuildEventFilter()
 		},
-		func(queryType string, _ removedbooks.Query) string {
-			return queryType
-		},
 	)
 	if err != nil {
 		log.Panicf("Failed to create snapshot-aware RemovedBooks handler: %v", err)
@@ -506,7 +491,6 @@ func main() {
 		func(_ finishedlendings.Query) eventstore.Filter {
 			return finishedlendings.BuildEventFilter()
 		},
-		finishedlendings.SnapshotType,
 	)
 	if err != nil {
 		log.Panicf("Failed to create snapshot-aware FinishedLendings handler: %v", err)

@@ -174,9 +174,6 @@ func setupSnapshotTestWithMetrics(t *testing.T) (
 		func(_ removedbooks.Query) eventstore.Filter {
 			return removedbooks.BuildEventFilter()
 		},
-		func(queryType string, _ removedbooks.Query) string {
-			return queryType
-		},
 	)
 	assert.NoError(t, err, "Should create snapshot-aware query handler")
 
