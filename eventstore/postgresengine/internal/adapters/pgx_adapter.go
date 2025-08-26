@@ -6,6 +6,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 )
 
 // PGXAdapter implements DBAdapter for pgxpool.Pool.
@@ -24,12 +26,15 @@ func NewPGXAdapterWithReplica(pool *pgxpool.Pool, replica *pgxpool.Pool) *PGXAda
 	return &PGXAdapter{pool: pool, replicaPool: replica}
 }
 
-// Query executes a query using the replica pool if available, otherwise the primary pool.
+// Query executes a query using consistency-aware routing.
+// By default, uses primary pool for strong consistency (safe for event sourcing).
+// Uses replica pool only when context explicitly requests eventual consistency.
 func (p *PGXAdapter) Query(ctx context.Context, query string) (DBRows, error) {
-	pool := p.pool // default to primary
+	pool := p.pool // default to primary for strong consistency
 
-	if p.replicaPool != nil {
-		pool = p.replicaPool // use replica for reads
+	// Only use replica when explicitly requesting eventual consistency
+	if p.replicaPool != nil && eventstore.GetConsistencyLevel(ctx) == eventstore.EventualConsistency {
+		pool = p.replicaPool
 	}
 
 	rows, err := pool.Query(ctx, query)
@@ -40,19 +45,22 @@ func (p *PGXAdapter) Query(ctx context.Context, query string) (DBRows, error) {
 	return &pgxRows{rows: rows}, nil
 }
 
-// QueryRow executes a query that returns a single row using the replica pool if available.
+// QueryRow executes a query that returns a single row using consistency-aware routing.
+// By default, uses primary pool for strong consistency (safe for event sourcing).
+// Uses replica pool only when context explicitly requests eventual consistency.
 func (p *PGXAdapter) QueryRow(ctx context.Context, query string) DBRow {
-	pool := p.pool // default to primary
+	pool := p.pool // default to primary for strong consistency
 
-	if p.replicaPool != nil {
-		pool = p.replicaPool // use replica for reads
+	// Only use replica when explicitly requesting eventual consistency
+	if p.replicaPool != nil && eventstore.GetConsistencyLevel(ctx) == eventstore.EventualConsistency {
+		pool = p.replicaPool
 	}
 
 	row := pool.QueryRow(ctx, query)
 	return &pgxRow{row: row}
 }
 
-// Exec executes a query using the pgx pool and returns wrapped result.
+// Exec executes a query using the pgx pool and returns a wrapped result.
 func (p *PGXAdapter) Exec(ctx context.Context, query string) (DBResult, error) {
 	tag, err := p.pool.Exec(ctx, query)
 	if err != nil {

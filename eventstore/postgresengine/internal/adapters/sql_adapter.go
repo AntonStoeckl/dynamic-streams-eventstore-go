@@ -24,12 +24,15 @@ func NewSQLAdapterWithReplica(db *sql.DB, replicaDB *sql.DB) *SQLAdapter {
 	return &SQLAdapter{db: db, replicaDB: replicaDB}
 }
 
-// Query executes a query using the replica database if available, otherwise the primary database.
+// Query executes a query using consistency-aware routing.
+// By default, uses primary pool for strong consistency (safe for event sourcing).
+// Uses replica pool only when context explicitly requests eventual consistency.
 func (s *SQLAdapter) Query(ctx context.Context, query string) (DBRows, error) {
-	db := s.db // default to primary
+	db := s.db // default to primary for strong consistency
 
-	if s.replicaDB != nil {
-		db = s.replicaDB // use replica for reads
+	// Only use replica when explicitly requesting eventual consistency
+	if s.replicaDB != nil && eventstore.GetConsistencyLevel(ctx) == eventstore.EventualConsistency {
+		db = s.replicaDB
 	}
 
 	rows, err := db.QueryContext(ctx, query)
@@ -48,12 +51,15 @@ func (s *SQLAdapter) Query(ctx context.Context, query string) (DBRows, error) {
 	return &stdRows{rows: rows}, nil
 }
 
-// QueryRow executes a query that returns a single row using the replica database if available.
+// QueryRow executes a query that returns a single row using consistency-aware routing.
+// By default, uses primary pool for strong consistency (safe for event sourcing).
+// Uses replica pool only when context explicitly requests eventual consistency.
 func (s *SQLAdapter) QueryRow(ctx context.Context, query string) DBRow {
-	db := s.db // default to primary
+	db := s.db // default to primary for strong consistency
 
-	if s.replicaDB != nil {
-		db = s.replicaDB // use replica for reads
+	// Only use replica when explicitly requesting eventual consistency
+	if s.replicaDB != nil && eventstore.GetConsistencyLevel(ctx) == eventstore.EventualConsistency {
+		db = s.replicaDB
 	}
 
 	row := db.QueryRowContext(ctx, query)

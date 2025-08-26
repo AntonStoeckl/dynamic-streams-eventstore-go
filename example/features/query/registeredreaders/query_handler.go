@@ -149,6 +149,10 @@ func (h QueryHandler) executeQuery(
 	filter eventstore.Filter,
 ) (eventstore.StorableEvents, eventstore.MaxSequenceNumberUint, error) {
 
+	// Use eventual consistency for pure query handlers - they can tolerate slightly
+	// stale data in exchange for better performance and reduced primary database load
+	ctx = eventstore.WithEventualConsistency(ctx)
+
 	queryPhaseStart := time.Now()
 	storableEvents, maxSeq, err := h.eventStore.Query(ctx, filter)
 	queryPhaseDuration := time.Since(queryPhaseStart)

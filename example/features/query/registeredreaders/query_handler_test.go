@@ -8,6 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
+
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/command/cancelreadercontract"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/command/registerreader"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/registeredreaders"
@@ -29,6 +31,9 @@ func Test_QueryHandler_Handle_ReturnsCorrectReadersSortedByRegisteredAt(t *testi
 	// setup
 	ctx, wrapper, cleanup := setupTestEnvironment(t)
 	defer cleanup()
+
+	// Use eventual consistency for query handlers (can tolerate slightly stale data)
+	ctx = eventstore.WithEventualConsistency(ctx)
 
 	handlers := createAllHandlers(t, wrapper)
 	readers := createTestReaders(t)
@@ -55,6 +60,9 @@ func Test_QueryHandler_Handle_ExcludesCanceledReaders(t *testing.T) {
 	// setup
 	ctx, wrapper, cleanup := setupTestEnvironment(t)
 	defer cleanup()
+
+	// Use eventual consistency for query handlers (can tolerate slightly stale data)
+	ctx = eventstore.WithEventualConsistency(ctx)
 
 	handlers := createAllHandlers(t, wrapper)
 	readers := createTestReaders(t)
@@ -94,6 +102,9 @@ func Test_QueryHandler_Handle_ReturnsEmptyResult_WhenNoReadersRegistered(t *test
 	ctx, wrapper, cleanup := setupTestEnvironment(t)
 	defer cleanup()
 
+	// Use eventual consistency for query handlers (can tolerate slightly stale data)
+	ctx = eventstore.WithEventualConsistency(ctx)
+
 	handlers := createAllHandlers(t, wrapper)
 
 	// act
@@ -109,6 +120,9 @@ func Test_QueryHandler_Handle_ReturnsCorrectResult_WhenAllReadersAreCanceled(t *
 	// setup
 	ctx, wrapper, cleanup := setupTestEnvironment(t)
 	defer cleanup()
+
+	// Use eventual consistency for query handlers (can tolerate slightly stale data)
+	ctx = eventstore.WithEventualConsistency(ctx)
 
 	handlers := createAllHandlers(t, wrapper)
 	readers := createTestReaders(t)
@@ -147,6 +161,9 @@ func Test_QueryHandler_Handle_HandlesMixedRegisterAndCancelOperations(t *testing
 	// setup
 	ctx, wrapper, cleanup := setupTestEnvironment(t)
 	defer cleanup()
+
+	// Use eventual consistency for query handlers (can tolerate slightly stale data)
+	ctx = eventstore.WithEventualConsistency(ctx)
 
 	handlers := createAllHandlers(t, wrapper)
 	readers := createTestReaders(t)
@@ -187,6 +204,25 @@ func Test_QueryHandler_Handle_HandlesMixedRegisterAndCancelOperations(t *testing
 	for _, reader := range result.Readers {
 		assert.NotEqual(t, readers.reader1.String(), reader.ReaderID, "reader1 should not be in results (was canceled)")
 	}
+}
+
+func Test_QueryHandler_Handle_WithStrongConsistency_WorksCorrectly(t *testing.T) {
+	// setup
+	ctx, wrapper, cleanup := setupTestEnvironment(t)
+	defer cleanup()
+
+	// Use strong consistency (non-default for query handlers) to verify it still works
+	ctx = eventstore.WithStrongConsistency(ctx)
+
+	handlers := createAllHandlers(t, wrapper)
+
+	// act
+	query := registeredreaders.BuildQuery()
+	result, err := handlers.query.Handle(ctx, query)
+
+	// assert
+	assert.NoError(t, err, "Query should succeed with strong consistency")
+	assert.NotNil(t, result, "Should return result")
 }
 
 // Test setup helpers.

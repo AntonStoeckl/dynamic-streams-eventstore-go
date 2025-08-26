@@ -8,6 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
+
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/command/addbookcopy"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/command/lendbookcopytoreader"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/command/registerreader"
@@ -35,6 +37,9 @@ func Test_QueryHandler_Handle_ReturnsEmptyResult_WhenNoLendingsConducted(t *test
 	ctx, wrapper, cleanup := setupTestEnvironment(t)
 	defer cleanup()
 
+	// Use eventual consistency for query handlers (can tolerate slightly stale data)
+	ctx = eventstore.WithEventualConsistency(ctx)
+
 	handlers := createAllHandlers(t, wrapper)
 	entities := createTestEntities(t)
 	fakeClock := time.Unix(0, 0).UTC()
@@ -55,6 +60,9 @@ func Test_QueryHandler_Handle_IncludesFinishedLendingsSortedByReturnedAt(t *test
 	// setup
 	ctx, wrapper, cleanup := setupTestEnvironment(t)
 	defer cleanup()
+
+	// Use eventual consistency for query handlers (can tolerate slightly stale data)
+	ctx = eventstore.WithEventualConsistency(ctx)
 
 	handlers := createAllHandlers(t, wrapper)
 	entities := createTestEntities(t)
@@ -108,6 +116,9 @@ func Test_QueryHandler_Handle_ReturnsEmptyResult_WhenNoBooksAddedOrReadersRegist
 	ctx, wrapper, cleanup := setupTestEnvironment(t)
 	defer cleanup()
 
+	// Use eventual consistency for query handlers (can tolerate slightly stale data)
+	ctx = eventstore.WithEventualConsistency(ctx)
+
 	handlers := createAllHandlers(t, wrapper)
 
 	// act - nothing added
@@ -123,6 +134,9 @@ func Test_QueryHandler_Handle_IgnoresOngoingLendings(t *testing.T) {
 	// setup
 	ctx, wrapper, cleanup := setupTestEnvironment(t)
 	defer cleanup()
+
+	// Use eventual consistency for query handlers (can tolerate slightly stale data)
+	ctx = eventstore.WithEventualConsistency(ctx)
 
 	handlers := createAllHandlers(t, wrapper)
 	entities := createTestEntities(t)
@@ -163,6 +177,9 @@ func Test_QueryHandler_Handle_HandlesComplexLendingScenarios(t *testing.T) {
 	// setup
 	ctx, wrapper, cleanup := setupTestEnvironment(t)
 	defer cleanup()
+
+	// Use eventual consistency for query handlers (can tolerate slightly stale data)
+	ctx = eventstore.WithEventualConsistency(ctx)
 
 	handlers := createAllHandlers(t, wrapper)
 	entities := createTestEntities(t)
@@ -221,6 +238,9 @@ func Test_QueryHandler_Handle_IdempotentReturns_ShowsEachLendingOnce(t *testing.
 	ctx, wrapper, cleanup := setupTestEnvironment(t)
 	defer cleanup()
 
+	// Use eventual consistency for query handlers (can tolerate slightly stale data)
+	ctx = eventstore.WithEventualConsistency(ctx)
+
 	handlers := createAllHandlers(t, wrapper)
 	entities := createTestEntities(t)
 	fakeClock := time.Unix(0, 0).UTC()
@@ -254,6 +274,25 @@ func Test_QueryHandler_Handle_IdempotentReturns_ShowsEachLendingOnce(t *testing.
 	assert.Equal(t, entities.book1.String(), result.Lendings[0].BookID, "Should be book1")
 	assert.Equal(t, entities.reader1.String(), result.Lendings[0].ReaderID, "Should be reader1")
 	assert.Equal(t, fakeClock.Add(20*time.Minute), result.Lendings[0].ReturnedAt, "Should show first return time")
+}
+
+func Test_QueryHandler_Handle_WithStrongConsistency_WorksCorrectly(t *testing.T) {
+	// setup
+	ctx, wrapper, cleanup := setupTestEnvironment(t)
+	defer cleanup()
+
+	// Use strong consistency (non-default for query handlers) to verify it still works
+	ctx = eventstore.WithStrongConsistency(ctx)
+
+	handlers := createAllHandlers(t, wrapper)
+
+	// act
+	query := finishedlendings.BuildQuery(0)
+	result, err := handlers.query.Handle(ctx, query)
+
+	// assert
+	assert.NoError(t, err, "Query should succeed with strong consistency")
+	assert.NotNil(t, result, "Should return result")
 }
 
 // Test setup helpers.

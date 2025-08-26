@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/command/addbookcopy"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/command/lendbookcopytoreader"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/command/registerreader"
@@ -40,7 +41,10 @@ func Test_QueryHandler_Handle_ReturnsCorrectBooksSortedByAddedAt(t *testing.T) {
 	ctx, wrapper, cleanup := setupTestEnvironment(t)
 	defer cleanup()
 
-	handlers := createAllCommandHandlers(t, wrapper)
+	// Use eventual consistency for query handlers (can tolerate slightly stale data)
+	ctx = eventstore.WithEventualConsistency(ctx)
+
+	handlers := createAllHandlers(t, wrapper)
 	books := createTestBooks(t)
 	fakeClock := time.Unix(0, 0).UTC()
 
@@ -66,7 +70,10 @@ func Test_QueryHandler_Handle_ReturnsCorrectLendingStatus(t *testing.T) {
 	ctx, wrapper, cleanup := setupTestEnvironment(t)
 	defer cleanup()
 
-	handlers := createAllCommandHandlers(t, wrapper)
+	// Use eventual consistency for query handlers (can tolerate slightly stale data)
+	ctx = eventstore.WithEventualConsistency(ctx)
+
+	handlers := createAllHandlers(t, wrapper)
 	books := createTestBooks(t)
 	readers := createTestReaders(t)
 	fakeClock := time.Unix(0, 0).UTC()
@@ -98,7 +105,10 @@ func Test_QueryHandler_Handle_ExcludesRemovedBooks(t *testing.T) {
 	ctx, wrapper, cleanup := setupTestEnvironment(t)
 	defer cleanup()
 
-	handlers := createAllCommandHandlers(t, wrapper)
+	// Use eventual consistency for query handlers (can tolerate slightly stale data)
+	ctx = eventstore.WithEventualConsistency(ctx)
+
+	handlers := createAllHandlers(t, wrapper)
 	books := createTestBooks(t)
 	fakeClock := time.Unix(0, 0).UTC()
 
@@ -136,7 +146,10 @@ func Test_QueryHandler_Handle_IncludesReturnedBooksAsAvailable(t *testing.T) {
 	ctx, wrapper, cleanup := setupTestEnvironment(t)
 	defer cleanup()
 
-	handlers := createAllCommandHandlers(t, wrapper)
+	// Use eventual consistency for query handlers (can tolerate slightly stale data)
+	ctx = eventstore.WithEventualConsistency(ctx)
+
+	handlers := createAllHandlers(t, wrapper)
 	books := createTestBooks(t)
 	readers := createTestReaders(t)
 	fakeClock := time.Unix(0, 0).UTC()
@@ -186,7 +199,10 @@ func Test_QueryHandler_Handle_ReturnsEmptyResult_WhenNoBooksInCirculation(t *tes
 	ctx, wrapper, cleanup := setupTestEnvironment(t)
 	defer cleanup()
 
-	handlers := createAllCommandHandlers(t, wrapper)
+	// Use eventual consistency for query handlers (can tolerate slightly stale data)
+	ctx = eventstore.WithEventualConsistency(ctx)
+
+	handlers := createAllHandlers(t, wrapper)
 
 	// act
 	result, err := handlers.query.Handle(ctx, booksincirculation.BuildQuery())
@@ -202,7 +218,10 @@ func Test_QueryHandler_Handle_ReturnsCorrectResult_WhenAllBooksAreRemoved(t *tes
 	ctx, wrapper, cleanup := setupTestEnvironment(t)
 	defer cleanup()
 
-	handlers := createAllCommandHandlers(t, wrapper)
+	// Use eventual consistency for query handlers (can tolerate slightly stale data)
+	ctx = eventstore.WithEventualConsistency(ctx)
+
+	handlers := createAllHandlers(t, wrapper)
 	books := createTestBooks(t)
 	fakeClock := time.Unix(0, 0).UTC()
 
@@ -235,6 +254,30 @@ func Test_QueryHandler_Handle_ReturnsCorrectResult_WhenAllBooksAreRemoved(t *tes
 	assert.Len(t, result.Books, 0, "Should return empty Books slice after all are removed")
 }
 
+func Test_QueryHandler_Handle_WorksWithStrongConsistency(t *testing.T) {
+	// setup
+	ctx, wrapper, cleanup := setupTestEnvironment(t)
+	defer cleanup()
+
+	// Use strong consistency (non-default for query handlers) to verify it still works
+	ctx = eventstore.WithStrongConsistency(ctx)
+
+	handlers := createAllHandlers(t, wrapper)
+	books := createTestBooks(t)
+	fakeClock := time.Unix(0, 0).UTC()
+
+	// arrange - add some books
+	addBooksToLibrary(t, handlers, books, fakeClock)
+
+	// act
+	result, err := handlers.query.Handle(ctx, booksincirculation.BuildQuery())
+
+	// assert - should work the same as with eventual consistency
+	assert.NoError(t, err, "Query should succeed with strong consistency")
+	assert.Equal(t, 4, result.Count, "Should have 4 books in circulation")
+	assert.Len(t, result.Books, 4, "Should return 4 books")
+}
+
 // Test setup helpers.
 func setupTestEnvironment(t *testing.T) (context.Context, Wrapper, func()) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -249,7 +292,7 @@ func setupTestEnvironment(t *testing.T) (context.Context, Wrapper, func()) {
 	return ctxWithTimeout, wrapper, cleanup
 }
 
-func createAllCommandHandlers(t *testing.T, wrapper Wrapper) testHandlers {
+func createAllHandlers(t *testing.T, wrapper Wrapper) testHandlers {
 	addBookHandler, err := addbookcopy.NewCommandHandler(wrapper.GetEventStore())
 	assert.NoError(t, err, "Should create AddBookCopy handler")
 

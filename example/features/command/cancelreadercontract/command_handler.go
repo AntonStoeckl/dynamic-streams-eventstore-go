@@ -97,6 +97,10 @@ func (h CommandHandler) Handle(ctx context.Context, command Command) error {
 func (h CommandHandler) executeCommand(ctx context.Context, command Command) error {
 	filter := BuildEventFilter(command.ReaderID)
 
+	// Ensure strong consistency for command handlers - they need to see their own writes
+	// in the read-check-write pattern to avoid concurrency conflicts from replica lag
+	ctx = eventstore.WithStrongConsistency(ctx)
+
 	// Query phase
 	queryStart := time.Now()
 	storableEvents, maxSequenceNumber, err := h.eventStore.Query(ctx, filter)
