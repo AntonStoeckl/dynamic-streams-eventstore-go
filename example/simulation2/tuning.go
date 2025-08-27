@@ -20,12 +20,9 @@ const (
 
 	// ACTOR POOL CONFIGURATION ...
 
-	// MinActiveReaders defines the minimum scale limit.
-	MinActiveReaders = 50
-
-	// DefaultMaxActiveReaders defines the default upper safety limit for active readers.
-	// This also serves as the initial starting point.
-	DefaultMaxActiveReaders = 300
+	// DefaultActiveReaders defines the number of active readers for the simulation.
+	// This is configurable via the command line.
+	DefaultActiveReaders = 100
 
 	// DefaultLibrarianCount defines the default number of librarian staff (Acquisitions and Maintenance roles).
 	DefaultLibrarianCount = 8
@@ -95,22 +92,16 @@ const (
 	// ClearanceBurstSize defines the number of books removed during clearance bursts.
 	ClearanceBurstSize = 15
 
-	// AUTO-TUNING SYSTEM ...
-
-	// TargetAvgLatencyMs defines the acceptable average latency per operation in milliseconds.
-	TargetAvgLatencyMs = 70
-
-	// MaxTimeoutRate defines the timeout threshold as a percentage.
-	MaxTimeoutRate = 0.001
-
-	// ScaleUpIncrement defines the number of readers to add when performing well.
-	ScaleUpIncrement = 10
-
-	// ScaleDownIncrement defines the number of readers to remove when overloaded.
-	ScaleDownIncrement = 20
+	// PERFORMANCE MEASUREMENT ...
 
 	// RollingWindowSize defines the number of recent batches used for rolling average calculations.
-	RollingWindowSize = 10
+	RollingWindowSize = 100
+
+	// IDEMPOTENCY TESTING ...
+
+	// IdempotentOperationProbability defines the chance to repeat a successful operation
+	// for testing idempotency handling in the EventStore.
+	IdempotentOperationProbability = 0.003 // 0.3% chance to repeat successful operations
 
 	// BATCH PROCESSING CONFIGURATION ...
 

@@ -41,10 +41,8 @@ type Simulation struct {
 	recentBatches   []BatchMetrics
 	maxBatchHistory int
 
-	// Auto-tuning state
+	// Simulation configuration
 	targetActiveCount        int
-	consecutiveGoodCycles    int
-	consecutiveBadCycles     int
 	lastPopulationAdjustment time.Time
 
 	// Statistics
@@ -56,6 +54,7 @@ type BatchMetrics struct {
 	OperationCount     int
 	OperationLatencies []time.Duration
 	TimeoutCount       int
+	IdempotentCount    int
 	BatchDuration      time.Duration
 	Timestamp          time.Time
 }
@@ -65,6 +64,7 @@ type batchResult struct {
 	operationCount     int
 	operationLatencies []time.Duration
 	timeoutCount       int
+	idempotentCount    int
 	readersProcessed   int
 }
 
@@ -72,14 +72,11 @@ type batchResult struct {
 type PerformanceStats struct {
 	TotalCycles                int64
 	TotalOperations            int64
-	AutoTuneAdjustments        int64
-	ScaleUpEvents              int64
-	ScaleDownEvents            int64
+	TotalIdempotentOperations  int64
 	CurrentActiveReaders       int
 	CurrentAvgLatencyMs        int64
 	CurrentThroughputOpsPerSec float64
 	TimeoutRate                float64
-	LastAdjustmentReason       string
 
 	// Rolling window averages and metadata
 	RollingAvgLatencyMs        int64
@@ -105,13 +102,13 @@ func NewSimulation(
 		cfg:        cfg,
 		stopChan:   make(chan struct{}),
 
-		activeReaders:   make([]*ReaderActor, 0, cfg.MaxActiveReaders),
+		activeReaders:   make([]*ReaderActor, 0, cfg.ActiveReaders),
 		inactiveReaders: make([]*ReaderActor, 0, MaxReaders),
 		librarians:      make([]*LibrarianActor, 0, cfg.LibrarianCount),
 
-		recentBatches:            make([]BatchMetrics, 0, 10),
-		maxBatchHistory:          10,
-		targetActiveCount:        cfg.MaxActiveReaders,
+		recentBatches:            make([]BatchMetrics, 0, RollingWindowSize),
+		maxBatchHistory:          RollingWindowSize,
+		targetActiveCount:        cfg.ActiveReaders,
 		lastPopulationAdjustment: time.Now(),
 	}
 
@@ -187,8 +184,7 @@ func (s *Simulation) initializeActorPools() error {
 // Start begins the simulation loop.
 func (s *Simulation) Start(cfg Config) error {
 	log.Printf("%s %s", Success("🚀"), Success("Starting simulation..."))
-	log.Printf("🎯 Auto-tune targets: avg<%dms/op, timeouts<%.1f%%",
-		TargetAvgLatencyMs, MaxTimeoutRate*100)
+	log.Printf("📊 Performance measurement with rolling window (%d batches)", RollingWindowSize)
 
 	// Run the main simulation loop
 	return s.runMainLoop(cfg)
@@ -212,7 +208,7 @@ func (s *Simulation) Stop() error {
 // runMainLoop is the single, sequential loop that handles everything.
 func (s *Simulation) runMainLoop(cfg Config) error {
 	cycleNum := int64(0)
-	log.Printf("%s %s", AutoTune("🔄"), AutoTune("Main simulation loop started"))
+	log.Printf("🔄 Main simulation loop started")
 
 	for {
 		select {
@@ -230,8 +226,8 @@ func (s *Simulation) runMainLoop(cfg Config) error {
 			batchMetrics := s.processBatch(cfg, cycleNum)
 			s.recordBatchMetrics(batchMetrics)
 
-			// Every batch: Auto-tuning (immediate feedback)
-			s.autoTuneFromRecentMetrics()
+			// Update performance metrics for display (no auto-tuning)
+			s.updatePerformanceMetrics()
 
 			// Every batch: Librarians work
 			s.processLibrarians(cycleNum)
@@ -271,7 +267,7 @@ func (s *Simulation) processBatch(cfg Config, cycleNum int64) BatchMetrics {
 	log.Printf("📊 Cycle #%d started", cycleNum+1)
 
 	// Execute worker pool and collect results
-	totalOperations, allLatencies, timeoutCount, batchTimedOut, numWorkers := s.executeWorkerPool(batchCtx, cfg, cycleNum)
+	totalOperations, allLatencies, timeoutCount, totalIdempotent, batchTimedOut, numWorkers := s.executeWorkerPool(batchCtx, cfg, cycleNum)
 
 	batchDuration := time.Since(batchStart)
 
@@ -282,13 +278,14 @@ func (s *Simulation) processBatch(cfg Config, cycleNum int64) BatchMetrics {
 		OperationCount:     totalOperations,
 		OperationLatencies: allLatencies,
 		TimeoutCount:       timeoutCount,
+		IdempotentCount:    totalIdempotent,
 		BatchDuration:      batchDuration,
 		Timestamp:          batchStart,
 	}
 }
 
 // executeWorkerPool sets up worker pool, processes readers, and collects results.
-func (s *Simulation) executeWorkerPool(batchCtx context.Context, cfg Config, cycleNum int64) (int, []time.Duration, int, bool, int) {
+func (s *Simulation) executeWorkerPool(batchCtx context.Context, cfg Config, cycleNum int64) (int, []time.Duration, int, int, bool, int) {
 	// Create channels for work distribution (no locks needed!)
 	numWorkers := cfg.Workers
 
@@ -320,15 +317,18 @@ func (s *Simulation) executeWorkerPool(batchCtx context.Context, cfg Config, cyc
 
 	// Collect results from workers (channel-based, no locks!)
 	totalOperations := 0
+	totalIdempotent := 0
 	var allLatencies []time.Duration
 	timeoutCount := 0
 	batchTimedOut := false
 
 	for result := range resultChan {
 		totalOperations += result.operationCount
+		totalIdempotent += result.idempotentCount
 		allLatencies = append(allLatencies, result.operationLatencies...)
 		timeoutCount += result.timeoutCount
 		s.stats.TotalOperations += int64(result.operationCount)
+		s.stats.TotalIdempotentOperations += int64(result.idempotentCount)
 
 		// Check for batch timeout during the result collection
 		if batchCtx.Err() != nil && !batchTimedOut {
@@ -338,7 +338,7 @@ func (s *Simulation) executeWorkerPool(batchCtx context.Context, cfg Config, cyc
 		}
 	}
 
-	return totalOperations, allLatencies, timeoutCount, batchTimedOut, numWorkers
+	return totalOperations, allLatencies, timeoutCount, totalIdempotent, batchTimedOut, numWorkers
 }
 
 // logBatchCompletion logs the completion of a batch with performance metrics.
@@ -365,11 +365,11 @@ func (s *Simulation) logBatchCompletion(
 }
 
 // =================================================================
-// AUTO-TUNING LOGIC - Immediate feedback from recent metrics
+// PERFORMANCE METRICS - Rolling window calculation for display
 // =================================================================
 
-// autoTuneFromRecentMetrics analyzes recent batch metrics and adjusts the active reader count.
-func (s *Simulation) autoTuneFromRecentMetrics() {
+// updatePerformanceMetrics calculates and updates performance metrics for display.
+func (s *Simulation) updatePerformanceMetrics() {
 	// Calculate current performance from the latest batch
 	avgLatency, throughput := s.calculateLatestBatchMetrics()
 	timeoutRate := s.calculateTimeoutRateFromBatches()
@@ -385,18 +385,6 @@ func (s *Simulation) autoTuneFromRecentMetrics() {
 	s.stats.RollingThroughputOpsPerSec = rollingMetrics.Throughput
 	s.stats.RollingWindowSize = rollingMetrics.WindowSize
 	s.stats.RollingTimeSpan = rollingMetrics.TimeSpan
-
-	// Determine performance state
-	performanceGood := s.isPerformanceGood(avgLatency, timeoutRate)
-	performanceBad := s.isPerformanceBad(avgLatency, timeoutRate)
-
-	// Calculate the adjustment
-	adjustment, reason := s.calculateAdjustment(performanceGood, performanceBad)
-
-	// Apply adjustment if needed
-	if adjustment != 0 {
-		s.applyAdjustment(adjustment, reason)
-	}
 }
 
 // recordBatchMetrics adds batch metrics to the recent history.
@@ -537,77 +525,6 @@ func formatTimeSpan(duration time.Duration) string {
 // PERFORMANCE EVALUATION - Same logic as before, but simplified
 // =================================================================
 
-// isPerformanceGood determines if the current performance meets targets.
-func (s *Simulation) isPerformanceGood(avgLatency time.Duration, timeoutRate float64) bool {
-	avgLatencyGood := avgLatency < time.Duration(TargetAvgLatencyMs)*time.Millisecond
-	timeoutGood := timeoutRate < MaxTimeoutRate
-
-	return avgLatencyGood && timeoutGood
-}
-
-// isPerformanceBad determines if the current performance is unacceptable.
-func (s *Simulation) isPerformanceBad(avgLatency time.Duration, timeoutRate float64) bool {
-	// Use 1.1x the target as a "bad" threshold (simplified from MaxFactorForBadPerformance)
-	badFactor := 1.1
-	avgLatencyBad := avgLatency > time.Duration(float64(TargetAvgLatencyMs)*badFactor)*time.Millisecond
-	timeoutBad := timeoutRate > MaxTimeoutRate*badFactor
-
-	return avgLatencyBad || timeoutBad
-}
-
-// calculateAdjustment determines the adjustment needed based on performance.
-func (s *Simulation) calculateAdjustment(performanceGood, performanceBad bool) (adjustment int, reason string) {
-	switch {
-	case performanceGood && !performanceBad:
-		s.consecutiveGoodCycles++
-		s.consecutiveBadCycles = 0
-
-		if s.consecutiveGoodCycles >= 2 {
-			adjustment = ScaleUpIncrement
-			reason = "good performance"
-			s.consecutiveGoodCycles = 0
-		}
-
-	case performanceBad:
-		s.consecutiveBadCycles++
-		s.consecutiveGoodCycles = 0
-
-		if s.consecutiveBadCycles >= 2 {
-			adjustment = -ScaleDownIncrement
-			reason = "performance degradation"
-			s.consecutiveBadCycles = 0
-		}
-
-	default:
-		s.consecutiveGoodCycles = 0
-		s.consecutiveBadCycles = 0
-		reason = "performance stable"
-	}
-
-	return adjustment, reason
-}
-
-// applyAdjustment adjusts the active reader count.
-func (s *Simulation) applyAdjustment(adjustment int, reason string) {
-	currentCount := len(s.activeReaders)
-	newCount := max(MinActiveReaders, min(currentCount+adjustment, s.cfg.MaxActiveReaders))
-
-	if newCount != currentCount {
-		s.adjustActiveReaderCount(newCount)
-
-		if adjustment > 0 {
-			s.stats.ScaleUpEvents++
-			log.Printf("%s %s", AutoTune("📈"), AutoTune(fmt.Sprintf("AUTO-TUNE: Scaled UP to %d active readers (%s)", newCount, reason)))
-		} else {
-			s.stats.ScaleDownEvents++
-			log.Printf("%s %s", AutoTune("📉"), AutoTune(fmt.Sprintf("AUTO-TUNE: Scaled DOWN to %d active readers (%s)", newCount, reason)))
-		}
-
-		s.stats.AutoTuneAdjustments++
-		s.stats.LastAdjustmentReason = reason
-	}
-}
-
 // rotateActiveReaders swaps ALL active readers to ensure fair participation.
 func (s *Simulation) rotateActiveReaders() {
 	targetCount := len(s.activeReaders)
@@ -684,7 +601,7 @@ func (s *Simulation) selectReaderFromInactive() (*ReaderActor, int) {
 // adjustActiveReaderCount changes the number of active readers.
 func (s *Simulation) adjustActiveReaderCount(targetCount int) {
 	currentCount := len(s.activeReaders)
-	targetCount = max(MinActiveReaders, min(targetCount, s.cfg.MaxActiveReaders))
+	// No bounds checking needed - targetCount is fixed at initialization
 
 	if targetCount > currentCount {
 		// Need more active readers
@@ -713,7 +630,7 @@ func (s *Simulation) adjustActiveReaderCount(targetCount int) {
 		}
 
 		if toActivate > 0 {
-			log.Printf("%s %s", AutoTune("📈"), AutoTune(fmt.Sprintf("Activated %d readers (%d -> %d active)", toActivate, currentCount, len(s.activeReaders))))
+			log.Printf("📈 Activated %d readers (%d -> %d active)", toActivate, currentCount, len(s.activeReaders))
 		}
 
 	} else if targetCount < currentCount {
@@ -741,11 +658,12 @@ func (s *Simulation) processLibrarians(cycleNum int64) {
 			return
 		}
 
-		operationCount, err := librarian.Work(s.ctx, s.handlers, s.state, cycleNum)
+		operationCount, idempotentCount, err := librarian.Work(s.ctx, s.handlers, s.state, cycleNum)
 		if err != nil {
 			log.Printf("⚠️  Librarian %s work failed: %v", librarian.ID, err)
 		}
 		s.stats.TotalOperations += int64(operationCount)
+		s.stats.TotalIdempotentOperations += int64(idempotentCount)
 	}
 }
 
@@ -879,7 +797,7 @@ func (s *Simulation) processWorker(
 		if reader.ShouldVisitLibrary() {
 			operationStart := time.Now()
 
-			operationCount, err := reader.VisitLibrary(ctx, s.handlers)
+			operationCount, idempotentCount, err := reader.VisitLibrary(ctx, s.handlers)
 			operationDuration := time.Since(operationStart)
 
 			if err != nil {
@@ -895,6 +813,7 @@ func (s *Simulation) processWorker(
 					result.operationLatencies = append(result.operationLatencies, operationDuration/time.Duration(operationCount))
 				}
 				result.operationCount += operationCount
+				result.idempotentCount += idempotentCount
 			}
 		}
 
@@ -930,9 +849,9 @@ func (s *Simulation) logPerformance() {
 	// Build the performance log: Performance | Rolling | Books | Readers
 	perfMsg := fmt.Sprintf("%s | %s | %s | %s",
 		// Current performance (BrightBlue)
-		Performance(fmt.Sprintf("Performance: avg=%dms/op, %.1f ops/sec, t/o=%.1f%%, active=%d readers",
+		Performance(fmt.Sprintf("Performance: avg=%dms/op, %.1f ops/sec, t/o=%.1f%%, idem=%.1f%%, active=%d readers",
 			s.stats.CurrentAvgLatencyMs, s.stats.CurrentThroughputOpsPerSec,
-			s.stats.TimeoutRate*100, len(s.activeReaders))),
+			s.stats.TimeoutRate*100, s.calculateIdempotentRate()*100, len(s.activeReaders))),
 
 		// Rolling average (Cyan - different blue shade)
 		Cyan(fmt.Sprintf("Rolling(%d: %s): avg=%dms/op, %.1f ops/sec",
@@ -947,4 +866,12 @@ func (s *Simulation) logPerformance() {
 		Magenta(fmt.Sprintf("Readers: %d", totalReaders)))
 
 	log.Printf("%s %s", Performance("🎯"), perfMsg)
+}
+
+// calculateIdempotentRate calculates the actual idempotent operation rate as a percentage.
+func (s *Simulation) calculateIdempotentRate() float64 {
+	if s.stats.TotalOperations == 0 {
+		return 0.0
+	}
+	return float64(s.stats.TotalIdempotentOperations) / float64(s.stats.TotalOperations)
 }

@@ -19,7 +19,7 @@ import (
 type Config struct {
 	ObservabilityEnabled bool
 	Workers              int
-	MaxActiveReaders     int
+	ActiveReaders        int
 	LibrarianCount       int
 }
 
@@ -33,10 +33,10 @@ type ObservabilityConfig struct {
 
 func parseFlags() Config {
 	var (
-		observability    = flag.Bool("observability-enabled", false, "Enable OpenTelemetry observability")
-		workers          = flag.Int("workers", DefaultConcurrentWorkers, "Number of concurrent workers")
-		maxActiveReaders = flag.Int("max-readers", DefaultMaxActiveReaders, "Maximum number of active readers")
-		librarianCount   = flag.Int("librarian-count", DefaultLibrarianCount, "Number of librarian staff")
+		observability  = flag.Bool("observability-enabled", false, "Enable OpenTelemetry observability")
+		workers        = flag.Int("workers", DefaultConcurrentWorkers, "Number of concurrent workers")
+		activeReaders  = flag.Int("active-readers", DefaultActiveReaders, "Number of active readers")
+		librarianCount = flag.Int("librarian-count", DefaultLibrarianCount, "Number of librarian staff")
 	)
 
 	flag.Parse()
@@ -44,7 +44,7 @@ func parseFlags() Config {
 	return Config{
 		ObservabilityEnabled: *observability,
 		Workers:              *workers,
-		MaxActiveReaders:     *maxActiveReaders,
+		ActiveReaders:        *activeReaders,
 		LibrarianCount:       *librarianCount,
 	}
 }

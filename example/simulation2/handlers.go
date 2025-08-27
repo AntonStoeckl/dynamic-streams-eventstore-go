@@ -105,9 +105,6 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 		func(_ booksincirculation.Query) eventstore.Filter {
 			return booksincirculation.BuildEventFilter()
 		},
-		func(queryType string, _ booksincirculation.Query) string {
-			return queryType
-		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create BooksInCirculation snapshot wrapper: %w", err)
@@ -126,9 +123,6 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 		bookslentbyreader.Project,
 		func(q bookslentbyreader.Query) eventstore.Filter {
 			return bookslentbyreader.BuildEventFilter(q.ReaderID)
-		},
-		func(queryType string, q bookslentbyreader.Query) string {
-			return queryType + ":" + q.ReaderID.String()
 		},
 	)
 	if err != nil {
@@ -149,9 +143,6 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 		func(_ bookslentout.Query) eventstore.Filter {
 			return bookslentout.BuildEventFilter()
 		},
-		func(queryType string, _ bookslentout.Query) string {
-			return queryType
-		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create BooksLentOut snapshot wrapper: %w", err)
@@ -170,9 +161,6 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 		registeredreaders.Project,
 		func(_ registeredreaders.Query) eventstore.Filter {
 			return registeredreaders.BuildEventFilter()
-		},
-		func(queryType string, _ registeredreaders.Query) string {
-			return queryType
 		},
 	)
 	if err != nil {

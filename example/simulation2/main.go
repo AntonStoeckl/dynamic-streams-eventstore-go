@@ -99,14 +99,12 @@ func logDBAdapter() {
 
 func logSimulationConfiguration(cfg Config) {
 	log.Printf("📊 Simulation Configuration:")
-	log.Printf("  - Active Readers: %d (initial), %d-%d (auto-tuned)",
-		cfg.MaxActiveReaders, MinActiveReaders, cfg.MaxActiveReaders)
+	log.Printf("  - Active Readers: %d (fixed)",
+		cfg.ActiveReaders)
 	log.Printf("  - Population: %d-%d readers, %d-%d books",
 		MinReaders, MaxReaders, MinBooks, MaxBooks)
 	log.Printf("  - Concurrent Workers: %d", cfg.Workers)
 	log.Printf("  - Librarian Staff: %d", cfg.LibrarianCount)
-	log.Printf("  - Auto-tuning: avg<%dms/op target",
-		TargetAvgLatencyMs)
 }
 
 func initializeSimulation(ctx context.Context, eventStore *postgresengine.EventStore, cfg Config) (*HandlerBundle, *Simulation, error) {
@@ -140,7 +138,7 @@ func logStartup() {
 	time.Sleep(time.Duration(SetupPhaseDelaySeconds) * time.Second)
 
 	log.Printf("🚀 Simulation starting...")
-	log.Printf("💡 Immediate auto-tuning after every batch")
+	log.Printf("📊 Performance measurement with rolling window enabled")
 	log.Printf("Press Ctrl+C to stop...")
 }
 

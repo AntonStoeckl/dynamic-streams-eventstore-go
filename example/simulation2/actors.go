@@ -77,26 +77,28 @@ func (r *ReaderActor) ShouldVisitLibrary() bool {
 }
 
 // VisitLibrary simulates a complete library visit with natural flow.
-// Returns the number of operations performed and any error.
-func (r *ReaderActor) VisitLibrary(ctx context.Context, handlers *HandlerBundle) (int, error) {
+// Returns the number of operations performed, idempotent operations, and any error.
+func (r *ReaderActor) VisitLibrary(ctx context.Context, handlers *HandlerBundle) (int, int, error) {
 	r.Location = Library
 	r.Lifecycle = Active
 	r.LastActivity = time.Now()
 
 	totalOperations := 0
+	totalIdempotent := 0
 	hadBooksToReturn := len(r.BorrowedBooks) > 0
 
 	// Phase 1: Return books if any (natural behavior - people return their books)
 	if hadBooksToReturn {
-		returnOps, err := r.returnBooks(ctx, handlers)
+		returnOps, returnIdem, err := r.returnBooks(ctx, handlers)
 		if err != nil {
 			// Only propagate technical errors (timeouts, cancellations)
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				return 0, err
+				return 0, 0, err
 			}
 			// Business failures are handled gracefully - continue with the visit
 		}
 		totalOperations += returnOps
+		totalIdempotent += returnIdem
 	}
 
 	// Phase 2: Decide whether to browse for new books (natural probabilities)
@@ -110,15 +112,16 @@ func (r *ReaderActor) VisitLibrary(ctx context.Context, handlers *HandlerBundle)
 	}
 
 	if shouldBrowse {
-		borrowOps, err := r.browseAndBorrow(ctx, handlers)
+		borrowOps, borrowIdem, err := r.browseAndBorrow(ctx, handlers)
 		if err != nil {
 			// Only propagate technical errors (timeouts, cancellations)
 			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				return totalOperations, err
+				return totalOperations, totalIdempotent, err
 			}
 			// Business failures are handled gracefully - continue with the visit
 		}
 		totalOperations += borrowOps
+		totalIdempotent += borrowIdem
 	}
 
 	// Phase 3: Leave the library
@@ -126,14 +129,14 @@ func (r *ReaderActor) VisitLibrary(ctx context.Context, handlers *HandlerBundle)
 	r.Lifecycle = AtHome
 	r.LastActivity = time.Now()
 
-	return totalOperations, nil
+	return totalOperations, totalIdempotent, nil
 }
 
 // returnBooks handles returning all or some of the reader's borrowed books.
-// Returns the number of operations performed and any error.
-func (r *ReaderActor) returnBooks(ctx context.Context, handlers *HandlerBundle) (int, error) {
+// Returns the number of operations performed, idempotent operations, and any error.
+func (r *ReaderActor) returnBooks(ctx context.Context, handlers *HandlerBundle) (int, int, error) {
 	if len(r.BorrowedBooks) == 0 {
-		return 0, nil
+		return 0, 0, nil
 	}
 
 	// Decide how many books to return (fuzzy realistic behavior)
@@ -149,7 +152,7 @@ func (r *ReaderActor) returnBooks(ctx context.Context, handlers *HandlerBundle) 
 		// Keep 1-2 books, return the rest
 		keepCount := 1 + rand.Intn(2) //nolint:gosec // Weak random OK for simulation - Keep 1 or 2
 		if keepCount >= len(r.BorrowedBooks) {
-			return 0, nil // Keep all books
+			return 0, 0, nil // Keep all books
 		}
 
 		returnCount := len(r.BorrowedBooks) - keepCount
@@ -160,6 +163,7 @@ func (r *ReaderActor) returnBooks(ctx context.Context, handlers *HandlerBundle) 
 
 	// Execute return commands through command handlers - handle failures gracefully
 	operationCount := 0
+	idempotentCount := 0
 	successfulReturns := make([]uuid.UUID, 0, len(booksToReturn))
 
 	for _, bookID := range booksToReturn {
@@ -169,6 +173,16 @@ func (r *ReaderActor) returnBooks(ctx context.Context, handlers *HandlerBundle) 
 		}
 		operationCount++
 		successfulReturns = append(successfulReturns, bookID)
+
+		// Test idempotency by occasionally repeating successful operations
+		if rand.Float64() < IdempotentOperationProbability { //nolint:gosec // Weak random OK for simulation
+			if err := handlers.ExecuteReturnBook(ctx, bookID, r.ID); err != nil {
+				// Some returns might fail if the state was inconsistent - skip and continue
+				continue
+			}
+			operationCount++  // Count as a regular operation
+			idempotentCount++ // Also count as idempotent
+		}
 	}
 
 	// NOW update state based ONLY on what actually succeeded
@@ -189,16 +203,16 @@ func (r *ReaderActor) returnBooks(ctx context.Context, handlers *HandlerBundle) 
 	r.BorrowedBooks = updatedBorrowedBooks
 
 	// Never return error for business failures - system must continue operating
-	return operationCount, nil
+	return operationCount, idempotentCount, nil
 }
 
 // browseAndBorrow handles book selection and borrowing.
-// Returns the number of operations performed and any error.
-func (r *ReaderActor) browseAndBorrow(ctx context.Context, handlers *HandlerBundle) (int, error) {
+// Returns the number of operations performed, idempotent operations, and any error.
+func (r *ReaderActor) browseAndBorrow(ctx context.Context, handlers *HandlerBundle) (int, int, error) {
 	// Don't borrow if the reader has too many books already
 	availableSlots := MaxBooksPerReader - len(r.BorrowedBooks)
 	if availableSlots <= 0 {
-		return 0, nil
+		return 0, 0, nil
 	}
 
 	// Decide how many books to borrow
@@ -210,12 +224,12 @@ func (r *ReaderActor) browseAndBorrow(ctx context.Context, handlers *HandlerBund
 	// Get current available books from the simulation state.
 	state := handlers.GetSimulationState()
 	if state == nil {
-		return 0, nil // No state available, can't borrow books.
+		return 0, 0, nil // No state available, can't borrow books.
 	}
 
 	availableBooks := state.GetAvailableBooks()
 	if len(availableBooks) == 0 {
-		return 0, nil // No books available to borrow.
+		return 0, 0, nil // No books available to borrow.
 	}
 
 	// Browse the shelves for interesting books.
@@ -243,6 +257,7 @@ func (r *ReaderActor) browseAndBorrow(ctx context.Context, handlers *HandlerBund
 
 	// Execute borrow commands through command handlers - handle failures gracefully
 	operationCount := 0
+	idempotentCount := 0
 	successfulBorrows := make([]uuid.UUID, 0, len(booksToBorrow))
 
 	for _, bookID := range booksToBorrow {
@@ -253,13 +268,23 @@ func (r *ReaderActor) browseAndBorrow(ctx context.Context, handlers *HandlerBund
 		}
 		operationCount++
 		successfulBorrows = append(successfulBorrows, bookID)
+
+		// Test idempotency by occasionally repeating successful operations
+		if rand.Float64() < IdempotentOperationProbability { //nolint:gosec // Weak random OK for simulation
+			if err := handlers.ExecuteLendBook(ctx, bookID, r.ID); err != nil {
+				// Some lending might fail if the state was inconsistent - skip and continue
+				continue
+			}
+			operationCount++  // Count as a regular operation
+			idempotentCount++ // Also count as idempotent
+		}
 	}
 
 	// Only update reader state with books that were ACTUALLY borrowed successfully
 	r.BorrowedBooks = append(r.BorrowedBooks, successfulBorrows...)
 
 	// Never return error for business failures - system must continue operating
-	return operationCount, nil
+	return operationCount, idempotentCount, nil
 }
 
 // ShouldCancelContract determines if this reader wants to cancel their library contract using dynamic probability.
@@ -299,8 +324,8 @@ func NewLibrarianActor(role LibrarianRole) *LibrarianActor {
 }
 
 // Work performs librarian duties using a dynamic probability system with momentum, waves, and bursts.
-// Returns the number of operations performed and any error.
-func (l *LibrarianActor) Work(ctx context.Context, handlers *HandlerBundle, state *SimulationState, cycleNum int64) (int, error) {
+// Returns the number of operations performed, idempotent operations, and any error.
+func (l *LibrarianActor) Work(ctx context.Context, handlers *HandlerBundle, state *SimulationState, cycleNum int64) (int, int, error) {
 	// Get current book count for dynamic probability calculations
 	currentBooks := state.GetStats().TotalBooks
 
@@ -316,28 +341,29 @@ func (l *LibrarianActor) Work(ctx context.Context, handlers *HandlerBundle, stat
 	switch l.Role {
 	case Acquisitions:
 		if rand.Float64() < addProb { //nolint:gosec // Weak random OK for simulation
-			operationCount, err := l.addBooks(ctx, handlers, 1)
+			operationCount, idempotentCount, err := l.addBooks(ctx, handlers, 1)
 			l.updateMomentum(operationCount > 0, true) // true = addition
-			return operationCount, err
+			return operationCount, idempotentCount, err
 		}
 	case Maintenance:
 		if rand.Float64() < removeProb { //nolint:gosec // Weak random OK for simulation
-			operationCount, err := l.removeBooks(ctx, handlers, 1)
+			operationCount, idempotentCount, err := l.removeBooks(ctx, handlers, 1)
 			l.updateMomentum(operationCount > 0, false) // false = removal
-			return operationCount, err
+			return operationCount, idempotentCount, err
 		}
 	}
 
 	// Decay momentum even when not working
 	l.updateMomentum(false, true) // neutral update
 
-	return 0, nil
+	return 0, 0, nil
 }
 
 // addBooks adds the specified number of books to the collection.
-// Returns the number of operations performed and any error.
-func (l *LibrarianActor) addBooks(ctx context.Context, handlers *HandlerBundle, count int) (int, error) {
+// Returns the number of operations performed, idempotent operations, and any error.
+func (l *LibrarianActor) addBooks(ctx context.Context, handlers *HandlerBundle, count int) (int, int, error) {
 	operationCount := 0
+	idempotentCount := 0
 	for i := 0; i < count; i++ {
 		bookID := uuid.New()
 
@@ -346,29 +372,40 @@ func (l *LibrarianActor) addBooks(ctx context.Context, handlers *HandlerBundle, 
 			continue // Skip failed additions, try the next book
 		}
 		operationCount++
+
+		// Test idempotency by occasionally repeating successful operations
+		if rand.Float64() < IdempotentOperationProbability { //nolint:gosec // Weak random OK for simulation
+			if err := handlers.ExecuteAddBook(ctx, bookID); err != nil {
+				// Skip failed additions, try the next book
+				continue
+			}
+			operationCount++  // Count as a regular operation
+			idempotentCount++ // Also count as idempotent
+		}
 	}
 
-	return operationCount, nil
+	return operationCount, idempotentCount, nil
 }
 
 // removeBooks removes the specified number of available books.
-// Returns the number of operations performed and any error.
-func (l *LibrarianActor) removeBooks(ctx context.Context, handlers *HandlerBundle, count int) (int, error) {
+// Returns the number of operations performed, idempotent operations, and any error.
+func (l *LibrarianActor) removeBooks(ctx context.Context, handlers *HandlerBundle, count int) (int, int, error) {
 	// Get available (not lent) books from the simulation state.
 	state := handlers.GetSimulationState()
 	if state == nil {
-		return 0, fmt.Errorf("no simulation state available for book removal")
+		return 0, 0, fmt.Errorf("no simulation state available for book removal")
 	}
 
 	availableBooks := state.GetAvailableBooks()
 	if len(availableBooks) == 0 {
-		return 0, nil // No available books to remove.
+		return 0, 0, nil // No available books to remove.
 	}
 
 	// Remove up to the requested count but don't exceed available books.
 	actualCount := min(count, len(availableBooks))
 
 	operationCount := 0
+	idempotentCount := 0
 	for i := 0; i < actualCount; i++ {
 		// Select a random available book to remove.
 		randomIndex := rand.Intn(len(availableBooks)) //nolint:gosec // Weak random OK for simulation
@@ -380,11 +417,21 @@ func (l *LibrarianActor) removeBooks(ctx context.Context, handlers *HandlerBundl
 		}
 		operationCount++
 
+		// Test idempotency by occasionally repeating successful operations
+		if rand.Float64() < IdempotentOperationProbability { //nolint:gosec // Weak random OK for simulation
+			if err := handlers.ExecuteRemoveBook(ctx, bookID); err != nil {
+				// Skip failed removals, try the next book
+				continue
+			}
+			operationCount++  // Count as a regular operation
+			idempotentCount++ // Also count as idempotent
+		}
+
 		// Remove from the local list to avoid selecting it again.
 		availableBooks = append(availableBooks[:randomIndex], availableBooks[randomIndex+1:]...)
 	}
 
-	return operationCount, nil
+	return operationCount, idempotentCount, nil
 }
 
 // calculateDynamicProbabilities computes add/remove probabilities using a multi-layered system.
@@ -420,20 +467,20 @@ func (l *LibrarianActor) calculateDynamicProbabilities(currentBooks int, cycleNu
 }
 
 // handleBurstMode manages occasional extreme book management for full range usage.
-func (l *LibrarianActor) handleBurstMode(ctx context.Context, handlers *HandlerBundle, currentBooks int) (int, error) {
+func (l *LibrarianActor) handleBurstMode(ctx context.Context, handlers *HandlerBundle, currentBooks int) (int, int, error) {
 	midpoint := (MinBooks + MaxBooks) / 2
 
 	if currentBooks < midpoint {
 		// Acquisition burst - add many books quickly
-		operationCount, err := l.addBooks(ctx, handlers, AcquisitionBurstSize)
+		operationCount, idempotentCount, err := l.addBooks(ctx, handlers, AcquisitionBurstSize)
 		l.updateMomentum(operationCount > 0, true) // Strong positive momentum
-		return operationCount, err
+		return operationCount, idempotentCount, err
 	}
 
 	// Clearance burst - remove many books quickly
-	operationCount, err := l.removeBooks(ctx, handlers, ClearanceBurstSize)
+	operationCount, idempotentCount, err := l.removeBooks(ctx, handlers, ClearanceBurstSize)
 	l.updateMomentum(operationCount > 0, false) // Strong negative momentum
-	return operationCount, err
+	return operationCount, idempotentCount, err
 }
 
 // updateMomentum adjusts librarian momentum based on recent actions.
@@ -462,8 +509,8 @@ func calculateReaderProbabilities(currentReaders int) (registerProb, cancelProb 
 	position := float64(currentReaders-MinReaders) / readerRange
 
 	// Don't clamp - allow negative/above 1.0 for urgent corrections
-	// position < 0.0 = below minimum (urgent registration needed)
-	// position > 1.0 = above maximum (urgent cancellation needed)
+	// position < 0.0 = below minimum (urgent registration necessary)
+	// position > 1.0 = above maximum (urgent cancellation necessary)
 
 	// Distance-based probabilities with urgency multiplier
 	// Below min (negative position): extra high register, zero cancel
