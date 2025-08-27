@@ -39,7 +39,7 @@ services:
         reservations:
           memory: 1024M
 
-  # Benchmark Master Database - Write Optimized for Replication (4GB allocation)
+  # Benchmark Master Database - Write Optimized for Replication (6GB allocation)
   postgres_benchmark_master:
     image: postgres:17.5-alpine
     container_name: postgres_benchmark_master
@@ -66,7 +66,7 @@ services:
       - "5433:5432"
     networks:
       - postgres-cluster
-    shm_size: '2g'
+    shm_size: '3g'
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U test -d eventstore"]
       interval: 10s
@@ -75,11 +75,11 @@ services:
     deploy:
       resources:
         limits:
-          memory: 4096M
+          memory: 6144M
         reservations:
-          memory: 2048M
+          memory: 3072M
 
-  # Benchmark Replica - Query Optimized (6GB allocation)
+  # Benchmark Replica - Query Optimized (4GB allocation)
   postgres_benchmark_replica:
     image: postgres:17.5-alpine
     container_name: postgres_benchmark_replica
@@ -103,7 +103,7 @@ services:
       - "5434:5432"
     networks:
       - postgres-cluster
-    shm_size: '3g'
+    shm_size: '2g'
     depends_on:
       postgres_benchmark_master:
         condition: service_healthy
@@ -116,6 +116,6 @@ services:
     deploy:
       resources:
         limits:
-          memory: 6144M
+          memory: 4096M
         reservations:
-          memory: 3072M
+          memory: 2048M
