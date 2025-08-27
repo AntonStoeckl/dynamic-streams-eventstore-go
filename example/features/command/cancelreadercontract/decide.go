@@ -9,12 +9,16 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
 
-const failureReasonOutstandingLoans = "reader has outstanding book loans"
+const (
+	failureReasonOutstandingLoans      = "reader has outstanding book loans"
+	failureReasonReaderNeverRegistered = "reader was never registered"
+)
 
 // state represents the current state projected from the event history.
 type state struct {
-	readerIsRegistered   bool
-	outstandingBookLoans map[core.BookIDString]bool
+	readerIsRegistered       bool
+	readerWasNeverRegistered bool
+	outstandingBookLoans     map[core.BookIDString]bool
 }
 
 // Decide implements the business logic to determine whether a reader's contract should be canceled.
@@ -31,12 +35,28 @@ type state struct {
 func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 	s := project(history, command.ReaderID.String())
 
+	if s.readerWasNeverRegistered {
+		event := core.BuildCancelingReaderContractFailed(
+			command.ReaderID,
+			failureReasonReaderNeverRegistered,
+			command.OccurredAt,
+		)
+
+		return core.ErrorDecision(event, errors.New(event.EventType+": "+failureReasonReaderNeverRegistered))
+	}
+
+	// idempotency - the reader is not registered or already canceled, so no new event
 	if !s.readerIsRegistered {
-		return core.IdempotentDecision() // idempotency - the reader is not registered or already canceled, so no new event
+		return core.IdempotentDecision()
 	}
 
 	if len(s.outstandingBookLoans) > 0 {
-		event := core.BuildCancelingReaderContractFailed(command.ReaderID, failureReasonOutstandingLoans, command.OccurredAt)
+		event := core.BuildCancelingReaderContractFailed(
+			command.ReaderID,
+			failureReasonOutstandingLoans,
+			command.OccurredAt,
+		)
+
 		return core.ErrorDecision(event, errors.New(event.EventType+": "+failureReasonOutstandingLoans))
 	}
 
@@ -51,8 +71,9 @@ func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 // project builds the current state by replaying all events from the history.
 func project(history core.DomainEvents, readerID string) state {
 	s := state{
-		readerIsRegistered:   false, // Default to "not registered"
-		outstandingBookLoans: make(map[core.BookIDString]bool),
+		readerIsRegistered:       false, // Default to "not registered"
+		readerWasNeverRegistered: true,  // Default to "never registered"
+		outstandingBookLoans:     make(map[core.BookIDString]bool),
 	}
 
 	for _, event := range history {
@@ -60,11 +81,13 @@ func project(history core.DomainEvents, readerID string) state {
 		case core.ReaderRegistered:
 			if e.ReaderID == readerID {
 				s.readerIsRegistered = true
+				s.readerWasNeverRegistered = false
 			}
 
 		case core.ReaderContractCanceled:
 			if e.ReaderID == readerID {
 				s.readerIsRegistered = false
+				s.readerWasNeverRegistered = false
 			}
 
 		case core.BookCopyLentToReader:

@@ -26,8 +26,9 @@ type state struct {
 func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 	s := project(history, command.ReaderID.String())
 
+	// idempotency - the reader is already registered, so no new event
 	if s.readerIsRegistered {
-		return core.IdempotentDecision() // idempotency - the reader is already registered, so no new event
+		return core.IdempotentDecision()
 	}
 
 	return core.SuccessDecision(

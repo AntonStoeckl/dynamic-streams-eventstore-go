@@ -39,10 +39,6 @@ type state struct {
 func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 	s := project(history, command.BookID.String(), command.ReaderID.String())
 
-	if s.bookIsNotLentToThisReader {
-		return core.IdempotentDecision() // idempotency - the book was already returned by this reader, so no new event
-	}
-
 	// Flexible validation: reader must have been registered at some point (allows cleanup of orphaned data)
 	if s.readerWasNeverRegistered {
 		event := core.BuildReturningBookFromReaderFailed(
@@ -75,6 +71,10 @@ func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 		)
 
 		return core.ErrorDecision(event, errors.New(event.EventType+": "+failureReasonBookNotLentToReader))
+	}
+
+	if s.bookIsNotLentToThisReader {
+		return core.IdempotentDecision() // idempotency - the book was already returned by this reader, so no new event
 	}
 
 	return core.SuccessDecision(

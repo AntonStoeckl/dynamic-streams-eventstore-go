@@ -36,13 +36,13 @@ type state struct {
 func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 	s := project(history, command.BookID.String())
 
-	if s.bookIsNotInCirculation {
-		return core.IdempotentDecision() // idempotency - the book was already removed, so no new event
-	}
-
 	if s.bookWasNeverAddedToCirculation {
 		event := core.BuildRemovingBookFromCirculationFailed(command.BookID, failureReasonBookNeverAddedToCirculation, command.OccurredAt)
 		return core.ErrorDecision(event, errors.New(event.EventType+": "+failureReasonBookNeverAddedToCirculation))
+	}
+
+	if s.bookIsNotInCirculation {
+		return core.IdempotentDecision() // idempotency - the book was already removed, so no new event
 	}
 
 	if s.bookIsCurrentlyLent {

@@ -32,39 +32,63 @@ type state struct {
 //
 // Business Rules:
 //
-//		GIVEN: A book copy with BookID and reader with ReaderID
-//		WHEN: LendBookCopyToReader command is received
-//		THEN: BookCopyLentToReader event is generated
-//		ERROR: "book is not in circulation" if a book not added or was removed
-//		ERROR: "book is already lent" if book currently lent to any reader
-//		ERROR: "reader has too many books" if reader already has 10 books lent
-//	 ERROR: "reader is not currently registered" if reader is not registered
-//		IDEMPOTENCY: If book already lent to this reader, no event generated (no-op)
+//	GIVEN: A book copy with BookID and reader with ReaderID
+//	WHEN: LendBookCopyToReader command is received
+//	THEN: BookCopyLentToReader event is generated
+//	ERROR: "book is not in circulation" if a book not added or was removed
+//	ERROR: "book is already lent" if book currently lent to any reader
+//	ERROR: "reader has too many books" if reader already has 10 books lent
+//	ERROR: "reader is not currently registered" if reader is not registered
+//	IDEMPOTENCY: If book already lent to this reader, no event generated (no-op)
 func Decide(history core.DomainEvents, command Command) core.DecisionResult {
 	s := project(history, command.BookID.String(), command.ReaderID.String())
 
-	if s.bookIsLentToThisReader {
-		return core.IdempotentDecision() // idempotency - the book is already lent to this reader, so no new event
-	}
-
-	// Strict validation: reader must be currently registered (not cancelled)
 	if s.readerIsNotRegistered {
-		event := core.BuildLendingBookToReaderFailed(command.BookID, command.ReaderID, failureReasonReaderNotRegistered, command.OccurredAt)
+		event := core.BuildLendingBookToReaderFailed(
+			command.BookID,
+			command.ReaderID,
+			failureReasonReaderNotRegistered,
+			command.OccurredAt,
+		)
+
 		return core.ErrorDecision(event, errors.New(event.EventType+": "+failureReasonReaderNotRegistered))
 	}
 
 	if s.bookIsNotInCirculation {
-		event := core.BuildLendingBookToReaderFailed(command.BookID, command.ReaderID, failureReasonBookNotInCirculation, command.OccurredAt)
+		event := core.BuildLendingBookToReaderFailed(
+			command.BookID,
+			command.ReaderID,
+			failureReasonBookNotInCirculation,
+			command.OccurredAt,
+		)
+
 		return core.ErrorDecision(event, errors.New(event.EventType+": "+failureReasonBookNotInCirculation))
 	}
 
+	// idempotency - the book is already lent to this reader, so no new event
+	if s.bookIsLentToThisReader {
+		return core.IdempotentDecision()
+	}
+
 	if s.bookIsLentToAnotherReader {
-		event := core.BuildLendingBookToReaderFailed(command.BookID, command.ReaderID, failureReasonBookAlreadyLent, command.OccurredAt)
+		event := core.BuildLendingBookToReaderFailed(
+			command.BookID,
+			command.ReaderID,
+			failureReasonBookAlreadyLent,
+			command.OccurredAt,
+		)
+
 		return core.ErrorDecision(event, errors.New(event.EventType+": "+failureReasonBookAlreadyLent))
 	}
 
 	if s.readerCurrentBookCount >= maxBookLoansAllowedPerReader {
-		event := core.BuildLendingBookToReaderFailed(command.BookID, command.ReaderID, failureReasonReaderTooManyBooks, command.OccurredAt)
+		event := core.BuildLendingBookToReaderFailed(
+			command.BookID,
+			command.ReaderID,
+			failureReasonReaderTooManyBooks,
+			command.OccurredAt,
+		)
+
 		return core.ErrorDecision(event, errors.New(event.EventType+": "+failureReasonReaderTooManyBooks))
 	}
 
