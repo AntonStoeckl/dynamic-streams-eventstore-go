@@ -358,7 +358,7 @@ func (w *GenericSnapshotWrapper[Q, R]) recordQuerySuccess(
 	snapshotStatus string,
 ) {
 	queryType := query.QueryType()
-	shell.RecordQueryMetrics(ctx, w.metricsCollector, queryType, shell.StatusSuccess, duration)
+	shell.RecordQueryMetrics(ctx, w.metricsCollector, queryType, shell.StatusSuccess, duration, snapshotStatus)
 	shell.FinishQuerySpan(w.tracingCollector, span, shell.StatusSuccess, duration, nil)
 
 	// Log success with snapshot status for better observability
@@ -389,7 +389,7 @@ func (w *GenericSnapshotWrapper[Q, R]) recordFallbackAndExecute(
 	queryType := query.QueryType()
 
 	// Record the fallback as a successful operation (since base handler will handle it)
-	shell.RecordQueryMetrics(ctx, w.metricsCollector, queryType, shell.StatusSuccess, duration)
+	shell.RecordQueryMetrics(ctx, w.metricsCollector, queryType, shell.StatusSuccess, duration, fallbackReason)
 	shell.FinishQuerySpan(w.tracingCollector, span, shell.StatusSuccess, duration, nil)
 
 	if w.contextualLogger != nil {

@@ -107,7 +107,7 @@ func WithLogging(logger shell.Logger) Option {
 
 // recordQuerySuccess records successful query execution with observability.
 func (h QueryHandler) recordQuerySuccess(ctx context.Context, duration time.Duration, span shell.SpanContext) {
-	shell.RecordQueryMetrics(ctx, h.metricsCollector, queryType, shell.StatusSuccess, duration)
+	shell.RecordQueryMetrics(ctx, h.metricsCollector, queryType, shell.StatusSuccess, duration, "")
 	shell.FinishQuerySpan(h.tracingCollector, span, shell.StatusSuccess, duration, nil)
 	shell.LogQuerySuccess(ctx, h.logger, h.contextualLogger, queryType, shell.StatusSuccess, duration)
 }
@@ -124,21 +124,21 @@ func (h QueryHandler) recordQueryError(ctx context.Context, err error, duration 
 		return
 	}
 
-	shell.RecordQueryMetrics(ctx, h.metricsCollector, queryType, shell.StatusError, duration)
+	shell.RecordQueryMetrics(ctx, h.metricsCollector, queryType, shell.StatusError, duration, "")
 	shell.FinishQuerySpan(h.tracingCollector, span, shell.StatusError, duration, err)
 	shell.LogQueryError(ctx, h.logger, h.contextualLogger, queryType, err)
 }
 
 // recordQueryCancelled records canceled query execution with observability.
 func (h QueryHandler) recordQueryCancelled(ctx context.Context, err error, duration time.Duration, span shell.SpanContext) {
-	shell.RecordQueryMetrics(ctx, h.metricsCollector, queryType, shell.StatusCanceled, duration)
+	shell.RecordQueryMetrics(ctx, h.metricsCollector, queryType, shell.StatusCanceled, duration, "")
 	shell.FinishQuerySpan(h.tracingCollector, span, shell.StatusCanceled, duration, err)
 	shell.LogQueryError(ctx, h.logger, h.contextualLogger, queryType, err)
 }
 
 // recordQueryTimeout records timeout query execution with observability.
 func (h QueryHandler) recordQueryTimeout(ctx context.Context, err error, duration time.Duration, span shell.SpanContext) {
-	shell.RecordQueryMetrics(ctx, h.metricsCollector, queryType, shell.StatusTimeout, duration)
+	shell.RecordQueryMetrics(ctx, h.metricsCollector, queryType, shell.StatusTimeout, duration, "")
 	shell.FinishQuerySpan(h.tracingCollector, span, shell.StatusTimeout, duration, err)
 	shell.LogQueryError(ctx, h.logger, h.contextualLogger, queryType, err)
 }

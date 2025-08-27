@@ -224,6 +224,9 @@ const (
 	// LogAttrSnapshotStatus indicates the snapshot operation status (hit/miss).
 	LogAttrSnapshotStatus = "snapshot_status"
 
+	// LogAttrSnapshotReason indicates the reason for snapshot operation outcome.
+	LogAttrSnapshotReason = "snapshot_reason"
+
 	// LogAttrReason indicates the reason for a fallback or failure.
 	LogAttrReason = "reason"
 
@@ -409,12 +412,18 @@ func RecordQueryMetrics(
 	queryType string,
 	status string,
 	duration time.Duration,
+	snapshotReason string,
 ) {
 	if collector == nil {
 		return
 	}
 
 	labels := BuildQueryLabels(queryType, status)
+
+	// Add the snapshot_reason label if provided
+	if snapshotReason != "" {
+		labels[LogAttrSnapshotReason] = snapshotReason
+	}
 
 	// Record duration metric
 	if contextualCollector, ok := collector.(ContextualMetricsCollector); ok {
@@ -428,6 +437,9 @@ func RecordQueryMetrics(
 	// Record canceled operations separately
 	if status == StatusCanceled {
 		canceledLabels := BuildQueryLabels(queryType, StatusCanceled)
+		if snapshotReason != "" {
+			canceledLabels[LogAttrSnapshotReason] = snapshotReason
+		}
 		if contextualCollector, ok := collector.(ContextualMetricsCollector); ok {
 			contextualCollector.IncrementCounterContext(ctx, QueryHandlerCanceledMetric, canceledLabels)
 		} else {
@@ -438,6 +450,9 @@ func RecordQueryMetrics(
 	// Record timeout operations separately
 	if status == StatusTimeout {
 		timeoutLabels := BuildQueryLabels(queryType, StatusTimeout)
+		if snapshotReason != "" {
+			timeoutLabels[LogAttrSnapshotReason] = snapshotReason
+		}
 		if contextualCollector, ok := collector.(ContextualMetricsCollector); ok {
 			contextualCollector.IncrementCounterContext(ctx, QueryHandlerTimeoutMetric, timeoutLabels)
 		} else {
