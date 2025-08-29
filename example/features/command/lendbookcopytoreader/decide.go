@@ -140,6 +140,8 @@ func project(history core.DomainEvents, bookID string, readerID string) state { 
 			if e.BookID == bookID {
 				if e.ReaderID == readerID {
 					s.bookIsLentToThisReader = false
+				} else {
+					s.bookIsLentToAnotherReader = false
 				}
 			}
 
