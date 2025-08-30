@@ -60,7 +60,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(queryhandler_handle_duration_seconds_count{status=\"success\"}[1m])",
+          "expr": "sum by (query_type) (rate(queryhandler_handle_duration_seconds_count{status=\"success\"}[1m]))",
           "legendFormat": "{{query_type}}",
           "refId": "A"
         }
@@ -130,7 +130,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(queryhandler_handle_duration_seconds_sum{status=\"success\"}[1m]) / rate(queryhandler_handle_duration_seconds_count{status=\"success\"}[1m]) * 1000",
+          "expr": "sum by (query_type) (rate(queryhandler_handle_duration_seconds_sum{status=\"success\"}[1m])) / sum by (query_type) (rate(queryhandler_handle_duration_seconds_count{status=\"success\"}[1m])) * 1000",
           "legendFormat": "{{query_type}}",
           "refId": "A"
         }
@@ -298,98 +298,6 @@
       }
     },
     {
-      "id": 22,
-      "title": "Command Component Timing Breakdown",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(commandhandler_component_duration_seconds_sum{status=\"success\"}[1m]) / rate(commandhandler_component_duration_seconds_count{status=\"success\"}[1m]) * 1000000",
-          "legendFormat": "{{command_type}} - {{component}}",
-          "refId": "A"
-        }
-      ],
-      "gridPos": {
-        "h": 10,
-        "w": 12,
-        "x": 0,
-        "y": 21
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "min": 1,
-          "unit": "µs"
-        }
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "sortBy": "name",
-          "sortDesc": false,
-          "width": 0,
-          "maxHeight": 200
-        }
-      }
-    },
-    {
-      "id": 23,
-      "title": "Query Component Timing Breakdown",
-      "type": "timeseries",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PBFA97CFB590B2093"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "PBFA97CFB590B2093"
-          },
-          "expr": "rate(queryhandler_component_duration_seconds_sum{status=\"success\"}[1m]) / rate(queryhandler_component_duration_seconds_count{status=\"success\"}[1m]) * 1000000",
-          "legendFormat": "{{query_type}} - {{component}}",
-          "refId": "A"
-        }
-      ],
-      "gridPos": {
-        "h": 10,
-        "w": 12,
-        "x": 12,
-        "y": 21
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "min": 1,
-          "unit": "µs"
-        }
-      },
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true,
-          "sortBy": "name",
-          "sortDesc": false,
-          "width": 0,
-          "maxHeight": 200
-        }
-      }
-    },
-    {
       "id": 3,
       "title": "Command Errors/sec",
       "type": "timeseries",
@@ -438,7 +346,7 @@
             "type": "prometheus",
             "uid": "PBFA97CFB590B2093"
           },
-          "expr": "rate(queryhandler_handle_duration_seconds_count{status=\"error\"}[1m])",
+          "expr": "sum by (query_type) (rate(queryhandler_handle_duration_seconds_count{status=\"error\"}[1m]))",
           "legendFormat": "{{query_type}}",
           "refId": "A"
         }

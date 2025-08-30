@@ -185,8 +185,8 @@ func createTestBook(ctx context.Context, t *testing.T, wrapper Wrapper) {
 	fakeClock := time.Unix(0, 0).UTC()
 
 	addBookCmd := addbookcopy.BuildCommand(bookID, "978-1-234-56789-0", "Test Book", "Test Author", "1st", "Test Publisher", 2023, fakeClock)
-	addBookHandler, _ := addbookcopy.NewCommandHandler(wrapper.GetEventStore())
-	err := addBookHandler.Handle(ctx, addBookCmd)
+	addBookHandler := addbookcopy.NewCommandHandler(wrapper.GetEventStore())
+	_, err := addBookHandler.Handle(ctx, addBookCmd)
 	assert.NoError(t, err, "Should add book to circulation")
 
 	// Don't query here - let the test control when queries happen
@@ -200,8 +200,8 @@ func createSecondTestBook(ctx context.Context, t *testing.T, wrapper Wrapper) {
 	fakeClock := time.Unix(1, 0).UTC() // Slightly different timestamp
 
 	addBookCmd := addbookcopy.BuildCommand(bookID, "978-2-345-67890-1", "Second Book", "Second Author", "2nd", "Second Publisher", 2024, fakeClock)
-	addBookHandler, _ := addbookcopy.NewCommandHandler(wrapper.GetEventStore())
-	err := addBookHandler.Handle(ctx, addBookCmd)
+	addBookHandler := addbookcopy.NewCommandHandler(wrapper.GetEventStore())
+	_, err := addBookHandler.Handle(ctx, addBookCmd)
 	assert.NoError(t, err, "Should add second book to circulation")
 }
 
@@ -211,15 +211,13 @@ func assertSnapshotMissMetrics(t *testing.T, metricsCollector *MetricsCollectorS
 
 	componentRecords := getComponentMetrics(metricsCollector)
 
-	// We should have 5 component records: snapshot_load (error), query (success), unmarshal (success), projection (success), snapshot_save (success)
-	assert.Len(t, componentRecords, 5, "should record exactly 5 component metrics for snapshot miss")
+	// We should have 2 component records: snapshot_load (error), snapshot_save (success)
+	// Base handlers no longer record component metrics - they only record total timing
+	assert.Len(t, componentRecords, 2, "should record exactly 2 component metrics for snapshot miss")
 
 	// Check for expected components with the correct status
 	expectedComponents := map[string]string{
 		"snapshot_load": "error",   // Snapshot miss
-		"query":         "success", // Fallback to base handler
-		"unmarshal":     "success", // Fallback to base handler
-		"projection":    "success", // Fallback to base handler
 		"snapshot_save": "success", // Save the initial snapshot after fallback
 	}
 
@@ -239,7 +237,7 @@ func assertSnapshotHitMetrics(t *testing.T, metricsCollector *MetricsCollectorSp
 	expectedComponents := map[string]string{
 		"snapshot_load":          "success", // Snapshot hit
 		"incremental_query":      "success", // Incremental query execution
-		"unmarshal":              "success", // Incremental events unmarshal
+		"snapshot_unmarshal":     "success", // Incremental events unmarshal (renamed from unmarshal)
 		"snapshot_deserialize":   "success", // Snapshot data deserialization
 		"incremental_projection": "success", // Incremental projection
 		"snapshot_save":          "success", // Save the updated snapshot with incremental changes

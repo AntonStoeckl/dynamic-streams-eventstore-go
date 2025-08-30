@@ -68,11 +68,11 @@ func Test_QueryHandler_Handle_IncludesRemovedBooksSortedByRemovedAt(t *testing.T
 
 	// Remove book2 and book4 at different times
 	removeBookCmd2 := removebookcopy.BuildCommand(books.book2, fakeClock.Add(20*time.Minute))
-	err := handlers.removeBookCopy.Handle(ctx, removeBookCmd2)
+	_, err := handlers.removeBookCopy.Handle(ctx, removeBookCmd2)
 	assert.NoError(t, err, "Should remove book2 from circulation")
 
 	removeBookCmd4 := removebookcopy.BuildCommand(books.book4, fakeClock.Add(21*time.Minute))
-	err = handlers.removeBookCopy.Handle(ctx, removeBookCmd4)
+	_, err = handlers.removeBookCopy.Handle(ctx, removeBookCmd4)
 	assert.NoError(t, err, "Should remove book4 from circulation")
 
 	// act
@@ -131,19 +131,19 @@ func Test_QueryHandler_Handle_ReturnsAllRemovedBooks_WhenAllBooksAreRemoved(t *t
 
 	// Remove all books at different times
 	removeBookCmd1 := removebookcopy.BuildCommand(books.book1, fakeClock.Add(10*time.Minute))
-	err := handlers.removeBookCopy.Handle(ctx, removeBookCmd1)
+	_, err := handlers.removeBookCopy.Handle(ctx, removeBookCmd1)
 	assert.NoError(t, err, "Should remove book1 from circulation")
 
 	removeBookCmd2 := removebookcopy.BuildCommand(books.book2, fakeClock.Add(11*time.Minute))
-	err = handlers.removeBookCopy.Handle(ctx, removeBookCmd2)
+	_, err = handlers.removeBookCopy.Handle(ctx, removeBookCmd2)
 	assert.NoError(t, err, "Should remove book2 from circulation")
 
 	removeBookCmd3 := removebookcopy.BuildCommand(books.book3, fakeClock.Add(12*time.Minute))
-	err = handlers.removeBookCopy.Handle(ctx, removeBookCmd3)
+	_, err = handlers.removeBookCopy.Handle(ctx, removeBookCmd3)
 	assert.NoError(t, err, "Should remove book3 from circulation")
 
 	removeBookCmd4 := removebookcopy.BuildCommand(books.book4, fakeClock.Add(13*time.Minute))
-	err = handlers.removeBookCopy.Handle(ctx, removeBookCmd4)
+	_, err = handlers.removeBookCopy.Handle(ctx, removeBookCmd4)
 	assert.NoError(t, err, "Should remove book4 from circulation")
 
 	// act
@@ -175,26 +175,26 @@ func Test_QueryHandler_Handle_HandlesMixedAddAndRemoveOperations(t *testing.T) {
 
 	// Add book1 and book2
 	addBookCmd1 := addbookcopy.BuildCommand(books.book1, "Test Book 1", "Author 1", "ISBN1", "1st", "Publisher 1", 2020, fakeClock)
-	err := handlers.addBookCopy.Handle(ctx, addBookCmd1)
+	_, err := handlers.addBookCopy.Handle(ctx, addBookCmd1)
 	assert.NoError(t, err, "Should add book1")
 
 	addBookCmd2 := addbookcopy.BuildCommand(books.book2, "Test Book 2", "Author 2", "ISBN2", "1st", "Publisher 2", 2021, fakeClock.Add(time.Minute))
-	err = handlers.addBookCopy.Handle(ctx, addBookCmd2)
+	_, err = handlers.addBookCopy.Handle(ctx, addBookCmd2)
 	assert.NoError(t, err, "Should add book2")
 
 	// Remove book1
 	removeBookCmd1 := removebookcopy.BuildCommand(books.book1, fakeClock.Add(2*time.Minute))
-	err = handlers.removeBookCopy.Handle(ctx, removeBookCmd1)
+	_, err = handlers.removeBookCopy.Handle(ctx, removeBookCmd1)
 	assert.NoError(t, err, "Should remove book1 from circulation")
 
 	// Add book3 (but don't remove)
 	addBookCmd3 := addbookcopy.BuildCommand(books.book3, "Test Book 3", "Author 3", "ISBN3", "1st", "Publisher 3", 2022, fakeClock.Add(3*time.Minute))
-	err = handlers.addBookCopy.Handle(ctx, addBookCmd3)
+	_, err = handlers.addBookCopy.Handle(ctx, addBookCmd3)
 	assert.NoError(t, err, "Should add book3")
 
 	// Remove book2 later
 	removeBookCmd2 := removebookcopy.BuildCommand(books.book2, fakeClock.Add(4*time.Minute))
-	err = handlers.removeBookCopy.Handle(ctx, removeBookCmd2)
+	_, err = handlers.removeBookCopy.Handle(ctx, removeBookCmd2)
 	assert.NoError(t, err, "Should remove book2 from circulation")
 
 	// act
@@ -229,17 +229,17 @@ func Test_QueryHandler_Handle_IdempotentRemoval_OnlyShowsBookOnce(t *testing.T) 
 
 	// arrange - add book1
 	addBookCmd1 := addbookcopy.BuildCommand(books.book1, "Test Book 1", "Author 1", "ISBN1", "1st", "Publisher 1", 2020, fakeClock)
-	err := handlers.addBookCopy.Handle(ctx, addBookCmd1)
+	_, err := handlers.addBookCopy.Handle(ctx, addBookCmd1)
 	assert.NoError(t, err, "Should add book1")
 
 	// Remove book1 multiple times (idempotent operations)
 	removeBookCmd1 := removebookcopy.BuildCommand(books.book1, fakeClock.Add(10*time.Minute))
-	err = handlers.removeBookCopy.Handle(ctx, removeBookCmd1)
+	_, err = handlers.removeBookCopy.Handle(ctx, removeBookCmd1)
 	assert.NoError(t, err, "Should remove book1 from circulation (first time)")
 
 	// Try to remove the same book again (should be idempotent)
 	removeBookCmd2 := removebookcopy.BuildCommand(books.book1, fakeClock.Add(15*time.Minute))
-	err = handlers.removeBookCopy.Handle(ctx, removeBookCmd2)
+	_, err = handlers.removeBookCopy.Handle(ctx, removeBookCmd2)
 	assert.NoError(t, err, "Should handle idempotent removal (second time)")
 
 	// act
@@ -289,11 +289,8 @@ func setupTestEnvironment(t *testing.T) (context.Context, Wrapper, func()) {
 }
 
 func createAllHandlers(t *testing.T, wrapper Wrapper) testHandlers {
-	addBookCopyHandler, err := addbookcopy.NewCommandHandler(wrapper.GetEventStore())
-	assert.NoError(t, err, "Should create AddBookCopy handler")
-
-	removeBookCopyHandler, err := removebookcopy.NewCommandHandler(wrapper.GetEventStore())
-	assert.NoError(t, err, "Should create RemoveBookCopy handler")
+	addBookCopyHandler := addbookcopy.NewCommandHandler(wrapper.GetEventStore())
+	removeBookCopyHandler := removebookcopy.NewCommandHandler(wrapper.GetEventStore())
 
 	queryHandler, err := removedbooks.NewQueryHandler(wrapper.GetEventStore())
 	assert.NoError(t, err, "Should create RemovedBooks query handler")
@@ -316,19 +313,19 @@ func createTestBooks(t *testing.T) testBooks {
 
 func addBooksToLibrary(t *testing.T, handlers testHandlers, books testBooks, fakeClock time.Time) {
 	addBookCmd1 := addbookcopy.BuildCommand(books.book1, "Test Book 1", "Author 1", "ISBN1", "1st", "Publisher 1", 2020, fakeClock)
-	err := handlers.addBookCopy.Handle(context.Background(), addBookCmd1)
+	_, err := handlers.addBookCopy.Handle(context.Background(), addBookCmd1)
 	assert.NoError(t, err, "Should add book1")
 
 	addBookCmd2 := addbookcopy.BuildCommand(books.book2, "Test Book 2", "Author 2", "ISBN2", "1st", "Publisher 2", 2021, fakeClock.Add(time.Minute))
-	err = handlers.addBookCopy.Handle(context.Background(), addBookCmd2)
+	_, err = handlers.addBookCopy.Handle(context.Background(), addBookCmd2)
 	assert.NoError(t, err, "Should add book2")
 
 	addBookCmd3 := addbookcopy.BuildCommand(books.book3, "Test Book 3", "Author 3", "ISBN3", "1st", "Publisher 3", 2022, fakeClock.Add(2*time.Minute))
-	err = handlers.addBookCopy.Handle(context.Background(), addBookCmd3)
+	_, err = handlers.addBookCopy.Handle(context.Background(), addBookCmd3)
 	assert.NoError(t, err, "Should add book3")
 
 	addBookCmd4 := addbookcopy.BuildCommand(books.book4, "Test Book 4", "Author 4", "ISBN4", "1st", "Publisher 4", 2023, fakeClock.Add(3*time.Minute))
-	err = handlers.addBookCopy.Handle(context.Background(), addBookCmd4)
+	_, err = handlers.addBookCopy.Handle(context.Background(), addBookCmd4)
 	assert.NoError(t, err, "Should add book4")
 }
 

@@ -75,3 +75,28 @@ type ProjectionFunc[Q Query, R QueryResult] func(
 // For parameter-less queries, they return a filter without predicates (only filter by event types).
 // The filter determines which events are retrieved for projection building.
 type FilterBuilderFunc[Q Query] func(query Q) eventstore.Filter
+
+// Command represents the contract for all command types in the event-sourced application.
+// Each command encapsulates the intent and parameters needed to execute a specific business operation.
+// The CommandType method enables polymorphic handling and observability instrumentation.
+// Commands can range from simple parameter-less requests to complex multi-parameter operations.
+type Command interface {
+	CommandType() string
+}
+
+// CoreCommandHandler defines the contract for components that process commands with pure business logic.
+// Handlers orchestrate the complete command workflow: retrieving events, unmarshaling, business logic, and appending.
+// The generic parameter C ensures type safety between commands and their corresponding handlers.
+// Implementations should focus purely on business logic without observability or infrastructure concerns.
+// This interface is designed to be wrapped with observability decorators for complete functionality.
+// Handlers return HandlerResult containing business outcomes (idempotency) and execution metadata (retry info).
+type CoreCommandHandler[C Command] interface {
+	Handle(ctx context.Context, command C) (HandlerResult, error)
+}
+
+// CommandHandler defines the contract for command handlers that return only errors (compatibility interface).
+// This interface is used for backward compatibility with existing code that expects error-only return values.
+// Typically implemented by wrapper types that convert (HandlerResult, error) to just error.
+type CommandHandler[C Command] interface {
+	Handle(ctx context.Context, command C) error
+}

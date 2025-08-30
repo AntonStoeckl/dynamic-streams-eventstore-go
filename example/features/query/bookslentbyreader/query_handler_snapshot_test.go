@@ -187,20 +187,20 @@ func createFirstTestLending(ctx context.Context, t *testing.T, wrapper Wrapper) 
 
 	// First, register a reader
 	registerReaderCmd := registerreader.BuildCommand(readerID, "Test Reader", fakeClock)
-	readerHandler, _ := registerreader.NewCommandHandler(wrapper.GetEventStore())
-	err := readerHandler.Handle(ctx, registerReaderCmd)
+	readerHandler := registerreader.NewCommandHandler(wrapper.GetEventStore())
+	_, err := readerHandler.Handle(ctx, registerReaderCmd)
 	assert.NoError(t, err, "Should register reader")
 
 	// Then add a book to circulation
 	addBookCmd := addbookcopy.BuildCommand(bookID, "978-1-234-56789-0", "Test Book", "Test Author", "1st", "Test Publisher", 2023, fakeClock)
-	addBookHandler, _ := addbookcopy.NewCommandHandler(wrapper.GetEventStore())
-	err = addBookHandler.Handle(ctx, addBookCmd)
+	addBookHandler := addbookcopy.NewCommandHandler(wrapper.GetEventStore())
+	_, err = addBookHandler.Handle(ctx, addBookCmd)
 	assert.NoError(t, err, "Should add book to circulation")
 
 	// Finally, lend the book to the reader
 	lendBookCmd := lendbookcopytoreader.BuildCommand(bookID, readerID, fakeClock.Add(time.Minute))
-	lendHandler, _ := lendbookcopytoreader.NewCommandHandler(wrapper.GetEventStore())
-	err = lendHandler.Handle(ctx, lendBookCmd)
+	lendHandler := lendbookcopytoreader.NewCommandHandler(wrapper.GetEventStore())
+	_, err = lendHandler.Handle(ctx, lendBookCmd)
 	assert.NoError(t, err, "Should lend book to reader")
 
 	return readerID
@@ -215,14 +215,14 @@ func createSecondTestLending(ctx context.Context, t *testing.T, readerID uuid.UU
 
 	// Add the second book to circulation
 	addBookCmd := addbookcopy.BuildCommand(bookID, "978-2-345-67890-1", "Second Book", "Second Author", "2nd", "Second Publisher", 2024, fakeClock)
-	addBookHandler, _ := addbookcopy.NewCommandHandler(wrapper.GetEventStore())
-	err := addBookHandler.Handle(ctx, addBookCmd)
+	addBookHandler := addbookcopy.NewCommandHandler(wrapper.GetEventStore())
+	_, err := addBookHandler.Handle(ctx, addBookCmd)
 	assert.NoError(t, err, "Should add second book to circulation")
 
 	// Then lend the second book to the reader
 	lendBookCmd := lendbookcopytoreader.BuildCommand(bookID, readerID, fakeClock.Add(time.Minute))
-	lendHandler, _ := lendbookcopytoreader.NewCommandHandler(wrapper.GetEventStore())
-	err = lendHandler.Handle(ctx, lendBookCmd)
+	lendHandler := lendbookcopytoreader.NewCommandHandler(wrapper.GetEventStore())
+	_, err = lendHandler.Handle(ctx, lendBookCmd)
 	assert.NoError(t, err, "Should lend second book to reader")
 }
 
@@ -232,15 +232,13 @@ func assertSnapshotMissMetrics(t *testing.T, metricsCollector *MetricsCollectorS
 
 	componentRecords := getComponentMetrics(metricsCollector)
 
-	// We should have 5 component records: snapshot_load (error), query (success), unmarshal (success), projection (success), snapshot_save (success)
-	assert.Len(t, componentRecords, 5, "should record exactly 5 component metrics for snapshot miss")
+	// We should have 2 component records: snapshot_load (error), snapshot_save (success)
+	// Base handlers no longer record component metrics - they only record total timing
+	assert.Len(t, componentRecords, 2, "should record exactly 2 component metrics for snapshot miss")
 
 	// Check for expected components with the correct status
 	expectedComponents := map[string]string{
 		"snapshot_load": "error",   // Snapshot miss
-		"query":         "success", // Fallback to base handler
-		"unmarshal":     "success", // Fallback to base handler
-		"projection":    "success", // Fallback to base handler
 		"snapshot_save": "success", // Save the initial snapshot after fallback
 	}
 
@@ -260,7 +258,7 @@ func assertSnapshotHitMetrics(t *testing.T, metricsCollector *MetricsCollectorSp
 	expectedComponents := map[string]string{
 		"snapshot_load":          "success", // Snapshot hit
 		"incremental_query":      "success", // Incremental query execution
-		"unmarshal":              "success", // Incremental events unmarshal
+		"snapshot_unmarshal":     "success", // Incremental events unmarshal (renamed from unmarshal)
 		"snapshot_deserialize":   "success", // Snapshot data deserialization
 		"incremental_projection": "success", // Incremental projection
 		"snapshot_save":          "success", // Save the updated snapshot with incremental changes

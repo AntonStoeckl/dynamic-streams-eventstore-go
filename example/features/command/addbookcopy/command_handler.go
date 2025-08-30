@@ -2,17 +2,11 @@ package addbookcopy
 
 import (
 	"context"
-	"errors"
-	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
-)
-
-const (
-	commandType = "AddBookCopy"
 )
 
 // EventStore defines the interface needed by the CommandHandler for event store operations.
@@ -31,70 +25,46 @@ type EventStore interface {
 }
 
 // CommandHandler orchestrates the complete command processing workflow.
-// It handles infrastructure concerns like event store interactions, timing collection,
-// and delegates business logic decisions to the pure core functions.
+// It handles only business logic: Query → Unmarshal → Decide → Append.
+// All observability concerns are handled by the external observable wrapper.
 type CommandHandler struct {
-	eventStore       EventStore
-	metricsCollector shell.MetricsCollector
-	tracingCollector shell.TracingCollector
-	contextualLogger shell.ContextualLogger
-	logger           shell.Logger
+	eventStore EventStore
 }
 
-// NewCommandHandler creates a new CommandHandler with the provided EventStore dependency and options.
-func NewCommandHandler(eventStore EventStore, opts ...Option) (CommandHandler, error) {
-	h := CommandHandler{
+// NewCommandHandler creates a new CommandHandler with the provided EventStore dependency.
+func NewCommandHandler(eventStore EventStore) CommandHandler {
+	return CommandHandler{
 		eventStore: eventStore,
 	}
-
-	for _, opt := range opts {
-		if err := opt(&h); err != nil {
-			return CommandHandler{}, err
-		}
-	}
-
-	return h, nil
 }
 
-// Handle executes the complete command processing workflow: Query -> Decide -> Append.
-// It queries the current event history, delegates business logic to the core Decide function,
-// and appends any resulting events with comprehensive observability instrumentation.
-//
-// Resilience: Implements exponential backoff retry logic for concurrency conflicts.
-func (h CommandHandler) Handle(ctx context.Context, command Command) error {
-	// Start command handler instrumentation
-	commandStart := time.Now()
-	ctx, span := shell.StartCommandSpan(ctx, h.tracingCollector, commandType)
-	shell.LogCommandStart(ctx, h.logger, h.contextualLogger, commandType)
+// Handle executes the complete command processing workflow: Query → Unmarshal → Decide → Append.
+// It implements retry logic for concurrency conflicts and returns explicit HandlerResult.
+func (h CommandHandler) Handle(ctx context.Context, command Command) (shell.HandlerResult, error) {
+	var isIdempotent bool
 
 	// Execute command with retry logic
-	var retryOptions []shell.RetryOption
-	if h.metricsCollector != nil {
-		retryOptions = append(retryOptions, shell.WithMetrics(h.metricsCollector, commandType))
-	}
+	retryMetrics, err := shell.RetryWithExponentialBackoff(ctx, func(retryCtx context.Context) error {
+		idempotent, execErr := h.executeCommand(retryCtx, command)
+		isIdempotent = idempotent
 
-	err := shell.RetryWithExponentialBackoff(ctx, func(retryCtx context.Context) error {
-		return h.executeCommand(retryCtx, command)
-	}, retryOptions...)
+		return execErr
+	})
+
+	// Build HandlerResult with business outcomes and retry metadata
+	if isIdempotent {
+		return shell.NewIdempotentResult(retryMetrics), err
+	}
 
 	if err != nil {
-		if errors.Is(err, shell.ErrIdempotentOperation) {
-			h.recordCommandSuccess(ctx, shell.StatusIdempotent, time.Since(commandStart), span)
-			return nil
-		}
-
-		h.recordCommandError(ctx, err, time.Since(commandStart), span)
-
-		return err
+		return shell.NewErrorResult(retryMetrics), err
 	}
 
-	h.recordCommandSuccess(ctx, "success", time.Since(commandStart), span)
-
-	return nil
+	return shell.NewSuccessResult(retryMetrics), nil
 }
 
 // executeCommand contains the core command processing logic that can be retried.
-func (h CommandHandler) executeCommand(ctx context.Context, command Command) error {
+func (h CommandHandler) executeCommand(ctx context.Context, command Command) (bool, error) {
 	filter := BuildEventFilter(command.BookID)
 
 	// Ensure strong consistency for command handlers - they need to see their own writes
@@ -102,33 +72,22 @@ func (h CommandHandler) executeCommand(ctx context.Context, command Command) err
 	ctx = eventstore.WithStrongConsistency(ctx)
 
 	// Query phase
-	queryStart := time.Now()
 	storableEvents, maxSequenceNumber, err := h.eventStore.Query(ctx, filter)
-	queryDuration := time.Since(queryStart)
 	if err != nil {
-		h.recordComponentTiming(ctx, shell.ComponentQuery, shell.StatusError, queryDuration)
-		return err
+		return false, err
 	}
-	h.recordComponentTiming(ctx, shell.ComponentQuery, shell.StatusSuccess, queryDuration)
 
 	// Unmarshal phase
-	unmarshalStart := time.Now()
 	history, err := shell.DomainEventsFrom(storableEvents)
-	unmarshalDuration := time.Since(unmarshalStart)
 	if err != nil {
-		h.recordComponentTiming(ctx, shell.ComponentUnmarshal, shell.StatusError, unmarshalDuration)
-		return err
+		return false, err
 	}
-	h.recordComponentTiming(ctx, shell.ComponentUnmarshal, shell.StatusSuccess, unmarshalDuration)
 
 	// Business logic phase - delegate to pure core function
-	decideStart := time.Now()
 	result := Decide(history, command)
-	decideDuration := time.Since(decideStart)
-	h.recordComponentTiming(ctx, shell.ComponentDecide, shell.StatusSuccess, decideDuration)
 
 	if !result.HasEventToAppend() {
-		return shell.ErrIdempotentOperation // nothing to do
+		return true, nil // Idempotent operation - nothing to do
 	}
 
 	// Append phase - single event to append
@@ -137,109 +96,13 @@ func (h CommandHandler) executeCommand(ctx context.Context, command Command) err
 
 	storableEvent, marshalErr := shell.StorableEventFrom(result.Event, eventMetadata)
 	if marshalErr != nil {
-		return marshalErr
+		return false, marshalErr
 	}
 
-	appendStart := time.Now()
 	appendErr := h.eventStore.Append(ctx, filter, maxSequenceNumber, storableEvent)
-	appendDuration := time.Since(appendStart)
 	if appendErr != nil {
-		h.recordComponentTiming(ctx, shell.ComponentAppend, shell.StatusError, appendDuration)
-		return appendErr
-	}
-	h.recordComponentTiming(ctx, shell.ComponentAppend, shell.StatusSuccess, appendDuration)
-
-	return result.HasError()
-}
-
-/*** Command Handler Options and helper methods for observability ***/
-
-// Option defines a functional option for configuring CommandHandler.
-type Option func(*CommandHandler) error
-
-// WithMetrics sets the metrics collector for the CommandHandler.
-func WithMetrics(collector shell.MetricsCollector) Option {
-	return func(h *CommandHandler) error {
-		h.metricsCollector = collector
-		return nil
-	}
-}
-
-// WithTracing sets the tracing collector for the CommandHandler.
-func WithTracing(collector shell.TracingCollector) Option {
-	return func(h *CommandHandler) error {
-		h.tracingCollector = collector
-		return nil
-	}
-}
-
-// WithContextualLogging sets the contextual logger for the CommandHandler.
-func WithContextualLogging(logger shell.ContextualLogger) Option {
-	return func(h *CommandHandler) error {
-		h.contextualLogger = logger
-		return nil
-	}
-}
-
-// WithLogging sets the basic logger for the CommandHandler.
-func WithLogging(logger shell.Logger) Option {
-	return func(h *CommandHandler) error {
-		h.logger = logger
-		return nil
-	}
-}
-
-// recordCommandSuccess records successful command execution with observability.
-func (h CommandHandler) recordCommandSuccess(ctx context.Context, businessOutcome string, duration time.Duration, span shell.SpanContext) {
-	shell.RecordCommandMetrics(ctx, h.metricsCollector, commandType, businessOutcome, duration)
-	shell.FinishCommandSpan(h.tracingCollector, span, businessOutcome, duration, nil)
-	shell.LogCommandSuccess(ctx, h.logger, h.contextualLogger, commandType, businessOutcome, duration)
-}
-
-// recordCommandError records failed command execution with observability.
-func (h CommandHandler) recordCommandError(ctx context.Context, err error, duration time.Duration, span shell.SpanContext) {
-	if shell.IsCancellationError(err) {
-		h.recordCommandCancelled(ctx, err, duration, span)
-		return
+		return false, appendErr
 	}
 
-	if shell.IsTimeoutError(err) {
-		h.recordCommandTimeout(ctx, err, duration, span)
-		return
-	}
-
-	if shell.IsConcurrencyConflictError(err) {
-		h.recordCommandConcurrencyConflict(ctx, err, duration, span)
-		return
-	}
-
-	shell.RecordCommandMetrics(ctx, h.metricsCollector, commandType, shell.StatusError, duration)
-	shell.FinishCommandSpan(h.tracingCollector, span, shell.StatusError, duration, err)
-	shell.LogCommandError(ctx, h.logger, h.contextualLogger, commandType, err)
-}
-
-// recordCommandCancelled records canceled command execution with observability.
-func (h CommandHandler) recordCommandCancelled(ctx context.Context, err error, duration time.Duration, span shell.SpanContext) {
-	shell.RecordCommandMetrics(ctx, h.metricsCollector, commandType, shell.StatusCanceled, duration)
-	shell.FinishCommandSpan(h.tracingCollector, span, shell.StatusCanceled, duration, err)
-	shell.LogCommandError(ctx, h.logger, h.contextualLogger, commandType, err)
-}
-
-// recordCommandTimeout records timeout command execution with observability.
-func (h CommandHandler) recordCommandTimeout(ctx context.Context, err error, duration time.Duration, span shell.SpanContext) {
-	shell.RecordCommandMetrics(ctx, h.metricsCollector, commandType, shell.StatusTimeout, duration)
-	shell.FinishCommandSpan(h.tracingCollector, span, shell.StatusTimeout, duration, err)
-	shell.LogCommandError(ctx, h.logger, h.contextualLogger, commandType, err)
-}
-
-// recordCommandConcurrencyConflict records concurrency conflict command execution with observability.
-func (h CommandHandler) recordCommandConcurrencyConflict(ctx context.Context, err error, duration time.Duration, span shell.SpanContext) {
-	shell.RecordCommandMetrics(ctx, h.metricsCollector, commandType, shell.StatusConcurrencyConflict, duration)
-	shell.FinishCommandSpan(h.tracingCollector, span, shell.StatusConcurrencyConflict, duration, err)
-	shell.LogCommandError(ctx, h.logger, h.contextualLogger, commandType, err)
-}
-
-// recordComponentTiming records component-level timing metrics.
-func (h CommandHandler) recordComponentTiming(ctx context.Context, component string, status string, duration time.Duration) {
-	shell.RecordCommandComponentDuration(ctx, h.metricsCollector, commandType, component, status, duration)
+	return false, result.HasError()
 }

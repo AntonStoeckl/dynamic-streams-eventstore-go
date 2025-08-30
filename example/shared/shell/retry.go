@@ -3,26 +3,29 @@ package shell
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/rand"
 	"time"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 )
 
+// Default retry configuration values.
 const (
 	defaultMaxAttempts  = 6
 	defaultBaseDelay    = 10 * time.Millisecond
 	defaultJitterFactor = 0.3
 )
 
+// Error type constants for consistent error classification across retry and handler results.
+const (
+	ErrorTypeNone                    = "none"
+	ErrorTypeConcurrencyConflict     = "concurrency_conflict"
+	ErrorTypeContextCanceled         = "context_canceled"
+	ErrorTypeContextDeadlineExceeded = "context_deadline_exceeded"
+	ErrorTypeOther                   = "other"
+)
+
 var (
-	// ErrNilMetricsCollector is returned when a nil metrics collector is provided to WithMetrics.
-	ErrNilMetricsCollector = errors.New("metrics collector must not be nil")
-
-	// ErrEmptyCommandType is returned when an empty command type is provided to WithMetrics.
-	ErrEmptyCommandType = errors.New("command type must not be empty")
-
 	// ErrInvalidMaxAttempts is returned when max attempts are not positive.
 	ErrInvalidMaxAttempts = errors.New("max attempts must be positive")
 
@@ -36,18 +39,34 @@ var (
 // RetryableFunc represents a function that can be retried.
 type RetryableFunc func(ctx context.Context) error
 
+// RetryMetrics contains execution metrics from retry operations.
+type RetryMetrics struct {
+	// Attempts is the total number of attempts made (1 for no retries, 2+ for retries).
+	Attempts int
+
+	// TotalDelay is the cumulative time spent in retry backoff delays.
+	TotalDelay time.Duration
+
+	// LastErrorType describes the type of the final error encountered.
+	LastErrorType string
+
+	// RetriesExhausted indicates whether max retry attempts were exhausted with a retryable error.
+	RetriesExhausted bool
+}
+
 // retryConfig holds configuration for exponential backoff retry logic.
 type retryConfig struct {
-	maxAttempts      int
-	baseDelay        time.Duration
-	jitterFactor     float64
-	metricsCollector MetricsCollector
-	commandType      string
+	maxAttempts  int
+	baseDelay    time.Duration
+	jitterFactor float64
 }
 
 // RetryWithExponentialBackoff implements optimistic concurrency retry logic.
 // It executes the provided function with exponential backoff retry logic,
 // retrying only on retryable errors up to maxAttempts times.
+//
+// Returns retry metadata along with any error, allowing callers to access
+// execution information (attempts, delays, error types) for observability.
 //
 // Retry Schedule (default): 0 ms, 10 ms, 20 ms, 40 ms, 80 ms (with 30% jitter)
 // Total Duration: ~ 200 ms worst case
@@ -58,7 +77,7 @@ func RetryWithExponentialBackoff(
 	ctx context.Context,
 	fn RetryableFunc,
 	options ...RetryOption,
-) error {
+) (RetryMetrics, error) {
 	config := &retryConfig{
 		maxAttempts:  defaultMaxAttempts,
 		baseDelay:    defaultBaseDelay,
@@ -67,13 +86,22 @@ func RetryWithExponentialBackoff(
 
 	for _, option := range options {
 		if err := option(config); err != nil {
-			return err
+			return RetryMetrics{
+				Attempts:         0,              // No attempts were made
+				TotalDelay:       0,              // No delay occurred
+				LastErrorType:    ErrorTypeOther, // Configuration error
+				RetriesExhausted: false,          // Config error, no retries attempted
+			}, err
 		}
 	}
 
 	var lastErr error
+	var totalDelay time.Duration
+	var attempts int
 
 	for attempt := 0; attempt < config.maxAttempts; attempt++ {
+		attempts = attempt + 1
+
 		if attempt > 0 {
 			// Exponential backoff: baseDelay * 2^(attempt-1)
 			delay := config.baseDelay * time.Duration(1<<(attempt-1))
@@ -82,79 +110,42 @@ func RetryWithExponentialBackoff(
 			jitter := rand.Float64() * float64(delay) * config.jitterFactor //nolint:gosec //math/rand is sufficient for jitter
 			backoffDelay := delay + time.Duration(jitter)
 
-			// Record retry delay metric
-			recordRetryDelayMetric(ctx, config, attempt, backoffDelay)
+			// Accumulate total delay for metadata
+			totalDelay += backoffDelay
 
 			select {
 			case <-time.After(backoffDelay):
 				// Continue with retry
 			case <-ctx.Done():
-				return ctx.Err()
+				return RetryMetrics{
+					Attempts:         attempts,
+					TotalDelay:       totalDelay,
+					LastErrorType:    getErrorType(ctx.Err()),
+					RetriesExhausted: false, // Context canceled, not exhausted
+				}, ctx.Err()
 			}
 		}
 
 		lastErr = fn(ctx)
 		if lastErr == nil {
-			return nil // Success
+			break // Success
 		}
 
 		// Check if the error is retryable
 		if !isRetryableError(lastErr) {
-			return lastErr // Permanent failure
-		}
-
-		// Record retry attempt metric (only for retryable errors that will be retried)
-		recordRetryAttemptMetric(ctx, attempt, config, lastErr)
-	}
-
-	recordMaxRetriesReachedMetric(ctx, config, lastErr)
-
-	return lastErr // Max attempts reached
-}
-
-// recordRetryDelayMetric records the actual backoff delay before each retry attempt.
-func recordRetryDelayMetric(ctx context.Context, config *retryConfig, attempt int, backoffDelay time.Duration) {
-	if config.metricsCollector != nil {
-		delayLabels := map[string]string{
-			LogAttrCommandType: config.commandType,
-			"attempt_number":   fmt.Sprintf("%d", attempt),
-		}
-
-		if contextualCollector, ok := config.metricsCollector.(ContextualMetricsCollector); ok {
-			contextualCollector.RecordDurationContext(ctx, CommandHandlerRetryDelayMetric, backoffDelay, delayLabels)
-		} else {
-			config.metricsCollector.RecordDuration(CommandHandlerRetryDelayMetric, backoffDelay, delayLabels)
+			break // Permanent failure
 		}
 	}
-}
 
-// recordRetryAttemptMetric tracks retry attempts by command type, attempt number, and error type.
-func recordRetryAttemptMetric(ctx context.Context, attempt int, config *retryConfig, lastErr error) {
-	if attempt < config.maxAttempts-1 && config.metricsCollector != nil {
-		retryLabels := BuildRetryLabels(config.commandType, attempt+1, getErrorType(lastErr))
+	// Calculate if retries were exhausted
+	retriesExhausted := attempts == config.maxAttempts && lastErr != nil && isRetryableError(lastErr)
 
-		if contextualCollector, ok := config.metricsCollector.(ContextualMetricsCollector); ok {
-			contextualCollector.IncrementCounterContext(ctx, CommandHandlerRetriesMetric, retryLabels)
-		} else {
-			config.metricsCollector.IncrementCounter(CommandHandlerRetriesMetric, retryLabels)
-		}
-	}
-}
-
-// recordMaxRetriesReachedMetric tracks when retry exhaustion occurs with the final error type.
-func recordMaxRetriesReachedMetric(ctx context.Context, config *retryConfig, lastErr error) {
-	if config.metricsCollector != nil {
-		maxRetriesLabels := map[string]string{
-			LogAttrCommandType: config.commandType,
-			"final_error_type": getErrorType(lastErr),
-		}
-
-		if contextualCollector, ok := config.metricsCollector.(ContextualMetricsCollector); ok {
-			contextualCollector.IncrementCounterContext(ctx, CommandHandlerMaxRetriesReachedMetric, maxRetriesLabels)
-		} else {
-			config.metricsCollector.IncrementCounter(CommandHandlerMaxRetriesReachedMetric, maxRetriesLabels)
-		}
-	}
+	return RetryMetrics{
+		Attempts:         attempts,
+		TotalDelay:       totalDelay,
+		LastErrorType:    getErrorType(lastErr),
+		RetriesExhausted: retriesExhausted,
+	}, lastErr
 }
 
 // isRetryableError determines if an error should be retried.
@@ -175,20 +166,18 @@ func isRetryableError(err error) bool {
 
 // getErrorType extracts a string representation of the error type for metrics labeling.
 func getErrorType(err error) string {
-	if err == nil {
-		return "none"
+	switch {
+	case err == nil:
+		return ErrorTypeNone
+	case errors.Is(err, eventstore.ErrConcurrencyConflict):
+		return ErrorTypeConcurrencyConflict
+	case errors.Is(err, context.Canceled):
+		return ErrorTypeContextCanceled
+	case errors.Is(err, context.DeadlineExceeded):
+		return ErrorTypeContextDeadlineExceeded
+	default:
+		return ErrorTypeOther
 	}
-	if errors.Is(err, eventstore.ErrConcurrencyConflict) {
-		return "concurrency_conflict"
-	}
-	if errors.Is(err, context.Canceled) {
-		return "context_canceled"
-	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return "context_deadline_exceeded"
-	}
-
-	return "other"
 }
 
 // RetryOption configures retry behavior using the functional options pattern.
@@ -231,25 +220,6 @@ func WithJitterFactor(factor float64) RetryOption {
 		}
 
 		config.jitterFactor = factor
-
-		return nil
-	}
-}
-
-// WithMetrics sets the metrics collector for retry instrumentation.
-// Requires commandType to properly label metrics.
-func WithMetrics(collector MetricsCollector, commandType string) RetryOption {
-	return func(config *retryConfig) error {
-		if collector == nil {
-			return ErrNilMetricsCollector
-		}
-
-		if commandType == "" {
-			return ErrEmptyCommandType
-		}
-
-		config.metricsCollector = collector
-		config.commandType = commandType
 
 		return nil
 	}

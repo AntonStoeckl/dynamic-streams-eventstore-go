@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
 )
 
@@ -46,22 +45,26 @@ func (h QueryHandler) Handle(ctx context.Context, query Query) (RemovedBooks, er
 
 	filter := BuildEventFilter()
 
+	// Use eventual consistency for pure query handlers - they can tolerate slightly
+	// stale data in exchange for better performance and reduced primary database load
+	ctx = eventstore.WithEventualConsistency(ctx)
+
 	// Query phase
-	storableEvents, maxSeq, err := h.executeQuery(ctx, filter)
+	storableEvents, maxSeq, err := h.eventStore.Query(ctx, filter)
 	if err != nil {
 		h.recordQueryError(ctx, err, time.Since(queryStart), span)
 		return RemovedBooks{}, err
 	}
 
 	// Unmarshal phase
-	history, err := h.executeUnmarshal(ctx, storableEvents)
+	history, err := shell.DomainEventsFrom(storableEvents)
 	if err != nil {
 		h.recordQueryError(ctx, err, time.Since(queryStart), span)
 		return RemovedBooks{}, err
 	}
 
 	// Projection phase
-	result := h.executeProjection(ctx, history, query, maxSeq)
+	result := Project(history, query, maxSeq)
 
 	h.recordQuerySuccess(ctx, time.Since(queryStart), span)
 
@@ -141,72 +144,6 @@ func (h QueryHandler) recordQueryTimeout(ctx context.Context, err error, duratio
 	shell.RecordQueryMetrics(ctx, h.metricsCollector, queryType, shell.StatusTimeout, duration, "")
 	shell.FinishQuerySpan(h.tracingCollector, span, shell.StatusTimeout, duration, err)
 	shell.LogQueryError(ctx, h.logger, h.contextualLogger, queryType, err)
-}
-
-// executeQuery handles the query phase with proper observability.
-func (h QueryHandler) executeQuery(
-	ctx context.Context,
-	filter eventstore.Filter,
-) (eventstore.StorableEvents, eventstore.MaxSequenceNumberUint, error) {
-
-	// Use eventual consistency for pure query handlers - they can tolerate slightly
-	// stale data in exchange for better performance and reduced primary database load
-	ctx = eventstore.WithEventualConsistency(ctx)
-
-	queryPhaseStart := time.Now()
-	storableEvents, maxSeq, err := h.eventStore.Query(ctx, filter)
-	queryPhaseDuration := time.Since(queryPhaseStart)
-
-	if err != nil {
-		h.recordComponentTiming(ctx, shell.ComponentQuery, shell.StatusError, queryPhaseDuration)
-		return nil, 0, err
-	}
-
-	h.recordComponentTiming(ctx, shell.ComponentQuery, shell.StatusSuccess, queryPhaseDuration)
-
-	return storableEvents, maxSeq, nil
-}
-
-// executeUnmarshal handles the unmarshal phase with proper observability.
-func (h QueryHandler) executeUnmarshal(
-	ctx context.Context,
-	storableEvents eventstore.StorableEvents,
-) (core.DomainEvents, error) {
-
-	unmarshalStart := time.Now()
-	history, err := shell.DomainEventsFrom(storableEvents)
-	unmarshalDuration := time.Since(unmarshalStart)
-
-	if err != nil {
-		h.recordComponentTiming(ctx, shell.ComponentUnmarshal, shell.StatusError, unmarshalDuration)
-		return nil, err
-	}
-
-	h.recordComponentTiming(ctx, shell.ComponentUnmarshal, shell.StatusSuccess, unmarshalDuration)
-
-	return history, nil
-}
-
-// executeProjection handles the projection phase with proper observability.
-func (h QueryHandler) executeProjection(
-	ctx context.Context,
-	history core.DomainEvents,
-	query Query,
-	maxSeq eventstore.MaxSequenceNumberUint,
-) RemovedBooks {
-
-	projectionStart := time.Now()
-	result := Project(history, query, maxSeq)
-	projectionDuration := time.Since(projectionStart)
-
-	h.recordComponentTiming(ctx, shell.ComponentProjection, shell.StatusSuccess, projectionDuration)
-
-	return result
-}
-
-// recordComponentTiming records component-level timing metrics.
-func (h QueryHandler) recordComponentTiming(ctx context.Context, component string, status string, duration time.Duration) {
-	shell.RecordQueryComponentDuration(ctx, h.metricsCollector, queryType, component, status, duration)
 }
 
 /*** Those methods are necessary to be able to wrap the QueryHandler with a snapshot wrapper ***/

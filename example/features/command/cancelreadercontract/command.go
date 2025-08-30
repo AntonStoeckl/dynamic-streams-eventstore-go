@@ -8,11 +8,20 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 )
 
+const (
+	commandType = "CancelReaderContract"
+)
+
 // Command represents the intent to cancel a reader's contract.
 // It encapsulates all the necessary information required to execute the reader contract cancellation use case.
 type Command struct {
 	ReaderID   uuid.UUID
 	OccurredAt core.OccurredAtTS
+}
+
+// CommandType returns the type of this command for observability and routing purposes.
+func (c Command) CommandType() string {
+	return commandType
 }
 
 // BuildCommand creates a new Command with the provided parameters.

@@ -49,11 +49,11 @@ func Test_QueryHandler_Handle_ReturnsBooksLentByReader_SortedByLentAt(t *testing
 
 	// Lend books at different times
 	lendBookCmd1 := lendbookcopytoreader.BuildCommand(books.book1, readerID, fakeClock.Add(time.Hour))
-	err := handlers.lendBook.Handle(ctx, lendBookCmd1)
+	_, err := handlers.lendBook.Handle(ctx, lendBookCmd1)
 	assert.NoError(t, err, "Should lend book1 to reader")
 
 	lendBookCmd2 := lendbookcopytoreader.BuildCommand(books.book2, readerID, fakeClock.Add(2*time.Hour))
-	err = handlers.lendBook.Handle(ctx, lendBookCmd2)
+	_, err = handlers.lendBook.Handle(ctx, lendBookCmd2)
 	assert.NoError(t, err, "Should lend book2 to reader")
 
 	// act
@@ -94,7 +94,7 @@ func Test_QueryHandler_Handle_ExcludesReturnedBooks(t *testing.T) {
 
 	// Return book2 - should not appear in final results
 	returnBookCmd := returnbookcopyfromreader.BuildCommand(books.book2, readerID, fakeClock.Add(4*time.Hour))
-	err := handlers.returnBook.Handle(ctx, returnBookCmd)
+	_, err := handlers.returnBook.Handle(ctx, returnBookCmd)
 	assert.NoError(t, err, "Should return book2")
 
 	// act
@@ -158,7 +158,7 @@ func Test_QueryHandler_Handle_ReturnsCorrectBookDetails(t *testing.T) {
 
 	// Lend a specific book
 	lendBookCmd := lendbookcopytoreader.BuildCommand(books.book1, readerID, fakeClock.Add(time.Hour))
-	err := handlers.lendBook.Handle(ctx, lendBookCmd)
+	_, err := handlers.lendBook.Handle(ctx, lendBookCmd)
 	assert.NoError(t, err, "Should lend book1 to reader")
 
 	// act
@@ -192,7 +192,7 @@ func Test_QueryHandler_Handle_WithStrongConsistency_WorksCorrectly(t *testing.T)
 	registerSingleReader(t, handlers, readerID, fakeClock)
 
 	lendBookCmd := lendbookcopytoreader.BuildCommand(books.book1, readerID, fakeClock.Add(time.Hour))
-	err := handlers.lendBook.Handle(ctx, lendBookCmd)
+	_, err := handlers.lendBook.Handle(ctx, lendBookCmd)
 	assert.NoError(t, err, "Should lend book to reader")
 
 	// act
@@ -221,17 +221,10 @@ func setupTestEnvironment(t *testing.T) (context.Context, Wrapper, func()) {
 }
 
 func createAllHandlers(t *testing.T, wrapper Wrapper) testHandlers {
-	addBookHandler, err := addbookcopy.NewCommandHandler(wrapper.GetEventStore())
-	assert.NoError(t, err, "Should create AddBookCopy handler")
-
-	registerReaderHandler, err := registerreader.NewCommandHandler(wrapper.GetEventStore())
-	assert.NoError(t, err, "Should create RegisterReader handler")
-
-	lendBookHandler, err := lendbookcopytoreader.NewCommandHandler(wrapper.GetEventStore())
-	assert.NoError(t, err, "Should create LendBook handler")
-
-	returnBookHandler, err := returnbookcopyfromreader.NewCommandHandler(wrapper.GetEventStore())
-	assert.NoError(t, err, "Should create ReturnBook handler")
+	addBookHandler := addbookcopy.NewCommandHandler(wrapper.GetEventStore())
+	registerReaderHandler := registerreader.NewCommandHandler(wrapper.GetEventStore())
+	lendBookHandler := lendbookcopytoreader.NewCommandHandler(wrapper.GetEventStore())
+	returnBookHandler := returnbookcopyfromreader.NewCommandHandler(wrapper.GetEventStore())
 
 	queryHandler, err := bookslentbyreader.NewQueryHandler(wrapper.GetEventStore())
 	assert.NoError(t, err, "Should create BooksLentByReader query handler")
@@ -255,35 +248,35 @@ func createTestBooks(t *testing.T) testBooks {
 
 func addBooksToLibrary(t *testing.T, handlers testHandlers, books testBooks, fakeClock time.Time) {
 	addBookCmd1 := addbookcopy.BuildCommand(books.book1, "978-1-098-10013-1", "Learning Domain-Driven Design", "Vlad Khononov", "First Edition", "O'Reilly Media, Inc.", 2021, fakeClock)
-	err := handlers.addBook.Handle(context.Background(), addBookCmd1)
+	_, err := handlers.addBook.Handle(context.Background(), addBookCmd1)
 	assert.NoError(t, err, "Should add book1 to circulation")
 
 	addBookCmd2 := addbookcopy.BuildCommand(books.book2, "978-0-201-63361-0", "Design Patterns", "Gang of Four", "First Edition", "Addison-Wesley", 1994, fakeClock.Add(time.Minute))
-	err = handlers.addBook.Handle(context.Background(), addBookCmd2)
+	_, err = handlers.addBook.Handle(context.Background(), addBookCmd2)
 	assert.NoError(t, err, "Should add book2 to circulation")
 
 	addBookCmd3 := addbookcopy.BuildCommand(books.book3, "978-0-134-75316-6", "Effective Java", "Joshua Bloch", "Third Edition", "Addison-Wesley", 2017, fakeClock.Add(2*time.Minute))
-	err = handlers.addBook.Handle(context.Background(), addBookCmd3)
+	_, err = handlers.addBook.Handle(context.Background(), addBookCmd3)
 	assert.NoError(t, err, "Should add book3 to circulation")
 }
 
 func registerSingleReader(t *testing.T, handlers testHandlers, readerID uuid.UUID, fakeClock time.Time) {
 	registerReaderCmd := registerreader.BuildCommand(readerID, "Test Reader", fakeClock.Add(3*time.Minute))
-	err := handlers.registerReader.Handle(context.Background(), registerReaderCmd)
+	_, err := handlers.registerReader.Handle(context.Background(), registerReaderCmd)
 	assert.NoError(t, err, "Should register reader")
 }
 
 func lendAllBooksToReader(t *testing.T, handlers testHandlers, books testBooks, readerID uuid.UUID, fakeClock time.Time) {
 	lendBookCmd1 := lendbookcopytoreader.BuildCommand(books.book1, readerID, fakeClock.Add(time.Hour))
-	err := handlers.lendBook.Handle(context.Background(), lendBookCmd1)
+	_, err := handlers.lendBook.Handle(context.Background(), lendBookCmd1)
 	assert.NoError(t, err, "Should lend book1 to reader")
 
 	lendBookCmd2 := lendbookcopytoreader.BuildCommand(books.book2, readerID, fakeClock.Add(2*time.Hour))
-	err = handlers.lendBook.Handle(context.Background(), lendBookCmd2)
+	_, err = handlers.lendBook.Handle(context.Background(), lendBookCmd2)
 	assert.NoError(t, err, "Should lend book2 to reader")
 
 	lendBookCmd3 := lendbookcopytoreader.BuildCommand(books.book3, readerID, fakeClock.Add(3*time.Hour))
-	err = handlers.lendBook.Handle(context.Background(), lendBookCmd3)
+	_, err = handlers.lendBook.Handle(context.Background(), lendBookCmd3)
 	assert.NoError(t, err, "Should lend book3 to reader")
 }
 

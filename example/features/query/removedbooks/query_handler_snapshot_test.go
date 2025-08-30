@@ -189,14 +189,14 @@ func createTestRemovedBook(ctx context.Context, t *testing.T, wrapper Wrapper) {
 
 	// Add a book first
 	addBookCmd := addbookcopy.BuildCommand(bookID, "Test Book", "Test Author", "ISBN123", "1st", "Test Publisher", 2020, fakeClock)
-	addBookHandler, _ := addbookcopy.NewCommandHandler(wrapper.GetEventStore())
-	err := addBookHandler.Handle(ctx, addBookCmd)
+	addBookHandler := addbookcopy.NewCommandHandler(wrapper.GetEventStore())
+	_, err := addBookHandler.Handle(ctx, addBookCmd)
 	assert.NoError(t, err, "Should add book")
 
 	// Then remove the book
 	removeBookCmd := removebookcopy.BuildCommand(bookID, fakeClock.Add(time.Minute))
-	removeBookHandler, _ := removebookcopy.NewCommandHandler(wrapper.GetEventStore())
-	err = removeBookHandler.Handle(ctx, removeBookCmd)
+	removeBookHandler := removebookcopy.NewCommandHandler(wrapper.GetEventStore())
+	_, err = removeBookHandler.Handle(ctx, removeBookCmd)
 	assert.NoError(t, err, "Should remove book")
 }
 
@@ -209,14 +209,14 @@ func createSecondTestRemovedBook(ctx context.Context, t *testing.T, wrapper Wrap
 
 	// Add a second book first
 	addBookCmd := addbookcopy.BuildCommand(bookID, "Second Book", "Second Author", "ISBN456", "1st", "Second Publisher", 2021, fakeClock)
-	addBookHandler, _ := addbookcopy.NewCommandHandler(wrapper.GetEventStore())
-	err := addBookHandler.Handle(ctx, addBookCmd)
+	addBookHandler := addbookcopy.NewCommandHandler(wrapper.GetEventStore())
+	_, err := addBookHandler.Handle(ctx, addBookCmd)
 	assert.NoError(t, err, "Should add second book")
 
 	// Then remove the second book
 	removeBookCmd := removebookcopy.BuildCommand(bookID, fakeClock.Add(time.Minute))
-	removeBookHandler, _ := removebookcopy.NewCommandHandler(wrapper.GetEventStore())
-	err = removeBookHandler.Handle(ctx, removeBookCmd)
+	removeBookHandler := removebookcopy.NewCommandHandler(wrapper.GetEventStore())
+	_, err = removeBookHandler.Handle(ctx, removeBookCmd)
 	assert.NoError(t, err, "Should remove second book")
 }
 
@@ -226,15 +226,13 @@ func assertSnapshotMissMetrics(t *testing.T, metricsCollector *MetricsCollectorS
 
 	componentRecords := getComponentMetrics(metricsCollector)
 
-	// We should have 5 component records: snapshot_load (error), query (success), unmarshal (success), projection (success), snapshot_save (success)
-	assert.Len(t, componentRecords, 5, "should record exactly 5 component metrics for snapshot miss")
+	// We should have 2 component records: snapshot_load (error), snapshot_save (success)
+	// Base handlers no longer record component metrics - they only record total timing
+	assert.Len(t, componentRecords, 2, "should record exactly 2 component metrics for snapshot miss")
 
 	// Check for expected components with the correct status
 	expectedComponents := map[string]string{
 		"snapshot_load": "error",   // Snapshot miss
-		"query":         "success", // Fallback to base handler
-		"unmarshal":     "success", // Fallback to base handler
-		"projection":    "success", // Fallback to base handler
 		"snapshot_save": "success", // Save the initial snapshot after fallback
 	}
 
@@ -254,7 +252,7 @@ func assertSnapshotHitMetrics(t *testing.T, metricsCollector *MetricsCollectorSp
 	expectedComponents := map[string]string{
 		"snapshot_load":          "success", // Snapshot hit
 		"incremental_query":      "success", // Incremental query execution
-		"unmarshal":              "success", // Incremental events unmarshal
+		"snapshot_unmarshal":     "success", // Incremental events unmarshal (renamed from unmarshal)
 		"snapshot_deserialize":   "success", // Snapshot data deserialization
 		"incremental_projection": "success", // Incremental projection
 		"snapshot_save":          "success", // Save the updated snapshot with incremental changes

@@ -235,7 +235,7 @@ func (w *GenericSnapshotWrapper[Q, R]) executeUnmarshal(
 	unmarshalDuration := time.Since(unmarshalStart)
 
 	if err != nil {
-		w.recordComponentTiming(ctx, queryType, shell.ComponentUnmarshal, shell.StatusError, unmarshalDuration)
+		w.recordComponentTiming(ctx, queryType, shell.ComponentSnapshotUnmarshal, shell.StatusError, unmarshalDuration)
 		if w.contextualLogger != nil {
 			w.contextualLogger.ErrorContext(ctx, shell.LogMsgEventConversionError, shell.LogAttrError, err.Error())
 		} else if w.logger != nil {
@@ -244,7 +244,7 @@ func (w *GenericSnapshotWrapper[Q, R]) executeUnmarshal(
 		return nil, err
 	}
 
-	w.recordComponentTiming(ctx, queryType, shell.ComponentUnmarshal, shell.StatusSuccess, unmarshalDuration)
+	w.recordComponentTiming(ctx, queryType, shell.ComponentSnapshotUnmarshal, shell.StatusSuccess, unmarshalDuration)
 
 	return incrementalEvents, nil
 }
@@ -418,7 +418,9 @@ func (w *GenericSnapshotWrapper[Q, R]) recordFallbackAndExecute(
 	return result, nil
 }
 
-// recordComponentTiming records component-level timing metrics for snapshot operations.
+// recordComponentTiming records component-level timing metrics directly for snapshot operations.
+// This uses the snapshot-specific QueryHandlerComponentDurationMetric, which tracks different
+// components than the base query handlers (snapshot_load, snapshot_deserialize, etc.).
 func (w *GenericSnapshotWrapper[Q, R]) recordComponentTiming(
 	ctx context.Context,
 	queryType string,
@@ -426,7 +428,21 @@ func (w *GenericSnapshotWrapper[Q, R]) recordComponentTiming(
 	status string,
 	duration time.Duration,
 ) {
-	shell.RecordQueryComponentDuration(ctx, w.metricsCollector, queryType, component, status, duration)
+	if w.metricsCollector == nil {
+		return
+	}
+
+	labels := map[string]string{
+		shell.LogAttrQueryType: queryType,
+		"component":            component,
+		shell.LogAttrStatus:    status,
+	}
+
+	if contextualCollector, ok := w.metricsCollector.(shell.ContextualMetricsCollector); ok {
+		contextualCollector.RecordDurationContext(ctx, shell.QueryHandlerComponentDurationMetric, duration, labels)
+	} else {
+		w.metricsCollector.RecordDuration(shell.QueryHandlerComponentDurationMetric, duration, labels)
+	}
 }
 
 // recordSnapshotSaveError handles error recording and logging for snapshot save operations.

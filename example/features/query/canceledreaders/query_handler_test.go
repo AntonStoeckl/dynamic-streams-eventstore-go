@@ -68,11 +68,11 @@ func Test_QueryHandler_Handle_IncludesCanceledReadersSortedByCanceledAt(t *testi
 
 	// Cancel reader2 and reader4 contracts at different times
 	cancelContractCmd2 := cancelreadercontract.BuildCommand(readers.reader2, fakeClock.Add(20*time.Minute))
-	err := handlers.cancelContract.Handle(ctx, cancelContractCmd2)
+	_, err := handlers.cancelContract.Handle(ctx, cancelContractCmd2)
 	assert.NoError(t, err, "Should cancel reader2 contract")
 
 	cancelContractCmd4 := cancelreadercontract.BuildCommand(readers.reader4, fakeClock.Add(21*time.Minute))
-	err = handlers.cancelContract.Handle(ctx, cancelContractCmd4)
+	_, err = handlers.cancelContract.Handle(ctx, cancelContractCmd4)
 	assert.NoError(t, err, "Should cancel reader4 contract")
 
 	// act
@@ -131,19 +131,19 @@ func Test_QueryHandler_Handle_ReturnsAllCanceledReaders_WhenAllReadersAreCancele
 
 	// Cancel all readers at different times
 	cancelContractCmd1 := cancelreadercontract.BuildCommand(readers.reader1, fakeClock.Add(10*time.Minute))
-	err := handlers.cancelContract.Handle(ctx, cancelContractCmd1)
+	_, err := handlers.cancelContract.Handle(ctx, cancelContractCmd1)
 	assert.NoError(t, err, "Should cancel reader1 contract")
 
 	cancelContractCmd2 := cancelreadercontract.BuildCommand(readers.reader2, fakeClock.Add(11*time.Minute))
-	err = handlers.cancelContract.Handle(ctx, cancelContractCmd2)
+	_, err = handlers.cancelContract.Handle(ctx, cancelContractCmd2)
 	assert.NoError(t, err, "Should cancel reader2 contract")
 
 	cancelContractCmd3 := cancelreadercontract.BuildCommand(readers.reader3, fakeClock.Add(12*time.Minute))
-	err = handlers.cancelContract.Handle(ctx, cancelContractCmd3)
+	_, err = handlers.cancelContract.Handle(ctx, cancelContractCmd3)
 	assert.NoError(t, err, "Should cancel reader3 contract")
 
 	cancelContractCmd4 := cancelreadercontract.BuildCommand(readers.reader4, fakeClock.Add(13*time.Minute))
-	err = handlers.cancelContract.Handle(ctx, cancelContractCmd4)
+	_, err = handlers.cancelContract.Handle(ctx, cancelContractCmd4)
 	assert.NoError(t, err, "Should cancel reader4 contract")
 
 	// act
@@ -175,26 +175,26 @@ func Test_QueryHandler_Handle_HandlesMixedRegisterAndCancelOperations(t *testing
 
 	// Register reader1 and reader2
 	registerReaderCmd1 := registerreader.BuildCommand(readers.reader1, "Alice Reader", fakeClock)
-	err := handlers.registerReader.Handle(ctx, registerReaderCmd1)
+	_, err := handlers.registerReader.Handle(ctx, registerReaderCmd1)
 	assert.NoError(t, err, "Should register reader1")
 
 	registerReaderCmd2 := registerreader.BuildCommand(readers.reader2, "Bob Reader", fakeClock.Add(time.Minute))
-	err = handlers.registerReader.Handle(ctx, registerReaderCmd2)
+	_, err = handlers.registerReader.Handle(ctx, registerReaderCmd2)
 	assert.NoError(t, err, "Should register reader2")
 
 	// Cancel reader1
 	cancelContractCmd1 := cancelreadercontract.BuildCommand(readers.reader1, fakeClock.Add(2*time.Minute))
-	err = handlers.cancelContract.Handle(ctx, cancelContractCmd1)
+	_, err = handlers.cancelContract.Handle(ctx, cancelContractCmd1)
 	assert.NoError(t, err, "Should cancel reader1 contract")
 
 	// Register reader3 (but don't cancel)
 	registerReaderCmd3 := registerreader.BuildCommand(readers.reader3, "Charlie Reader", fakeClock.Add(3*time.Minute))
-	err = handlers.registerReader.Handle(ctx, registerReaderCmd3)
+	_, err = handlers.registerReader.Handle(ctx, registerReaderCmd3)
 	assert.NoError(t, err, "Should register reader3")
 
 	// Cancel reader2 later
 	cancelContractCmd2 := cancelreadercontract.BuildCommand(readers.reader2, fakeClock.Add(4*time.Minute))
-	err = handlers.cancelContract.Handle(ctx, cancelContractCmd2)
+	_, err = handlers.cancelContract.Handle(ctx, cancelContractCmd2)
 	assert.NoError(t, err, "Should cancel reader2 contract")
 
 	// act
@@ -229,17 +229,17 @@ func Test_QueryHandler_Handle_IdempotentCancellation_OnlyShowsReaderOnce(t *test
 
 	// arrange - register reader1
 	registerReaderCmd1 := registerreader.BuildCommand(readers.reader1, "Alice Reader", fakeClock)
-	err := handlers.registerReader.Handle(ctx, registerReaderCmd1)
+	_, err := handlers.registerReader.Handle(ctx, registerReaderCmd1)
 	assert.NoError(t, err, "Should register reader1")
 
 	// Cancel reader1 multiple times (idempotent operations)
 	cancelContractCmd1 := cancelreadercontract.BuildCommand(readers.reader1, fakeClock.Add(10*time.Minute))
-	err = handlers.cancelContract.Handle(ctx, cancelContractCmd1)
+	_, err = handlers.cancelContract.Handle(ctx, cancelContractCmd1)
 	assert.NoError(t, err, "Should cancel reader1 contract (first time)")
 
 	// Try to cancel the same reader again (should be idempotent)
 	cancelContractCmd2 := cancelreadercontract.BuildCommand(readers.reader1, fakeClock.Add(15*time.Minute))
-	err = handlers.cancelContract.Handle(ctx, cancelContractCmd2)
+	_, err = handlers.cancelContract.Handle(ctx, cancelContractCmd2)
 	assert.NoError(t, err, "Should handle idempotent cancellation (second time)")
 
 	// act
@@ -289,11 +289,8 @@ func setupTestEnvironment(t *testing.T) (context.Context, Wrapper, func()) {
 }
 
 func createAllHandlers(t *testing.T, wrapper Wrapper) testHandlers {
-	registerReaderHandler, err := registerreader.NewCommandHandler(wrapper.GetEventStore())
-	assert.NoError(t, err, "Should create RegisterReader handler")
-
-	cancelContractHandler, err := cancelreadercontract.NewCommandHandler(wrapper.GetEventStore())
-	assert.NoError(t, err, "Should create CancelReaderContract handler")
+	registerReaderHandler := registerreader.NewCommandHandler(wrapper.GetEventStore())
+	cancelContractHandler := cancelreadercontract.NewCommandHandler(wrapper.GetEventStore())
 
 	queryHandler, err := canceledreaders.NewQueryHandler(wrapper.GetEventStore())
 	assert.NoError(t, err, "Should create CanceledReaders query handler")
@@ -316,19 +313,19 @@ func createTestReaders(t *testing.T) testReaders {
 
 func registerReadersToLibrary(t *testing.T, handlers testHandlers, readers testReaders, fakeClock time.Time) {
 	registerReaderCmd1 := registerreader.BuildCommand(readers.reader1, "Alice Reader", fakeClock)
-	err := handlers.registerReader.Handle(context.Background(), registerReaderCmd1)
+	_, err := handlers.registerReader.Handle(context.Background(), registerReaderCmd1)
 	assert.NoError(t, err, "Should register reader1")
 
 	registerReaderCmd2 := registerreader.BuildCommand(readers.reader2, "Bob Reader", fakeClock.Add(time.Minute))
-	err = handlers.registerReader.Handle(context.Background(), registerReaderCmd2)
+	_, err = handlers.registerReader.Handle(context.Background(), registerReaderCmd2)
 	assert.NoError(t, err, "Should register reader2")
 
 	registerReaderCmd3 := registerreader.BuildCommand(readers.reader3, "Charlie Reader", fakeClock.Add(2*time.Minute))
-	err = handlers.registerReader.Handle(context.Background(), registerReaderCmd3)
+	_, err = handlers.registerReader.Handle(context.Background(), registerReaderCmd3)
 	assert.NoError(t, err, "Should register reader3")
 
 	registerReaderCmd4 := registerreader.BuildCommand(readers.reader4, "Diana Reader", fakeClock.Add(3*time.Minute))
-	err = handlers.registerReader.Handle(context.Background(), registerReaderCmd4)
+	_, err = handlers.registerReader.Handle(context.Background(), registerReaderCmd4)
 	assert.NoError(t, err, "Should register reader4")
 }
 

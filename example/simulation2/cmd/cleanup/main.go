@@ -860,11 +860,7 @@ func main() {
 	log.Printf("💡 Creating ReturnBookCopyFromReader commands for each orphaned lending...")
 
 	// Create a command handler for cleanup
-	returnBookHandler, err := returnbookcopyfromreader.NewCommandHandler(eventStore,
-		buildReturnBookOptions(obsConfig)...)
-	if err != nil {
-		log.Panicf("Failed to create ReturnBookCopyFromReader handler: %v", err)
-	}
+	returnBookHandler := returnbookcopyfromreader.NewCommandHandler(eventStore)
 
 	// Collect all orphaned lendings for parallel processing
 	orphanedLendingsList := make([]struct{ BookID, ReaderID string }, 0, orphanedLendings)
@@ -1369,7 +1365,7 @@ func processReturnCommand(ctx context.Context, handler *returnbookcopyfromreader
 	commandCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	err = handler.Handle(commandCtx, command)
+	_, err = handler.Handle(commandCtx, command)
 	if err != nil {
 		stats.RecordError(err.Error(), bookID, readerID)
 		return false
@@ -1380,22 +1376,6 @@ func processReturnCommand(ctx context.Context, handler *returnbookcopyfromreader
 }
 
 // buildReturnBookOptions creates options for ReturnBookCopyFromReader command handler.
-func buildReturnBookOptions(obsConfig ObservabilityConfig) []returnbookcopyfromreader.Option {
-	var opts []returnbookcopyfromreader.Option
-	if obsConfig.MetricsCollector != nil {
-		opts = append(opts, returnbookcopyfromreader.WithMetrics(obsConfig.MetricsCollector))
-	}
-	if obsConfig.TracingCollector != nil {
-		opts = append(opts, returnbookcopyfromreader.WithTracing(obsConfig.TracingCollector))
-	}
-	if obsConfig.ContextualLogger != nil {
-		opts = append(opts, returnbookcopyfromreader.WithContextualLogging(obsConfig.ContextualLogger))
-	}
-	if obsConfig.Logger != nil {
-		opts = append(opts, returnbookcopyfromreader.WithLogging(obsConfig.Logger))
-	}
-	return opts
-}
 
 // buildCanceledReadersOptions creates options for CanceledReaders query handler.
 func buildCanceledReadersOptions(obsConfig ObservabilityConfig) []canceledreaders.Option {

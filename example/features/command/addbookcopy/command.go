@@ -21,6 +21,11 @@ type Command struct {
 	OccurredAt      core.OccurredAtTS
 }
 
+// CommandType returns the type identifier for this command.
+func (c Command) CommandType() string {
+	return "AddBookCopy"
+}
+
 // BuildCommand creates a new Command with the provided parameters.
 func BuildCommand(
 	bookID uuid.UUID,

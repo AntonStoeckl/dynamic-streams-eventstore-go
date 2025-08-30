@@ -34,6 +34,11 @@ const (
 	// QueryHandlerCallsMetric tracks total query handler calls.
 	QueryHandlerCallsMetric = "queryhandler_handle_calls_total"
 
+	// QueryHandlerComponentDurationMetric tracks component-level timing for snapshot operations.
+	// This is used exclusively by snapshot wrappers for measuring snapshot-specific components
+	// like snapshot_load, snapshot_deserialize, incremental_query, incremental_projection.
+	QueryHandlerComponentDurationMetric = "queryhandler_component_duration_seconds"
+
 	// QueryHandlerCanceledMetric tracks canceled query operations.
 	QueryHandlerCanceledMetric = "queryhandler_canceled_operations_total"
 
@@ -83,33 +88,6 @@ const (
 	//   - Identify problematic commands: rate(commandhandler_max_retries_reached_total[1h]) by (command_type)
 	CommandHandlerMaxRetriesReachedMetric = "commandhandler_max_retries_reached_total"
 
-	// CommandHandlerComponentDurationMetric tracks component-level timing in command handlers.
-	//
-	// Labels:
-	//   - command_type: Type of command (e.g., "LendBookCopy")
-	//   - component: Processing phase (query, unmarshal, decide, append)
-	//   - status: Execution status (success, error, canceled, timeout)
-	//
-	// Components:
-	//   - query: EventStore.Query execution time
-	//   - unmarshal: DomainEventsFrom deserialization time
-	//   - decide: Business logic execution time
-	//   - append: EventStore.Append execution time
-	CommandHandlerComponentDurationMetric = "commandhandler_component_duration_seconds"
-
-	// QueryHandlerComponentDurationMetric tracks component-level timing in query handlers.
-	//
-	// Labels:
-	//   - query_type: Type of query (e.g., "BooksLentByReader")
-	//   - component: Processing phase (query, unmarshal, projection)
-	//   - status: Execution status (success, error, canceled, timeout)
-	//
-	// Components:
-	//   - query: EventStore.Query execution time
-	//   - unmarshal: DomainEventsFrom deserialization time
-	//   - projection: Business logic execution time
-	QueryHandlerComponentDurationMetric = "queryhandler_component_duration_seconds"
-
 	// StatusSuccess indicates successful command completion.
 	StatusSuccess = "success"
 
@@ -128,21 +106,6 @@ const (
 	// StatusConcurrencyConflict indicates the operation failed due to optimistic concurrency control.
 	StatusConcurrencyConflict = "concurrency_conflict"
 
-	// ComponentQuery identifies the query phase in timing metrics.
-	ComponentQuery = "query"
-
-	// ComponentUnmarshal identifies the unmarshal phase in timing metrics.
-	ComponentUnmarshal = "unmarshal"
-
-	// ComponentDecide identifies the decide phase in timing metrics.
-	ComponentDecide = "decide"
-
-	// ComponentAppend identifies the append phase in timing metrics.
-	ComponentAppend = "append"
-
-	// ComponentProjection identifies the projection phase in timing metrics.
-	ComponentProjection = "projection"
-
 	// ComponentSnapshotLoad identifies the snapshot loading phase in snapshot-aware query handlers.
 	ComponentSnapshotLoad = "snapshot_load"
 
@@ -154,6 +117,9 @@ const (
 
 	// ComponentSnapshotSave identifies the asynchronous snapshot saving phase in snapshot-aware query handlers.
 	ComponentSnapshotSave = "snapshot_save"
+
+	// ComponentSnapshotUnmarshal identifies the event unmarshaling phase in snapshot-aware query handlers.
+	ComponentSnapshotUnmarshal = "snapshot_unmarshal"
 
 	// ComponentIncrementalProjection identifies the incremental projection phase in snapshot-aware query handlers.
 	ComponentIncrementalProjection = "incremental_projection"
@@ -224,7 +190,7 @@ const (
 	// LogAttrSnapshotStatus indicates the snapshot operation status (hit/miss).
 	LogAttrSnapshotStatus = "snapshot_status"
 
-	// LogAttrSnapshotReason indicates the reason for snapshot operation outcome.
+	// LogAttrSnapshotReason indicates the reason for the snapshot operation outcome.
 	LogAttrSnapshotReason = "snapshot_reason"
 
 	// LogAttrReason indicates the reason for a fallback or failure.
@@ -303,24 +269,6 @@ func BuildCommandLabels(commandType, status string) map[string]string {
 func BuildQueryLabels(queryType, status string) map[string]string {
 	return map[string]string{
 		LogAttrQueryType: queryType,
-		LogAttrStatus:    status,
-	}
-}
-
-// BuildCommandComponentLabels creates metric labels for command handler component timing.
-func BuildCommandComponentLabels(commandType, component, status string) map[string]string {
-	return map[string]string{
-		LogAttrCommandType: commandType,
-		"component":        component,
-		LogAttrStatus:      status,
-	}
-}
-
-// BuildQueryComponentLabels creates metric labels for query handler component timing.
-func BuildQueryComponentLabels(queryType, component, status string) map[string]string {
-	return map[string]string{
-		LogAttrQueryType: queryType,
-		"component":      component,
 		LogAttrStatus:    status,
 	}
 }
@@ -654,52 +602,6 @@ func LogQueryError(
 		contextualLogger.ErrorContext(ctx, LogMsgQueryFailed, args...)
 	} else if logger != nil {
 		logger.Error(LogMsgQueryFailed, args...)
-	}
-}
-
-// RecordCommandComponentDuration records component-level timing metrics for command handlers.
-// It handles both context-aware and basic metrics collectors automatically.
-func RecordCommandComponentDuration(
-	ctx context.Context,
-	collector MetricsCollector,
-	commandType string,
-	component string,
-	status string,
-	duration time.Duration,
-) {
-	if collector == nil {
-		return
-	}
-
-	labels := BuildCommandComponentLabels(commandType, component, status)
-
-	if contextualCollector, ok := collector.(ContextualMetricsCollector); ok {
-		contextualCollector.RecordDurationContext(ctx, CommandHandlerComponentDurationMetric, duration, labels)
-	} else {
-		collector.RecordDuration(CommandHandlerComponentDurationMetric, duration, labels)
-	}
-}
-
-// RecordQueryComponentDuration records component-level timing metrics for query handlers.
-// It handles both context-aware and basic metrics collectors automatically.
-func RecordQueryComponentDuration(
-	ctx context.Context,
-	collector MetricsCollector,
-	queryType string,
-	component string,
-	status string,
-	duration time.Duration,
-) {
-	if collector == nil {
-		return
-	}
-
-	labels := BuildQueryComponentLabels(queryType, component, status)
-
-	if contextualCollector, ok := collector.(ContextualMetricsCollector); ok {
-		contextualCollector.RecordDurationContext(ctx, QueryHandlerComponentDurationMetric, duration, labels)
-	} else {
-		collector.RecordDuration(QueryHandlerComponentDurationMetric, duration, labels)
 	}
 }
 
