@@ -25,7 +25,7 @@ type CommandWrapper[C shell.Command] struct {
 // all business logic to the wrapped handler.
 func NewCommandWrapper[C shell.Command](
 	coreHandler shell.CoreCommandHandler[C],
-	opts ...Option,
+	opts ...CommandOption[C],
 ) (*CommandWrapper[C], error) {
 	// Extract command type from a zero-value instance
 	var zeroCommand C
@@ -78,64 +78,39 @@ func (w *CommandWrapper[C]) Handle(ctx context.Context, command C) (shell.Handle
 	return result, nil
 }
 
-// configuresObservability defines the interface for types that can be configured with observability components.
-type configuresObservability interface {
-	setMetricsCollector(shell.MetricsCollector)
-	setTracingCollector(shell.TracingCollector)
-	setContextualLogger(shell.ContextualLogger)
-	setLogger(shell.Logger)
-}
+// CommandOption defines a functional option for configuring CommandWrapper.
+type CommandOption[C shell.Command] func(*CommandWrapper[C]) error
 
-// Option defines a functional option for configuring ObservableCommandWrapper.
-type Option func(configuresObservability) error
-
-// WithMetrics sets the metrics collector for the wrapper.
-func WithMetrics(collector shell.MetricsCollector) Option {
-	return func(w configuresObservability) error {
-		w.setMetricsCollector(collector)
+// WithCommandMetrics sets the metrics collector for the CommandWrapper.
+func WithCommandMetrics[C shell.Command](collector shell.MetricsCollector) CommandOption[C] {
+	return func(w *CommandWrapper[C]) error {
+		w.metricsCollector = collector
 		return nil
 	}
 }
 
-// WithTracing sets the tracing collector for the wrapper.
-func WithTracing(collector shell.TracingCollector) Option {
-	return func(w configuresObservability) error {
-		w.setTracingCollector(collector)
+// WithCommandTracing sets the tracing collector for the CommandWrapper.
+func WithCommandTracing[C shell.Command](collector shell.TracingCollector) CommandOption[C] {
+	return func(w *CommandWrapper[C]) error {
+		w.tracingCollector = collector
 		return nil
 	}
 }
 
-// WithContextualLogging sets the contextual logger for the wrapper.
-func WithContextualLogging(logger shell.ContextualLogger) Option {
-	return func(w configuresObservability) error {
-		w.setContextualLogger(logger)
+// WithCommandContextualLogging sets the contextual logger for the CommandWrapper.
+func WithCommandContextualLogging[C shell.Command](logger shell.ContextualLogger) CommandOption[C] {
+	return func(w *CommandWrapper[C]) error {
+		w.contextualLogger = logger
 		return nil
 	}
 }
 
-// WithLogging sets the basic logger for the wrapper.
-func WithLogging(logger shell.Logger) Option {
-	return func(w configuresObservability) error {
-		w.setLogger(logger)
+// WithCommandLogging sets the basic logger for the CommandWrapper.
+func WithCommandLogging[C shell.Command](logger shell.Logger) CommandOption[C] {
+	return func(w *CommandWrapper[C]) error {
+		w.logger = logger
 		return nil
 	}
-}
-
-// Setter methods to support the interface-based options pattern.
-func (w *CommandWrapper[C]) setMetricsCollector(collector shell.MetricsCollector) {
-	w.metricsCollector = collector
-}
-
-func (w *CommandWrapper[C]) setTracingCollector(collector shell.TracingCollector) {
-	w.tracingCollector = collector
-}
-
-func (w *CommandWrapper[C]) setContextualLogger(logger shell.ContextualLogger) {
-	w.contextualLogger = logger
-}
-
-func (w *CommandWrapper[C]) setLogger(logger shell.Logger) {
-	w.logger = logger
 }
 
 /*** Observability helper methods ***/

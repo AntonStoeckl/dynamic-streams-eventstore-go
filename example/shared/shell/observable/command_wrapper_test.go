@@ -21,7 +21,7 @@ func Test_CommandWrapper_NewCommandWrapper_Success(t *testing.T) {
 	// act
 	wrapper, err := observable.NewCommandWrapper[mockCommand](
 		handler,
-		observable.WithMetrics(metricsCollector),
+		observable.WithCommandMetrics[mockCommand](metricsCollector),
 	)
 
 	// assert
@@ -45,9 +45,9 @@ func Test_CommandWrapper_Handle_Success_NonIdempotent(t *testing.T) {
 
 	wrapper, err := observable.NewCommandWrapper[mockCommand](
 		handler,
-		observable.WithMetrics(metricsCollector),
-		observable.WithTracing(tracingCollector),
-		observable.WithContextualLogging(contextualLogger),
+		observable.WithCommandMetrics[mockCommand](metricsCollector),
+		observable.WithCommandTracing[mockCommand](tracingCollector),
+		observable.WithCommandContextualLogging[mockCommand](contextualLogger),
 	)
 	assert.NoError(t, err, "Should create wrapper")
 
@@ -100,7 +100,7 @@ func Test_CommandWrapper_Handle_Success_Idempotent(t *testing.T) {
 
 	wrapper, err := observable.NewCommandWrapper[mockCommand](
 		handler,
-		observable.WithMetrics(metricsCollector),
+		observable.WithCommandMetrics[mockCommand](metricsCollector),
 	)
 	assert.NoError(t, err, "Should create wrapper")
 
@@ -134,7 +134,7 @@ func Test_CommandWrapper_Handle_WithRetries_RecordsMetrics(t *testing.T) {
 
 	wrapper, err := observable.NewCommandWrapper[mockCommand](
 		handler,
-		observable.WithMetrics(metricsCollector),
+		observable.WithCommandMetrics[mockCommand](metricsCollector),
 	)
 	assert.NoError(t, err, "Should create wrapper")
 
@@ -172,9 +172,9 @@ func Test_CommandWrapper_Handle_Error_RecordsFailureMetrics(t *testing.T) {
 
 	wrapper, err := observable.NewCommandWrapper[mockCommand](
 		handler,
-		observable.WithMetrics(metricsCollector),
-		observable.WithTracing(tracingCollector),
-		observable.WithContextualLogging(contextualLogger),
+		observable.WithCommandMetrics[mockCommand](metricsCollector),
+		observable.WithCommandTracing[mockCommand](tracingCollector),
+		observable.WithCommandContextualLogging[mockCommand](contextualLogger),
 	)
 	assert.NoError(t, err, "Should create wrapper")
 
@@ -210,7 +210,7 @@ func Test_CommandWrapper_Handle_CancellationError_RecordsCorrectStatus(t *testin
 
 	wrapper, err := observable.NewCommandWrapper[mockCommand](
 		handler,
-		observable.WithMetrics(metricsCollector),
+		observable.WithCommandMetrics[mockCommand](metricsCollector),
 	)
 	assert.NoError(t, err, "Should create wrapper")
 
@@ -240,7 +240,7 @@ func Test_CommandWrapper_Handle_TimeoutError_RecordsCorrectStatus(t *testing.T) 
 
 	wrapper, err := observable.NewCommandWrapper[mockCommand](
 		handler,
-		observable.WithMetrics(metricsCollector),
+		observable.WithCommandMetrics[mockCommand](metricsCollector),
 	)
 	assert.NoError(t, err, "Should create wrapper")
 
@@ -321,7 +321,7 @@ func Test_CommandWrapper_Handle_CommandTypeDetection(t *testing.T) {
 
 	wrapper, err := observable.NewCommandWrapper[customMockCommand](
 		handler,
-		observable.WithMetrics(metricsCollector),
+		observable.WithCommandMetrics[customMockCommand](metricsCollector),
 	)
 	assert.NoError(t, err, "Should create wrapper")
 
@@ -352,37 +352,37 @@ func Test_CommandWrapper_Options_AllCombinations(t *testing.T) {
 	// Test all option combinations
 	testCases := []struct {
 		name string
-		opts []observable.Option
+		opts []observable.CommandOption[mockCommand]
 	}{
 		{
 			name: "all options",
-			opts: []observable.Option{
-				observable.WithMetrics(metricsCollector),
-				observable.WithTracing(tracingCollector),
-				observable.WithContextualLogging(contextualLogger),
+			opts: []observable.CommandOption[mockCommand]{
+				observable.WithCommandMetrics[mockCommand](metricsCollector),
+				observable.WithCommandTracing[mockCommand](tracingCollector),
+				observable.WithCommandContextualLogging[mockCommand](contextualLogger),
 			},
 		},
 		{
 			name: "metrics only",
-			opts: []observable.Option{
-				observable.WithMetrics(metricsCollector),
+			opts: []observable.CommandOption[mockCommand]{
+				observable.WithCommandMetrics[mockCommand](metricsCollector),
 			},
 		},
 		{
 			name: "tracing only",
-			opts: []observable.Option{
-				observable.WithTracing(tracingCollector),
+			opts: []observable.CommandOption[mockCommand]{
+				observable.WithCommandTracing[mockCommand](tracingCollector),
 			},
 		},
 		{
 			name: "logging only",
-			opts: []observable.Option{
-				observable.WithContextualLogging(contextualLogger),
+			opts: []observable.CommandOption[mockCommand]{
+				observable.WithCommandContextualLogging[mockCommand](contextualLogger),
 			},
 		},
 		{
 			name: "no options",
-			opts: []observable.Option{},
+			opts: []observable.CommandOption[mockCommand]{},
 		},
 	}
 
