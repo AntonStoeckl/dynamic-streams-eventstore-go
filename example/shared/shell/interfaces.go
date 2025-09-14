@@ -48,6 +48,15 @@ type QueryResult interface {
 	GetSequenceNumber() uint
 }
 
+// CoreQueryHandler defines the contract for components that process queries with pure business logic.
+// Handlers orchestrate the complete query workflow: retrieving events, unmarshaling, and projecting.
+// The generic parameters Q and R ensure type safety between queries and their corresponding results.
+// Implementations should focus purely on business logic without observability or infrastructure concerns.
+// This interface is designed to be wrapped with observability decorators for complete functionality.
+type CoreQueryHandler[Q Query, R QueryResult] interface {
+	Handle(ctx context.Context, query Q) (R, error)
+}
+
 // QueryHandler defines the contract for components that process queries and return projections.
 // Handlers orchestrate the complete query workflow: retrieving events, unmarshaling, and projecting.
 // The generic parameters Q and R ensure type safety between queries and their corresponding results.
