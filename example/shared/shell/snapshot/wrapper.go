@@ -45,7 +45,6 @@ type GenericSnapshotWrapper[Q shell.Query, R shell.QueryResult] struct {
 	eventStore       QueriesEventsAndHandlesSnapshots
 	projectFunc      shell.ProjectionFunc[Q, R]
 	filterBuilder    shell.FilterBuilderFunc[Q]
-	metricsCollector shell.MetricsCollector
 	tracingCollector shell.TracingCollector
 	contextualLogger shell.ContextualLogger
 	logger           shell.Logger
@@ -76,7 +75,6 @@ func NewGenericSnapshotWrapper[Q shell.Query, R shell.QueryResult](
 		eventStore:       snapshotCapableEventStore,
 		projectFunc:      projectFunc,
 		filterBuilder:    filterBuilder,
-		metricsCollector: baseHandler.ExposeMetricsCollector(),
 		tracingCollector: baseHandler.ExposeTracingCollector(),
 		contextualLogger: baseHandler.ExposeContextualLogger(),
 		logger:           baseHandler.ExposeLogger(),
@@ -114,19 +112,19 @@ func (w *GenericSnapshotWrapper[Q, R]) Handle(ctx context.Context, query Q) (R, 
 	sequenceCapableFilter := reopened.(eventstore.SequenceFilteringCapable)
 
 	// Incremental Query phase
-	storableEvents, maxSeq, err := w.executeIncrementalQuery(ctx, queryType, sequenceCapableFilter, snapshot.SequenceNumber)
+	storableEvents, maxSeq, err := w.executeIncrementalQuery(ctx, sequenceCapableFilter, snapshot.SequenceNumber)
 	if err != nil {
 		return w.recordFallbackAndExecute(ctx, query, queryStart, span, shell.SnapshotReasonIncrementalQueryError)
 	}
 
 	// Unmarshal phase
-	incrementalEvents, err := w.executeUnmarshal(ctx, queryType, storableEvents)
+	incrementalEvents, err := w.executeUnmarshal(ctx, storableEvents)
 	if err != nil {
 		return w.recordFallbackAndExecute(ctx, query, queryStart, span, shell.SnapshotReasonUnmarshalError)
 	}
 
 	// Snapshot Deserialization phase
-	baseProjection, err := w.executeSnapshotDeserialization(ctx, queryType, snapshot)
+	baseProjection, err := w.executeSnapshotDeserialization(ctx, snapshot)
 	if err != nil {
 		return w.recordFallbackAndExecute(ctx, query, queryStart, span, shell.SnapshotReasonDeserializeError)
 	}
@@ -138,7 +136,7 @@ func (w *GenericSnapshotWrapper[Q, R]) Handle(ctx context.Context, query Q) (R, 
 	}
 
 	// Incremental Projection phase
-	result := w.executeIncrementalProjection(ctx, query, incrementalEvents, baseProjection, finalSequence)
+	result := w.projectFunc(incrementalEvents, query, finalSequence, baseProjection)
 
 	// Save the updated snapshot with incremental changes
 	w.saveUpdatedSnapshot(ctx, query, baseFilter, finalSequence, result)
@@ -163,15 +161,11 @@ func (w *GenericSnapshotWrapper[Q, R]) executeSnapshotLoad(
 	query Q,
 	filter eventstore.Filter,
 ) (*eventstore.Snapshot, error) {
-	queryType := query.QueryType()
-	snapshotLoadStart := time.Now()
 	snapshotType := query.SnapshotType()
 	snapshot, err := w.eventStore.LoadSnapshot(ctx, snapshotType, filter)
-	snapshotLoadDuration := time.Since(snapshotLoadStart)
 
 	if err != nil {
 		// Actual error (not just "not found")
-		w.recordComponentTiming(ctx, queryType, shell.ComponentSnapshotLoad, shell.StatusError, snapshotLoadDuration)
 		if w.contextualLogger != nil {
 			w.contextualLogger.ErrorContext(ctx, "snapshot load error", shell.LogAttrError, err.Error())
 		} else if w.logger != nil {
@@ -182,7 +176,6 @@ func (w *GenericSnapshotWrapper[Q, R]) executeSnapshotLoad(
 
 	if snapshot == nil {
 		// Snapshot isn't found (normal case)
-		w.recordComponentTiming(ctx, queryType, shell.ComponentSnapshotLoad, shell.StatusError, snapshotLoadDuration)
 		if w.contextualLogger != nil {
 			w.contextualLogger.InfoContext(ctx, shell.LogMsgSnapshotMiss)
 		} else if w.logger != nil {
@@ -192,7 +185,6 @@ func (w *GenericSnapshotWrapper[Q, R]) executeSnapshotLoad(
 	}
 
 	// Snapshot found successfully
-	w.recordComponentTiming(ctx, queryType, shell.ComponentSnapshotLoad, shell.StatusSuccess, snapshotLoadDuration)
 
 	return snapshot, nil
 }
@@ -200,17 +192,13 @@ func (w *GenericSnapshotWrapper[Q, R]) executeSnapshotLoad(
 // executeIncrementalQuery handles the incremental query phase with proper observability.
 func (w *GenericSnapshotWrapper[Q, R]) executeIncrementalQuery(
 	ctx context.Context,
-	queryType string,
 	capable eventstore.SequenceFilteringCapable,
 	fromSequence uint,
 ) (eventstore.StorableEvents, eventstore.MaxSequenceNumberUint, error) {
-	incrementalQueryStart := time.Now()
 	incrementalFilter := capable.WithSequenceNumberHigherThan(fromSequence).Finalize()
 	storableEvents, maxSeq, err := w.eventStore.Query(ctx, incrementalFilter)
-	incrementalQueryDuration := time.Since(incrementalQueryStart)
 
 	if err != nil {
-		w.recordComponentTiming(ctx, queryType, shell.ComponentIncrementalQuery, shell.StatusError, incrementalQueryDuration)
 		if w.contextualLogger != nil {
 			w.contextualLogger.ErrorContext(ctx, shell.LogMsgIncrementalQueryError, shell.LogAttrError, err.Error())
 		} else if w.logger != nil {
@@ -219,23 +207,17 @@ func (w *GenericSnapshotWrapper[Q, R]) executeIncrementalQuery(
 		return nil, 0, err
 	}
 
-	w.recordComponentTiming(ctx, queryType, shell.ComponentIncrementalQuery, shell.StatusSuccess, incrementalQueryDuration)
-
 	return storableEvents, maxSeq, nil
 }
 
 // executeUnmarshal handles the event unmarshaling phase with proper observability.
 func (w *GenericSnapshotWrapper[Q, R]) executeUnmarshal(
 	ctx context.Context,
-	queryType string,
 	storableEvents eventstore.StorableEvents,
 ) (core.DomainEvents, error) {
-	unmarshalStart := time.Now()
 	incrementalEvents, err := shell.DomainEventsFrom(storableEvents)
-	unmarshalDuration := time.Since(unmarshalStart)
 
 	if err != nil {
-		w.recordComponentTiming(ctx, queryType, shell.ComponentSnapshotUnmarshal, shell.StatusError, unmarshalDuration)
 		if w.contextualLogger != nil {
 			w.contextualLogger.ErrorContext(ctx, shell.LogMsgEventConversionError, shell.LogAttrError, err.Error())
 		} else if w.logger != nil {
@@ -244,24 +226,18 @@ func (w *GenericSnapshotWrapper[Q, R]) executeUnmarshal(
 		return nil, err
 	}
 
-	w.recordComponentTiming(ctx, queryType, shell.ComponentSnapshotUnmarshal, shell.StatusSuccess, unmarshalDuration)
-
 	return incrementalEvents, nil
 }
 
 // executeSnapshotDeserialization handles snapshot deserialization with proper observability.
 func (w *GenericSnapshotWrapper[Q, R]) executeSnapshotDeserialization(
 	ctx context.Context,
-	queryType string,
 	snapshot *eventstore.Snapshot,
 ) (R, error) {
-	deserializationStart := time.Now()
 	var baseProjection R
 	err := jsoniter.ConfigFastest.Unmarshal(snapshot.Data, &baseProjection)
-	deserializationDuration := time.Since(deserializationStart)
 
 	if err != nil {
-		w.recordComponentTiming(ctx, queryType, shell.ComponentSnapshotDeserialize, shell.StatusError, deserializationDuration)
 		if w.contextualLogger != nil {
 			w.contextualLogger.ErrorContext(ctx, shell.LogMsgSnapshotDeserializationError, shell.LogAttrError, err.Error())
 		} else if w.logger != nil {
@@ -270,27 +246,7 @@ func (w *GenericSnapshotWrapper[Q, R]) executeSnapshotDeserialization(
 		return baseProjection, err
 	}
 
-	w.recordComponentTiming(ctx, queryType, shell.ComponentSnapshotDeserialize, shell.StatusSuccess, deserializationDuration)
-
 	return baseProjection, nil
-}
-
-// executeIncrementalProjection handles incremental projection with proper observability.
-func (w *GenericSnapshotWrapper[Q, R]) executeIncrementalProjection(
-	ctx context.Context,
-	query Q,
-	incrementalEvents core.DomainEvents,
-	baseProjection R,
-	maxSequence eventstore.MaxSequenceNumberUint,
-) R {
-	queryType := query.QueryType()
-	incrementalProjectionStart := time.Now()
-	result := w.projectFunc(incrementalEvents, query, maxSequence, baseProjection)
-	incrementalProjectionDuration := time.Since(incrementalProjectionStart)
-
-	w.recordComponentTiming(ctx, queryType, shell.ComponentIncrementalProjection, shell.StatusSuccess, incrementalProjectionDuration)
-
-	return result
 }
 
 // saveUpdatedSnapshot saves the updated projection as a snapshot.
@@ -307,14 +263,10 @@ func (w *GenericSnapshotWrapper[Q, R]) saveUpdatedSnapshot(
 	ctx, cancel := context.WithTimeout(parentCtx, snapshotSaveTimeout)
 	defer cancel()
 
-	// Start instrumentation for the entire snapshot save operation
-	snapshotSaveStart := time.Now()
-
 	// Serialize projection to JSON
-	queryType := query.QueryType()
 	data, err := jsoniter.ConfigFastest.Marshal(projection)
 	if err != nil {
-		w.recordSnapshotSaveError(ctx, queryType, "JSON serialization", err, snapshotSaveStart)
+		w.recordSnapshotSaveError(ctx, "JSON serialization", err)
 		return
 	}
 
@@ -327,18 +279,17 @@ func (w *GenericSnapshotWrapper[Q, R]) saveUpdatedSnapshot(
 		data,
 	)
 	if err != nil {
-		w.recordSnapshotSaveError(ctx, queryType, "snapshot build", err, snapshotSaveStart)
+		w.recordSnapshotSaveError(ctx, "snapshot build", err)
 		return
 	}
 
 	// Save snapshot
 	if err := w.eventStore.SaveSnapshot(ctx, snapshot); err != nil {
-		w.recordSnapshotSaveError(ctx, queryType, "snapshot save", err, snapshotSaveStart)
+		w.recordSnapshotSaveError(ctx, "snapshot save", err)
 		return
 	}
 
 	// Record successful snapshot save
-	w.recordComponentTiming(ctx, queryType, shell.ComponentSnapshotSave, shell.StatusSuccess, time.Since(snapshotSaveStart))
 
 	if w.contextualLogger != nil {
 		w.contextualLogger.InfoContext(ctx, shell.LogMsgSnapshotSaved, shell.LogAttrSequence, maxSequence)
@@ -358,7 +309,6 @@ func (w *GenericSnapshotWrapper[Q, R]) recordQuerySuccess(
 	snapshotStatus string,
 ) {
 	queryType := query.QueryType()
-	shell.RecordQueryMetrics(ctx, w.metricsCollector, queryType, shell.StatusSuccess, duration, snapshotStatus)
 	shell.FinishQuerySpan(w.tracingCollector, span, shell.StatusSuccess, duration, nil)
 
 	// Log success with snapshot status for better observability
@@ -386,10 +336,8 @@ func (w *GenericSnapshotWrapper[Q, R]) recordFallbackAndExecute(
 	fallbackReason string,
 ) (R, error) {
 	duration := time.Since(queryStart)
-	queryType := query.QueryType()
 
 	// Record the fallback as a successful operation (since base handler will handle it)
-	shell.RecordQueryMetrics(ctx, w.metricsCollector, queryType, shell.StatusSuccess, duration, fallbackReason)
 	shell.FinishQuerySpan(w.tracingCollector, span, shell.StatusSuccess, duration, nil)
 
 	if w.contextualLogger != nil {
@@ -418,43 +366,12 @@ func (w *GenericSnapshotWrapper[Q, R]) recordFallbackAndExecute(
 	return result, nil
 }
 
-// recordComponentTiming records component-level timing metrics directly for snapshot operations.
-// This uses the snapshot-specific QueryHandlerComponentDurationMetric, which tracks different
-// components than the base query handlers (snapshot_load, snapshot_deserialize, etc.).
-func (w *GenericSnapshotWrapper[Q, R]) recordComponentTiming(
-	ctx context.Context,
-	queryType string,
-	component string,
-	status string,
-	duration time.Duration,
-) {
-	if w.metricsCollector == nil {
-		return
-	}
-
-	labels := map[string]string{
-		shell.LogAttrQueryType: queryType,
-		"component":            component,
-		shell.LogAttrStatus:    status,
-	}
-
-	if contextualCollector, ok := w.metricsCollector.(shell.ContextualMetricsCollector); ok {
-		contextualCollector.RecordDurationContext(ctx, shell.QueryHandlerComponentDurationMetric, duration, labels)
-	} else {
-		w.metricsCollector.RecordDuration(shell.QueryHandlerComponentDurationMetric, duration, labels)
-	}
-}
-
 // recordSnapshotSaveError handles error recording and logging for snapshot save operations.
 func (w *GenericSnapshotWrapper[Q, R]) recordSnapshotSaveError(
 	ctx context.Context,
-	queryType string,
 	operation string,
 	err error,
-	startTime time.Time,
 ) {
-	w.recordComponentTiming(ctx, queryType, shell.ComponentSnapshotSave, shell.StatusError, time.Since(startTime))
-
 	if w.contextualLogger != nil {
 		w.contextualLogger.ErrorContext(ctx, shell.LogMsgSnapshotSaveError,
 			shell.LogAttrOperation, operation,

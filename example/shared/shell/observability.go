@@ -34,11 +34,6 @@ const (
 	// QueryHandlerCallsMetric tracks total query handler calls.
 	QueryHandlerCallsMetric = "queryhandler_handle_calls_total"
 
-	// QueryHandlerComponentDurationMetric tracks component-level timing for snapshot operations.
-	// This is used exclusively by snapshot wrappers for measuring snapshot-specific components
-	// like snapshot_load, snapshot_deserialize, incremental_query, incremental_projection.
-	QueryHandlerComponentDurationMetric = "queryhandler_component_duration_seconds"
-
 	// QueryHandlerCanceledMetric tracks canceled query operations.
 	QueryHandlerCanceledMetric = "queryhandler_canceled_operations_total"
 
@@ -105,24 +100,6 @@ const (
 
 	// StatusConcurrencyConflict indicates the operation failed due to optimistic concurrency control.
 	StatusConcurrencyConflict = "concurrency_conflict"
-
-	// ComponentSnapshotLoad identifies the snapshot loading phase in snapshot-aware query handlers.
-	ComponentSnapshotLoad = "snapshot_load"
-
-	// ComponentIncrementalQuery identifies the incremental query phase in snapshot-aware query handlers.
-	ComponentIncrementalQuery = "incremental_query"
-
-	// ComponentSnapshotDeserialize identifies the snapshot deserialization phase in snapshot-aware query handlers.
-	ComponentSnapshotDeserialize = "snapshot_deserialize"
-
-	// ComponentSnapshotSave identifies the asynchronous snapshot saving phase in snapshot-aware query handlers.
-	ComponentSnapshotSave = "snapshot_save"
-
-	// ComponentSnapshotUnmarshal identifies the event unmarshaling phase in snapshot-aware query handlers.
-	ComponentSnapshotUnmarshal = "snapshot_unmarshal"
-
-	// ComponentIncrementalProjection identifies the incremental projection phase in snapshot-aware query handlers.
-	ComponentIncrementalProjection = "incremental_projection"
 
 	// LogMsgCommandStarted is logged when command processing begins.
 	LogMsgCommandStarted = "command handler started"
