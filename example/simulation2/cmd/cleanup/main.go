@@ -25,6 +25,7 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/finishedlendings"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/registeredreaders"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/removedbooks"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/observable"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/snapshot"
@@ -226,13 +227,13 @@ func calculateEventEstimations(
 	totalLendingActivity := openLendingsCount + finishedLendingsCount
 
 	if totalReaders > 0 {
-		// Each lending = 2 events (lent + returned), plus 2 base events (registration + cancellation)
+		// Each lending = 2 events (lent and returned), plus 2 base events (registration and cancellation)
 		avgLendingsPerReader := totalLendingActivity / totalReaders
 		avgEventsPerReader = (avgLendingsPerReader * 2) + 2
 	}
 
 	if totalBooks > 0 {
-		// Each lending = 2 events (lent + returned), plus 2 base events (add + remove from circulation)
+		// Each lending = 2 events (lent and returned), plus 2 base events (add and remove from circulation)
 		avgLendingsPerBook := totalLendingActivity / totalBooks
 		avgEventsPerBook = (avgLendingsPerBook * 2) + 2
 	}
@@ -244,7 +245,7 @@ func calculateEventEstimations(
 func deleteReaderEvents(ctx context.Context, pool *pgxpool.Pool, readerID string) (int, error) {
 	query := `DELETE FROM events WHERE payload @> $1`
 
-	// Create JSONB object with ReaderID
+	// Create a JSONB object with ReaderID
 	payloadFilter := fmt.Sprintf(`{"ReaderID": "%s"}`, readerID)
 
 	result, err := pool.Exec(ctx, query, payloadFilter)
@@ -322,7 +323,7 @@ func deleteFinishedLendingBatch(ctx context.Context, pool *pgxpool.Pool, batch [
 			WHERE event_type IN ('BookCopyLentToReader', 'BookCopyReturnedByReader')
 			AND payload @> $1`
 
-		// Create JSONB object with both BookID and ReaderID
+		// Create a JSONB object with both BookID and ReaderID
 		payloadFilter := fmt.Sprintf(`{"BookID": "%s", "ReaderID": "%s"}`, lending.BookID, lending.ReaderID)
 
 		result, err := pool.Exec(ctx, query, payloadFilter)
@@ -392,25 +393,30 @@ func main() {
 		log.Panicf("Failed to create snapshot-aware RegisteredReaders handler: %v", err)
 	}
 
-	// create a base BooksLentOut handler and wrap it with the generic snapshot wrapper
+	// BooksLentOut: Core → Snapshot → Observable
+	booksLentOutCoreHandler := bookslentout.NewQueryHandler(eventStore)
 
-	baseBooksLentOutHandler, err := bookslentout.NewQueryHandler(eventStore, buildBooksLentOutOptions(obsConfig)...)
-	if err != nil {
-		log.Panicf("Failed to create BooksLentOut handler: %v", err)
-	}
-
-	booksLentOutHandler, err := snapshot.NewGenericSnapshotWrapper[
+	booksLentOutSnapshotHandler, err := snapshot.NewQueryWrapper[
 		bookslentout.Query,
 		bookslentout.BooksLentOut,
 	](
-		baseBooksLentOutHandler,
+		booksLentOutCoreHandler,
+		eventStore,
 		bookslentout.Project,
 		func(_ bookslentout.Query) eventstore.Filter {
 			return bookslentout.BuildEventFilter()
 		},
 	)
 	if err != nil {
-		log.Panicf("Failed to create snapshot-aware BooksLentOut handler: %v", err)
+		log.Panicf("Failed to create BooksLentOut snapshot wrapper: %v", err)
+	}
+
+	booksLentOutHandler, err := observable.NewQueryWrapper(
+		booksLentOutSnapshotHandler,
+		buildBooksLentOutQueryOptions(obsConfig)...,
+	)
+	if err != nil {
+		log.Panicf("Failed to create BooksLentOut observable wrapper: %v", err)
 	}
 
 	// Create BooksInCirculation handler using new composition pattern
@@ -1234,6 +1240,28 @@ func (c Config) NewObservabilityConfig() ObservabilityConfig {
 	}
 }
 
+// Generic options builders for observability - reduces code duplication
+
+// buildQueryOptions creates generic query options for observable wrappers.
+func buildQueryOptions[Q shell.Query, R shell.QueryResult](obsConfig ObservabilityConfig) []observable.QueryOption[Q, R] {
+	var opts []observable.QueryOption[Q, R]
+	if obsConfig.MetricsCollector != nil {
+		opts = append(opts, observable.WithQueryMetrics[Q, R](obsConfig.MetricsCollector))
+	}
+	if obsConfig.TracingCollector != nil {
+		opts = append(opts, observable.WithQueryTracing[Q, R](obsConfig.TracingCollector))
+	}
+	if obsConfig.ContextualLogger != nil {
+		opts = append(opts, observable.WithQueryContextualLogging[Q, R](obsConfig.ContextualLogger))
+	}
+	if obsConfig.Logger != nil {
+		opts = append(opts, observable.WithQueryLogging[Q, R](obsConfig.Logger))
+	}
+	return opts
+}
+
+// Legacy-style options builders for handlers not yet migrated to observable wrappers
+
 // buildRegisteredReadersOptions creates options for RegisteredReaders query handler.
 func buildRegisteredReadersOptions(obsConfig ObservabilityConfig) []registeredreaders.Option {
 	var opts []registeredreaders.Option
@@ -1252,40 +1280,14 @@ func buildRegisteredReadersOptions(obsConfig ObservabilityConfig) []registeredre
 	return opts
 }
 
-// buildBooksLentOutOptions creates options for BooksLentOut query handler.
-func buildBooksLentOutOptions(obsConfig ObservabilityConfig) []bookslentout.Option {
-	var opts []bookslentout.Option
-	if obsConfig.MetricsCollector != nil {
-		opts = append(opts, bookslentout.WithMetrics(obsConfig.MetricsCollector))
-	}
-	if obsConfig.TracingCollector != nil {
-		opts = append(opts, bookslentout.WithTracing(obsConfig.TracingCollector))
-	}
-	if obsConfig.ContextualLogger != nil {
-		opts = append(opts, bookslentout.WithContextualLogging(obsConfig.ContextualLogger))
-	}
-	if obsConfig.Logger != nil {
-		opts = append(opts, bookslentout.WithLogging(obsConfig.Logger))
-	}
-	return opts
+// buildBooksLentOutQueryOptions creates query options for BooksLentOut observable wrapper.
+func buildBooksLentOutQueryOptions(obsConfig ObservabilityConfig) []observable.QueryOption[bookslentout.Query, bookslentout.BooksLentOut] {
+	return buildQueryOptions[bookslentout.Query, bookslentout.BooksLentOut](obsConfig)
 }
 
-// buildBooksInCirculationOptions creates options for BooksInCirculation query handler.
+// buildBooksInCirculationQueryOptions creates query options for BooksInCirculation observable wrapper.
 func buildBooksInCirculationQueryOptions(obsConfig ObservabilityConfig) []observable.QueryOption[booksincirculation.Query, booksincirculation.BooksInCirculation] {
-	var opts []observable.QueryOption[booksincirculation.Query, booksincirculation.BooksInCirculation]
-	if obsConfig.MetricsCollector != nil {
-		opts = append(opts, observable.WithQueryMetrics[booksincirculation.Query, booksincirculation.BooksInCirculation](obsConfig.MetricsCollector))
-	}
-	if obsConfig.TracingCollector != nil {
-		opts = append(opts, observable.WithQueryTracing[booksincirculation.Query, booksincirculation.BooksInCirculation](obsConfig.TracingCollector))
-	}
-	if obsConfig.ContextualLogger != nil {
-		opts = append(opts, observable.WithQueryContextualLogging[booksincirculation.Query, booksincirculation.BooksInCirculation](obsConfig.ContextualLogger))
-	}
-	if obsConfig.Logger != nil {
-		opts = append(opts, observable.WithQueryLogging[booksincirculation.Query, booksincirculation.BooksInCirculation](obsConfig.Logger))
-	}
-	return opts
+	return buildQueryOptions[booksincirculation.Query, booksincirculation.BooksInCirculation](obsConfig)
 }
 
 // performParallelCleanup processes orphaned lendings in parallel with 25 goroutines.
@@ -1388,7 +1390,7 @@ func processReturnCommand(ctx context.Context, handler *returnbookcopyfromreader
 
 // buildReturnBookOptions creates options for ReturnBookCopyFromReader command handler.
 
-// buildCanceledReadersOptions creates options for CanceledReaders query handler.
+// buildCanceledReadersOptions creates options for the CanceledReaders query handler.
 func buildCanceledReadersOptions(obsConfig ObservabilityConfig) []canceledreaders.Option {
 	var opts []canceledreaders.Option
 	if obsConfig.MetricsCollector != nil {
@@ -1406,7 +1408,7 @@ func buildCanceledReadersOptions(obsConfig ObservabilityConfig) []canceledreader
 	return opts
 }
 
-// buildRemovedBooksOptions creates options for RemovedBooks query handler.
+// buildRemovedBooksOptions creates options for the RemovedBooks query handler.
 func buildRemovedBooksOptions(obsConfig ObservabilityConfig) []removedbooks.Option {
 	var opts []removedbooks.Option
 	if obsConfig.MetricsCollector != nil {

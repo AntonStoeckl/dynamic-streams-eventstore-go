@@ -40,7 +40,7 @@ type HandlerBundle struct {
 	// Query handlers for state refresh.
 	booksInCirculationHandler *observable.QueryWrapper[booksincirculation.Query, booksincirculation.BooksInCirculation]
 	booksLentByReaderHandler  *observable.QueryWrapper[bookslentbyreader.Query, bookslentbyreader.BooksCurrentlyLent]
-	booksLentOutHandler       *snapshot.GenericSnapshotWrapper[bookslentout.Query, bookslentout.BooksLentOut]
+	booksLentOutHandler       *observable.QueryWrapper[bookslentout.Query, bookslentout.BooksLentOut]
 	registeredReadersHandler  *snapshot.GenericSnapshotWrapper[registeredreaders.Query, registeredreaders.RegisteredReaders]
 
 	// State access for actor decisions.
@@ -160,16 +160,14 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 		return nil, fmt.Errorf("failed to create BooksLentByReader observable wrapper: %w", err)
 	}
 
-	booksLentOutBaseHandler, err := bookslentout.NewQueryHandler(eventStore, buildBooksLentOutOptions(obsConfig)...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create BooksLentOut handler: %w", err)
-	}
+	booksLentOutCoreHandler := bookslentout.NewQueryHandler(eventStore)
 
-	booksLentOutHandler, err := snapshot.NewGenericSnapshotWrapper[
+	booksLentOutSnapshotHandler, err := snapshot.NewQueryWrapper[
 		bookslentout.Query,
 		bookslentout.BooksLentOut,
 	](
-		booksLentOutBaseHandler,
+		booksLentOutCoreHandler,
+		eventStore,
 		bookslentout.Project,
 		func(_ bookslentout.Query) eventstore.Filter {
 			return bookslentout.BuildEventFilter()
@@ -177,6 +175,14 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create BooksLentOut snapshot wrapper: %w", err)
+	}
+
+	booksLentOutHandler, err := observable.NewQueryWrapper(
+		booksLentOutSnapshotHandler,
+		buildQueryOptions[bookslentout.Query, bookslentout.BooksLentOut](obsConfig)...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create BooksLentOut observable wrapper: %w", err)
 	}
 
 	registeredReadersBaseHandler, err := registeredreaders.NewQueryHandler(eventStore, buildRegisteredReadersOptions(obsConfig)...)
@@ -546,23 +552,6 @@ func buildBooksInCirculationQueryOptions(obsConfig ObservabilityConfig) []observ
 
 func buildBooksLentByReaderQueryOptions(obsConfig ObservabilityConfig) []observable.QueryOption[bookslentbyreader.Query, bookslentbyreader.BooksCurrentlyLent] {
 	return buildQueryOptions[bookslentbyreader.Query, bookslentbyreader.BooksCurrentlyLent](obsConfig)
-}
-
-func buildBooksLentOutOptions(obsConfig ObservabilityConfig) []bookslentout.Option {
-	var opts []bookslentout.Option
-	if obsConfig.MetricsCollector != nil {
-		opts = append(opts, bookslentout.WithMetrics(obsConfig.MetricsCollector))
-	}
-	if obsConfig.TracingCollector != nil {
-		opts = append(opts, bookslentout.WithTracing(obsConfig.TracingCollector))
-	}
-	if obsConfig.ContextualLogger != nil {
-		opts = append(opts, bookslentout.WithContextualLogging(obsConfig.ContextualLogger))
-	}
-	if obsConfig.Logger != nil {
-		opts = append(opts, bookslentout.WithLogging(obsConfig.Logger))
-	}
-	return opts
 }
 
 func buildRegisteredReadersOptions(obsConfig ObservabilityConfig) []registeredreaders.Option {
