@@ -455,28 +455,30 @@ func main() {
 		log.Panicf("Failed to create BooksInCirculation observable wrapper: %v", err)
 	}
 
-	// create a base CanceledReaders handler and wrap it with the generic snapshot wrapper
+	canceledReadersCoreHandler := canceledreaders.NewQueryHandler(eventStore)
 
-	baseCanceledReadersHandler, err := canceledreaders.NewQueryHandler(eventStore, buildCanceledReadersOptions(obsConfig)...)
-	if err != nil {
-		log.Panicf("Failed to create CanceledReaders handler: %v", err)
-	}
-
-	canceledReadersHandler, err := snapshot.NewGenericSnapshotWrapper[
+	canceledReadersSnapshotHandler, err := snapshot.NewQueryWrapper[
 		canceledreaders.Query,
 		canceledreaders.CanceledReaders,
 	](
-		baseCanceledReadersHandler,
+		canceledReadersCoreHandler,
+		eventStore,
 		canceledreaders.Project,
 		func(_ canceledreaders.Query) eventstore.Filter {
 			return canceledreaders.BuildEventFilter()
 		},
 	)
 	if err != nil {
-		log.Panicf("Failed to create snapshot-aware CanceledReaders handler: %v", err)
+		log.Panicf("Failed to create CanceledReaders snapshot wrapper: %v", err)
 	}
 
-	// create a base RemovedBooks handler and wrap it with the generic snapshot wrapper
+	canceledReadersHandler, err := observable.NewQueryWrapper(
+		canceledReadersSnapshotHandler,
+		buildQueryOptions[canceledreaders.Query, canceledreaders.CanceledReaders](obsConfig)...,
+	)
+	if err != nil {
+		log.Panicf("Failed to create CanceledReaders observable wrapper: %v", err)
+	}
 
 	baseRemovedBooksHandler, err := removedbooks.NewQueryHandler(eventStore, buildRemovedBooksOptions(obsConfig)...)
 	if err != nil {
@@ -496,8 +498,6 @@ func main() {
 	if err != nil {
 		log.Panicf("Failed to create snapshot-aware RemovedBooks handler: %v", err)
 	}
-
-	// create a base FinishedLendings handler and wrap it with the generic snapshot wrapper
 
 	baseFinishedLendingsHandler, err := finishedlendings.NewQueryHandler(eventStore, buildFinishedLendingsOptions(obsConfig)...)
 	if err != nil {
@@ -1377,24 +1377,6 @@ func processReturnCommand(ctx context.Context, handler *returnbookcopyfromreader
 }
 
 // buildReturnBookOptions creates options for ReturnBookCopyFromReader command handler.
-
-// buildCanceledReadersOptions creates options for the CanceledReaders query handler.
-func buildCanceledReadersOptions(obsConfig ObservabilityConfig) []canceledreaders.Option {
-	var opts []canceledreaders.Option
-	if obsConfig.MetricsCollector != nil {
-		opts = append(opts, canceledreaders.WithMetrics(obsConfig.MetricsCollector))
-	}
-	if obsConfig.TracingCollector != nil {
-		opts = append(opts, canceledreaders.WithTracing(obsConfig.TracingCollector))
-	}
-	if obsConfig.ContextualLogger != nil {
-		opts = append(opts, canceledreaders.WithContextualLogging(obsConfig.ContextualLogger))
-	}
-	if obsConfig.Logger != nil {
-		opts = append(opts, canceledreaders.WithLogging(obsConfig.Logger))
-	}
-	return opts
-}
 
 // buildRemovedBooksOptions creates options for the RemovedBooks query handler.
 func buildRemovedBooksOptions(obsConfig ObservabilityConfig) []removedbooks.Option {
