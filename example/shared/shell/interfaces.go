@@ -102,10 +102,3 @@ type Command interface {
 type CoreCommandHandler[C Command] interface {
 	Handle(ctx context.Context, command C) (HandlerResult, error)
 }
-
-// CommandHandler defines the contract for command handlers that return only errors (compatibility interface).
-// This interface is used for backward compatibility with existing code that expects error-only return values.
-// Typically implemented by wrapper types that convert (HandlerResult, error) to just error.
-type CommandHandler[C Command] interface {
-	Handle(ctx context.Context, command C) error
-}
