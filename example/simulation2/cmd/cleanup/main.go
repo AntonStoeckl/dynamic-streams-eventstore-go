@@ -372,25 +372,30 @@ func main() {
 			obsConfig.ContextualLogger != nil)
 	}
 
-	// create a base RegisteredReaders handler and wrap it with the generic snapshot wrapper
+	// RegisteredReaders: Core → Snapshot → Observable
+	registeredReadersCoreHandler := registeredreaders.NewQueryHandler(eventStore)
 
-	baseRegisteredReadersHandler, err := registeredreaders.NewQueryHandler(eventStore, buildRegisteredReadersOptions(obsConfig)...)
-	if err != nil {
-		log.Panicf("Failed to create RegisteredReaders handler: %v", err)
-	}
-
-	registeredReadersHandler, err := snapshot.NewGenericSnapshotWrapper[
+	registeredReadersSnapshotHandler, err := snapshot.NewQueryWrapper[
 		registeredreaders.Query,
 		registeredreaders.RegisteredReaders,
 	](
-		baseRegisteredReadersHandler,
+		registeredReadersCoreHandler,
+		eventStore,
 		registeredreaders.Project,
 		func(_ registeredreaders.Query) eventstore.Filter {
 			return registeredreaders.BuildEventFilter()
 		},
 	)
 	if err != nil {
-		log.Panicf("Failed to create snapshot-aware RegisteredReaders handler: %v", err)
+		log.Panicf("Failed to create RegisteredReaders snapshot wrapper: %v", err)
+	}
+
+	registeredReadersHandler, err := observable.NewQueryWrapper(
+		registeredReadersSnapshotHandler,
+		buildRegisteredReadersQueryOptions(obsConfig)...,
+	)
+	if err != nil {
+		log.Panicf("Failed to create RegisteredReaders observable wrapper: %v", err)
 	}
 
 	// BooksLentOut: Core → Snapshot → Observable
@@ -1240,8 +1245,6 @@ func (c Config) NewObservabilityConfig() ObservabilityConfig {
 	}
 }
 
-// Generic options builders for observability - reduces code duplication
-
 // buildQueryOptions creates generic query options for observable wrappers.
 func buildQueryOptions[Q shell.Query, R shell.QueryResult](obsConfig ObservabilityConfig) []observable.QueryOption[Q, R] {
 	var opts []observable.QueryOption[Q, R]
@@ -1260,24 +1263,9 @@ func buildQueryOptions[Q shell.Query, R shell.QueryResult](obsConfig Observabili
 	return opts
 }
 
-// Legacy-style options builders for handlers not yet migrated to observable wrappers
-
-// buildRegisteredReadersOptions creates options for RegisteredReaders query handler.
-func buildRegisteredReadersOptions(obsConfig ObservabilityConfig) []registeredreaders.Option {
-	var opts []registeredreaders.Option
-	if obsConfig.MetricsCollector != nil {
-		opts = append(opts, registeredreaders.WithMetrics(obsConfig.MetricsCollector))
-	}
-	if obsConfig.TracingCollector != nil {
-		opts = append(opts, registeredreaders.WithTracing(obsConfig.TracingCollector))
-	}
-	if obsConfig.ContextualLogger != nil {
-		opts = append(opts, registeredreaders.WithContextualLogging(obsConfig.ContextualLogger))
-	}
-	if obsConfig.Logger != nil {
-		opts = append(opts, registeredreaders.WithLogging(obsConfig.Logger))
-	}
-	return opts
+// buildRegisteredReadersQueryOptions creates query options for RegisteredReaders observable wrapper.
+func buildRegisteredReadersQueryOptions(obsConfig ObservabilityConfig) []observable.QueryOption[registeredreaders.Query, registeredreaders.RegisteredReaders] {
+	return buildQueryOptions[registeredreaders.Query, registeredreaders.RegisteredReaders](obsConfig)
 }
 
 // buildBooksLentOutQueryOptions creates query options for BooksLentOut observable wrapper.

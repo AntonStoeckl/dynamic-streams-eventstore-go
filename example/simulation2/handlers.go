@@ -41,7 +41,7 @@ type HandlerBundle struct {
 	booksInCirculationHandler *observable.QueryWrapper[booksincirculation.Query, booksincirculation.BooksInCirculation]
 	booksLentByReaderHandler  *observable.QueryWrapper[bookslentbyreader.Query, bookslentbyreader.BooksCurrentlyLent]
 	booksLentOutHandler       *observable.QueryWrapper[bookslentout.Query, bookslentout.BooksLentOut]
-	registeredReadersHandler  *snapshot.GenericSnapshotWrapper[registeredreaders.Query, registeredreaders.RegisteredReaders]
+	registeredReadersHandler  *observable.QueryWrapper[registeredreaders.Query, registeredreaders.RegisteredReaders]
 
 	// State access for actor decisions.
 	simulationState *SimulationState
@@ -185,16 +185,15 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 		return nil, fmt.Errorf("failed to create BooksLentOut observable wrapper: %w", err)
 	}
 
-	registeredReadersBaseHandler, err := registeredreaders.NewQueryHandler(eventStore, buildRegisteredReadersOptions(obsConfig)...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create RegisteredReaders handler: %w", err)
-	}
+	// RegisteredReaders: Core → Snapshot → Observable
+	registeredReadersCoreHandler := registeredreaders.NewQueryHandler(eventStore)
 
-	registeredReadersHandler, err := snapshot.NewGenericSnapshotWrapper[
+	registeredReadersSnapshotHandler, err := snapshot.NewQueryWrapper[
 		registeredreaders.Query,
 		registeredreaders.RegisteredReaders,
 	](
-		registeredReadersBaseHandler,
+		registeredReadersCoreHandler,
+		eventStore,
 		registeredreaders.Project,
 		func(_ registeredreaders.Query) eventstore.Filter {
 			return registeredreaders.BuildEventFilter()
@@ -202,6 +201,14 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create RegisteredReaders snapshot wrapper: %w", err)
+	}
+
+	registeredReadersHandler, err := observable.NewQueryWrapper(
+		registeredReadersSnapshotHandler,
+		buildQueryOptions[registeredreaders.Query, registeredreaders.RegisteredReaders](obsConfig)...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create RegisteredReaders observable wrapper: %w", err)
 	}
 
 	bundle := &HandlerBundle{
@@ -552,21 +559,4 @@ func buildBooksInCirculationQueryOptions(obsConfig ObservabilityConfig) []observ
 
 func buildBooksLentByReaderQueryOptions(obsConfig ObservabilityConfig) []observable.QueryOption[bookslentbyreader.Query, bookslentbyreader.BooksCurrentlyLent] {
 	return buildQueryOptions[bookslentbyreader.Query, bookslentbyreader.BooksCurrentlyLent](obsConfig)
-}
-
-func buildRegisteredReadersOptions(obsConfig ObservabilityConfig) []registeredreaders.Option {
-	var opts []registeredreaders.Option
-	if obsConfig.MetricsCollector != nil {
-		opts = append(opts, registeredreaders.WithMetrics(obsConfig.MetricsCollector))
-	}
-	if obsConfig.TracingCollector != nil {
-		opts = append(opts, registeredreaders.WithTracing(obsConfig.TracingCollector))
-	}
-	if obsConfig.ContextualLogger != nil {
-		opts = append(opts, registeredreaders.WithContextualLogging(obsConfig.ContextualLogger))
-	}
-	if obsConfig.Logger != nil {
-		opts = append(opts, registeredreaders.WithLogging(obsConfig.Logger))
-	}
-	return opts
 }
