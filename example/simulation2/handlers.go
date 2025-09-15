@@ -22,6 +22,7 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/bookslentbyreader"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/bookslentout"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/registeredreaders"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/observable"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/snapshot"
 )
@@ -38,7 +39,7 @@ type HandlerBundle struct {
 
 	// Query handlers for state refresh.
 	booksInCirculationHandler *observable.QueryWrapper[booksincirculation.Query, booksincirculation.BooksInCirculation]
-	booksLentByReaderHandler  *snapshot.GenericSnapshotWrapper[bookslentbyreader.Query, bookslentbyreader.BooksCurrentlyLent]
+	booksLentByReaderHandler  *observable.QueryWrapper[bookslentbyreader.Query, bookslentbyreader.BooksCurrentlyLent]
 	booksLentOutHandler       *snapshot.GenericSnapshotWrapper[bookslentout.Query, bookslentout.BooksLentOut]
 	registeredReadersHandler  *snapshot.GenericSnapshotWrapper[registeredreaders.Query, registeredreaders.RegisteredReaders]
 
@@ -101,9 +102,6 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 		return nil, fmt.Errorf("failed to wrap ReturnBookCopyFromReader handler with observability: %w", err)
 	}
 
-	// Create query handlers using new composition pattern.
-	// Core Handler -> Snapshot Wrapper -> Observable Wrapper
-
 	// BooksInCirculation: Clean handler -> Snapshot wrapper -> Observable wrapper
 	booksInCirculationCoreHandler := booksincirculation.NewQueryHandler(eventStore)
 
@@ -133,16 +131,15 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 		return nil, fmt.Errorf("failed to create BooksInCirculation observable wrapper: %w", err)
 	}
 
-	booksLentByReaderBaseHandler, err := bookslentbyreader.NewQueryHandler(eventStore, buildBooksLentByReaderOptions(obsConfig)...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create BooksLentByReader handler: %w", err)
-	}
+	// BooksLentByReader: Clean handler -> Snapshot wrapper -> Observable wrapper
+	booksLentByReaderCoreHandler := bookslentbyreader.NewQueryHandler(eventStore)
 
-	booksLentByReaderHandler, err := snapshot.NewGenericSnapshotWrapper[
+	booksLentByReaderSnapshotHandler, err := snapshot.NewQueryWrapper[
 		bookslentbyreader.Query,
 		bookslentbyreader.BooksCurrentlyLent,
 	](
-		booksLentByReaderBaseHandler,
+		booksLentByReaderCoreHandler,
+		eventStore,
 		bookslentbyreader.Project,
 		func(q bookslentbyreader.Query) eventstore.Filter {
 			return bookslentbyreader.BuildEventFilter(q.ReaderID)
@@ -150,6 +147,17 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create BooksLentByReader snapshot wrapper: %w", err)
+	}
+
+	booksLentByReaderHandler, err := observable.NewQueryWrapper[
+		bookslentbyreader.Query,
+		bookslentbyreader.BooksCurrentlyLent,
+	](
+		booksLentByReaderSnapshotHandler,
+		buildBooksLentByReaderQueryOptions(obsConfig)...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create BooksLentByReader observable wrapper: %w", err)
 	}
 
 	booksLentOutBaseHandler, err := bookslentout.NewQueryHandler(eventStore, buildBooksLentOutOptions(obsConfig)...)
@@ -216,112 +224,72 @@ func (hb *HandlerBundle) GetSimulationState() *SimulationState {
 	return hb.simulationState
 }
 
-// buildAddBookCopyOptions creates AddBookCopy command wrapper options from the config.
-func buildAddBookCopyOptions(obsConfig ObservabilityConfig) []observable.CommandOption[addbookcopy.Command] {
-	var opts []observable.CommandOption[addbookcopy.Command]
+// Generic builders to remove duplication across option functions.
+
+// buildCommandOptions creates command wrapper options from observability config using generics.
+func buildCommandOptions[C shell.Command](obsConfig ObservabilityConfig) []observable.CommandOption[C] {
+	var opts []observable.CommandOption[C]
 	if obsConfig.MetricsCollector != nil {
-		opts = append(opts, observable.WithCommandMetrics[addbookcopy.Command](obsConfig.MetricsCollector))
+		opts = append(opts, observable.WithCommandMetrics[C](obsConfig.MetricsCollector))
 	}
 	if obsConfig.TracingCollector != nil {
-		opts = append(opts, observable.WithCommandTracing[addbookcopy.Command](obsConfig.TracingCollector))
+		opts = append(opts, observable.WithCommandTracing[C](obsConfig.TracingCollector))
 	}
 	if obsConfig.ContextualLogger != nil {
-		opts = append(opts, observable.WithCommandContextualLogging[addbookcopy.Command](obsConfig.ContextualLogger))
+		opts = append(opts, observable.WithCommandContextualLogging[C](obsConfig.ContextualLogger))
 	}
 	if obsConfig.Logger != nil {
-		opts = append(opts, observable.WithCommandLogging[addbookcopy.Command](obsConfig.Logger))
+		opts = append(opts, observable.WithCommandLogging[C](obsConfig.Logger))
 	}
 	return opts
+}
+
+// buildQueryOptions creates query wrapper options from observability config using generics.
+func buildQueryOptions[Q shell.Query, R shell.QueryResult](obsConfig ObservabilityConfig) []observable.QueryOption[Q, R] {
+	var opts []observable.QueryOption[Q, R]
+	if obsConfig.MetricsCollector != nil {
+		opts = append(opts, observable.WithQueryMetrics[Q, R](obsConfig.MetricsCollector))
+	}
+	if obsConfig.TracingCollector != nil {
+		opts = append(opts, observable.WithQueryTracing[Q, R](obsConfig.TracingCollector))
+	}
+	if obsConfig.ContextualLogger != nil {
+		opts = append(opts, observable.WithQueryContextualLogging[Q, R](obsConfig.ContextualLogger))
+	}
+	if obsConfig.Logger != nil {
+		opts = append(opts, observable.WithQueryLogging[Q, R](obsConfig.Logger))
+	}
+	return opts
+}
+
+// buildAddBookCopyOptions creates AddBookCopy command wrapper options from the config.
+func buildAddBookCopyOptions(obsConfig ObservabilityConfig) []observable.CommandOption[addbookcopy.Command] {
+	return buildCommandOptions[addbookcopy.Command](obsConfig)
 }
 
 // buildRemoveBookCopyOptions creates RemoveBookCopy command wrapper options from the config.
 func buildRemoveBookCopyOptions(obsConfig ObservabilityConfig) []observable.CommandOption[removebookcopy.Command] {
-	var opts []observable.CommandOption[removebookcopy.Command]
-	if obsConfig.MetricsCollector != nil {
-		opts = append(opts, observable.WithCommandMetrics[removebookcopy.Command](obsConfig.MetricsCollector))
-	}
-	if obsConfig.TracingCollector != nil {
-		opts = append(opts, observable.WithCommandTracing[removebookcopy.Command](obsConfig.TracingCollector))
-	}
-	if obsConfig.ContextualLogger != nil {
-		opts = append(opts, observable.WithCommandContextualLogging[removebookcopy.Command](obsConfig.ContextualLogger))
-	}
-	if obsConfig.Logger != nil {
-		opts = append(opts, observable.WithCommandLogging[removebookcopy.Command](obsConfig.Logger))
-	}
-	return opts
+	return buildCommandOptions[removebookcopy.Command](obsConfig)
 }
 
 // buildRegisterReaderOptions creates RegisterReader command wrapper options from the config.
 func buildRegisterReaderOptions(obsConfig ObservabilityConfig) []observable.CommandOption[registerreader.Command] {
-	var opts []observable.CommandOption[registerreader.Command]
-	if obsConfig.MetricsCollector != nil {
-		opts = append(opts, observable.WithCommandMetrics[registerreader.Command](obsConfig.MetricsCollector))
-	}
-	if obsConfig.TracingCollector != nil {
-		opts = append(opts, observable.WithCommandTracing[registerreader.Command](obsConfig.TracingCollector))
-	}
-	if obsConfig.ContextualLogger != nil {
-		opts = append(opts, observable.WithCommandContextualLogging[registerreader.Command](obsConfig.ContextualLogger))
-	}
-	if obsConfig.Logger != nil {
-		opts = append(opts, observable.WithCommandLogging[registerreader.Command](obsConfig.Logger))
-	}
-	return opts
+	return buildCommandOptions[registerreader.Command](obsConfig)
 }
 
 // buildCancelReaderContractOptions creates CancelReaderContract command wrapper options from the config.
 func buildCancelReaderContractOptions(obsConfig ObservabilityConfig) []observable.CommandOption[cancelreadercontract.Command] {
-	var opts []observable.CommandOption[cancelreadercontract.Command]
-	if obsConfig.MetricsCollector != nil {
-		opts = append(opts, observable.WithCommandMetrics[cancelreadercontract.Command](obsConfig.MetricsCollector))
-	}
-	if obsConfig.TracingCollector != nil {
-		opts = append(opts, observable.WithCommandTracing[cancelreadercontract.Command](obsConfig.TracingCollector))
-	}
-	if obsConfig.ContextualLogger != nil {
-		opts = append(opts, observable.WithCommandContextualLogging[cancelreadercontract.Command](obsConfig.ContextualLogger))
-	}
-	if obsConfig.Logger != nil {
-		opts = append(opts, observable.WithCommandLogging[cancelreadercontract.Command](obsConfig.Logger))
-	}
-	return opts
+	return buildCommandOptions[cancelreadercontract.Command](obsConfig)
 }
 
 // buildLendBookCopyToReaderOptions creates LendBookCopyToReader command wrapper options from the config.
 func buildLendBookCopyToReaderOptions(obsConfig ObservabilityConfig) []observable.CommandOption[lendbookcopytoreader.Command] {
-	var opts []observable.CommandOption[lendbookcopytoreader.Command]
-	if obsConfig.MetricsCollector != nil {
-		opts = append(opts, observable.WithCommandMetrics[lendbookcopytoreader.Command](obsConfig.MetricsCollector))
-	}
-	if obsConfig.TracingCollector != nil {
-		opts = append(opts, observable.WithCommandTracing[lendbookcopytoreader.Command](obsConfig.TracingCollector))
-	}
-	if obsConfig.ContextualLogger != nil {
-		opts = append(opts, observable.WithCommandContextualLogging[lendbookcopytoreader.Command](obsConfig.ContextualLogger))
-	}
-	if obsConfig.Logger != nil {
-		opts = append(opts, observable.WithCommandLogging[lendbookcopytoreader.Command](obsConfig.Logger))
-	}
-	return opts
+	return buildCommandOptions[lendbookcopytoreader.Command](obsConfig)
 }
 
 // buildReturnBookCopyFromReaderOptions creates ReturnBookCopyFromReader command wrapper options from the config.
 func buildReturnBookCopyFromReaderOptions(obsConfig ObservabilityConfig) []observable.CommandOption[returnbookcopyfromreader.Command] {
-	var opts []observable.CommandOption[returnbookcopyfromreader.Command]
-	if obsConfig.MetricsCollector != nil {
-		opts = append(opts, observable.WithCommandMetrics[returnbookcopyfromreader.Command](obsConfig.MetricsCollector))
-	}
-	if obsConfig.TracingCollector != nil {
-		opts = append(opts, observable.WithCommandTracing[returnbookcopyfromreader.Command](obsConfig.TracingCollector))
-	}
-	if obsConfig.ContextualLogger != nil {
-		opts = append(opts, observable.WithCommandContextualLogging[returnbookcopyfromreader.Command](obsConfig.ContextualLogger))
-	}
-	if obsConfig.Logger != nil {
-		opts = append(opts, observable.WithCommandLogging[returnbookcopyfromreader.Command](obsConfig.Logger))
-	}
-	return opts
+	return buildCommandOptions[returnbookcopyfromreader.Command](obsConfig)
 }
 
 // recordMetrics logs operation timing and errors (simplified for simulation).
@@ -573,37 +541,11 @@ func generateReaderName() string {
 // =================================================================
 
 func buildBooksInCirculationQueryOptions(obsConfig ObservabilityConfig) []observable.QueryOption[booksincirculation.Query, booksincirculation.BooksInCirculation] {
-	var opts []observable.QueryOption[booksincirculation.Query, booksincirculation.BooksInCirculation]
-	if obsConfig.MetricsCollector != nil {
-		opts = append(opts, observable.WithQueryMetrics[booksincirculation.Query, booksincirculation.BooksInCirculation](obsConfig.MetricsCollector))
-	}
-	if obsConfig.TracingCollector != nil {
-		opts = append(opts, observable.WithQueryTracing[booksincirculation.Query, booksincirculation.BooksInCirculation](obsConfig.TracingCollector))
-	}
-	if obsConfig.ContextualLogger != nil {
-		opts = append(opts, observable.WithQueryContextualLogging[booksincirculation.Query, booksincirculation.BooksInCirculation](obsConfig.ContextualLogger))
-	}
-	if obsConfig.Logger != nil {
-		opts = append(opts, observable.WithQueryLogging[booksincirculation.Query, booksincirculation.BooksInCirculation](obsConfig.Logger))
-	}
-	return opts
+	return buildQueryOptions[booksincirculation.Query, booksincirculation.BooksInCirculation](obsConfig)
 }
 
-func buildBooksLentByReaderOptions(obsConfig ObservabilityConfig) []bookslentbyreader.Option {
-	var opts []bookslentbyreader.Option
-	if obsConfig.MetricsCollector != nil {
-		opts = append(opts, bookslentbyreader.WithMetrics(obsConfig.MetricsCollector))
-	}
-	if obsConfig.TracingCollector != nil {
-		opts = append(opts, bookslentbyreader.WithTracing(obsConfig.TracingCollector))
-	}
-	if obsConfig.ContextualLogger != nil {
-		opts = append(opts, bookslentbyreader.WithContextualLogging(obsConfig.ContextualLogger))
-	}
-	if obsConfig.Logger != nil {
-		opts = append(opts, bookslentbyreader.WithLogging(obsConfig.Logger))
-	}
-	return opts
+func buildBooksLentByReaderQueryOptions(obsConfig ObservabilityConfig) []observable.QueryOption[bookslentbyreader.Query, bookslentbyreader.BooksCurrentlyLent] {
+	return buildQueryOptions[bookslentbyreader.Query, bookslentbyreader.BooksCurrentlyLent](obsConfig)
 }
 
 func buildBooksLentOutOptions(obsConfig ObservabilityConfig) []bookslentout.Option {

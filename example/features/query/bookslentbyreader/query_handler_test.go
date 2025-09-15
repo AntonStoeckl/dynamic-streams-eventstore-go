@@ -35,19 +35,16 @@ func Test_QueryHandler_Handle_ReturnsBooksLentByReader_SortedByLentAt(t *testing
 	ctx, wrapper, cleanup := setupTestEnvironment(t)
 	defer cleanup()
 
-	// Use eventual consistency for query handlers (can tolerate slightly stale data)
 	ctx = eventstore.WithEventualConsistency(ctx)
-
 	handlers := createAllHandlers(t, wrapper)
-	books := createTestBooks(t)
-	readerID := GivenUniqueID(t)
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
+	books := createTestBooks(t)
+	readerID := GivenUniqueID(t)
 	addBooksToLibrary(t, handlers, books, fakeClock)
 	registerSingleReader(t, handlers, readerID, fakeClock)
 
-	// Lend books at different times
 	lendBookCmd1 := lendbookcopytoreader.BuildCommand(books.book1, readerID, fakeClock.Add(time.Hour))
 	_, err := handlers.lendBook.Handle(ctx, lendBookCmd1)
 	assert.NoError(t, err, "Should lend book1 to reader")
@@ -64,7 +61,6 @@ func Test_QueryHandler_Handle_ReturnsBooksLentByReader_SortedByLentAt(t *testing
 	assert.NoError(t, err, "Query should succeed")
 	assert.Equal(t, readerID.String(), result.ReaderID, "Should return correct ReaderID")
 	assert.Equal(t, 2, result.Count, "Reader should have 2 borrowed books")
-
 	expectedBooks := []expectedBook{
 		{BookID: books.book1.String(), LentAt: fakeClock.Add(time.Hour)},
 		{BookID: books.book2.String(), LentAt: fakeClock.Add(2 * time.Hour)},
@@ -77,22 +73,17 @@ func Test_QueryHandler_Handle_ExcludesReturnedBooks(t *testing.T) {
 	ctx, wrapper, cleanup := setupTestEnvironment(t)
 	defer cleanup()
 
-	// Use eventual consistency for query handlers (can tolerate slightly stale data)
 	ctx = eventstore.WithEventualConsistency(ctx)
-
 	handlers := createAllHandlers(t, wrapper)
-	books := createTestBooks(t)
-	readerID := GivenUniqueID(t)
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
+	books := createTestBooks(t)
+	readerID := GivenUniqueID(t)
 	addBooksToLibrary(t, handlers, books, fakeClock)
 	registerSingleReader(t, handlers, readerID, fakeClock)
-
-	// Lend all books to reader
 	lendAllBooksToReader(t, handlers, books, readerID, fakeClock)
 
-	// Return book2 - should not appear in final results
 	returnBookCmd := returnbookcopyfromreader.BuildCommand(books.book2, readerID, fakeClock.Add(4*time.Hour))
 	_, err := handlers.returnBook.Handle(ctx, returnBookCmd)
 	assert.NoError(t, err, "Should return book2")
@@ -104,8 +95,6 @@ func Test_QueryHandler_Handle_ExcludesReturnedBooks(t *testing.T) {
 	// assert
 	assert.NoError(t, err, "Query should succeed")
 	assert.Equal(t, 2, result.Count, "Reader should have 2 borrowed books (book2 was returned)")
-
-	// Verify the returned book is not in results
 	for _, book := range result.Books {
 		assert.NotEqual(t, books.book2.String(), book.BookID, "book2 should not be in results (was returned)")
 	}
@@ -116,15 +105,13 @@ func Test_QueryHandler_Handle_ReturnsEmptyResult_WhenReaderHasNoBorrowedBooks(t 
 	ctx, wrapper, cleanup := setupTestEnvironment(t)
 	defer cleanup()
 
-	// Use eventual consistency for query handlers (can tolerate slightly stale data)
 	ctx = eventstore.WithEventualConsistency(ctx)
-
 	handlers := createAllHandlers(t, wrapper)
-	books := createTestBooks(t)
-	readerID := GivenUniqueID(t)
 	fakeClock := time.Unix(0, 0).UTC()
 
-	// arrange - add books and register reader but don't lend any
+	// arrange
+	books := createTestBooks(t)
+	readerID := GivenUniqueID(t)
 	addBooksToLibrary(t, handlers, books, fakeClock)
 	registerSingleReader(t, handlers, readerID, fakeClock)
 
@@ -144,19 +131,16 @@ func Test_QueryHandler_Handle_ReturnsCorrectBookDetails(t *testing.T) {
 	ctx, wrapper, cleanup := setupTestEnvironment(t)
 	defer cleanup()
 
-	// Use eventual consistency for query handlers (can tolerate slightly stale data)
 	ctx = eventstore.WithEventualConsistency(ctx)
-
 	handlers := createAllHandlers(t, wrapper)
-	books := createTestBooks(t)
-	readerID := GivenUniqueID(t)
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
+	books := createTestBooks(t)
+	readerID := GivenUniqueID(t)
 	addBooksToLibrary(t, handlers, books, fakeClock)
 	registerSingleReader(t, handlers, readerID, fakeClock)
 
-	// Lend a specific book
 	lendBookCmd := lendbookcopytoreader.BuildCommand(books.book1, readerID, fakeClock.Add(time.Hour))
 	_, err := handlers.lendBook.Handle(ctx, lendBookCmd)
 	assert.NoError(t, err, "Should lend book1 to reader")
@@ -169,7 +153,6 @@ func Test_QueryHandler_Handle_ReturnsCorrectBookDetails(t *testing.T) {
 	assert.NoError(t, err, "Query should succeed")
 	assert.Equal(t, 1, result.Count, "Reader should have 1 borrowed book")
 	assert.Len(t, result.Books, 1, "Should return 1 book in Books slice")
-
 	book := result.Books[0]
 	assertSpecificBookDetails(t, book, books.book1.String(), fakeClock.Add(time.Hour))
 }
@@ -179,15 +162,14 @@ func Test_QueryHandler_Handle_WithStrongConsistency_WorksCorrectly(t *testing.T)
 	ctx, wrapper, cleanup := setupTestEnvironment(t)
 	defer cleanup()
 
-	// Use strong consistency (non-default for query handlers) to verify it still works
 	ctx = eventstore.WithStrongConsistency(ctx)
 
 	handlers := createAllHandlers(t, wrapper)
-	books := createTestBooks(t)
-	readerID := GivenUniqueID(t)
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
+	books := createTestBooks(t)
+	readerID := GivenUniqueID(t)
 	addBooksToLibrary(t, handlers, books, fakeClock)
 	registerSingleReader(t, handlers, readerID, fakeClock)
 
@@ -208,6 +190,8 @@ func Test_QueryHandler_Handle_WithStrongConsistency_WorksCorrectly(t *testing.T)
 
 // Test setup helpers.
 func setupTestEnvironment(t *testing.T) (context.Context, Wrapper, func()) {
+	t.Helper()
+
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	wrapper := CreateWrapperWithTestConfig(t)
 	CleanUp(t, wrapper)
@@ -221,13 +205,14 @@ func setupTestEnvironment(t *testing.T) (context.Context, Wrapper, func()) {
 }
 
 func createAllHandlers(t *testing.T, wrapper Wrapper) testHandlers {
+	t.Helper()
+
 	addBookHandler := addbookcopy.NewCommandHandler(wrapper.GetEventStore())
 	registerReaderHandler := registerreader.NewCommandHandler(wrapper.GetEventStore())
 	lendBookHandler := lendbookcopytoreader.NewCommandHandler(wrapper.GetEventStore())
 	returnBookHandler := returnbookcopyfromreader.NewCommandHandler(wrapper.GetEventStore())
 
-	queryHandler, err := bookslentbyreader.NewQueryHandler(wrapper.GetEventStore())
-	assert.NoError(t, err, "Should create BooksLentByReader query handler")
+	queryHandler := bookslentbyreader.NewQueryHandler(wrapper.GetEventStore())
 
 	return testHandlers{
 		addBook:        addBookHandler,
@@ -239,6 +224,8 @@ func createAllHandlers(t *testing.T, wrapper Wrapper) testHandlers {
 }
 
 func createTestBooks(t *testing.T) testBooks {
+	t.Helper()
+
 	return testBooks{
 		book1: GivenUniqueID(t),
 		book2: GivenUniqueID(t),
@@ -247,26 +234,38 @@ func createTestBooks(t *testing.T) testBooks {
 }
 
 func addBooksToLibrary(t *testing.T, handlers testHandlers, books testBooks, fakeClock time.Time) {
-	addBookCmd1 := addbookcopy.BuildCommand(books.book1, "978-1-098-10013-1", "Learning Domain-Driven Design", "Vlad Khononov", "First Edition", "O'Reilly Media, Inc.", 2021, fakeClock)
+	t.Helper()
+
+	addBookCmd1 := addbookcopy.BuildCommand(
+		books.book1, "978-1-098-10013-1", "Learning Domain-Driven Design", "Vlad Khononov", "First Edition", "O'Reilly Media, Inc.", 2021, fakeClock,
+	)
 	_, err := handlers.addBook.Handle(context.Background(), addBookCmd1)
 	assert.NoError(t, err, "Should add book1 to circulation")
 
-	addBookCmd2 := addbookcopy.BuildCommand(books.book2, "978-0-201-63361-0", "Design Patterns", "Gang of Four", "First Edition", "Addison-Wesley", 1994, fakeClock.Add(time.Minute))
+	addBookCmd2 := addbookcopy.BuildCommand(
+		books.book2, "978-0-201-63361-0", "Design Patterns", "Gang of Four", "First Edition", "Addison-Wesley", 1994, fakeClock.Add(time.Minute),
+	)
 	_, err = handlers.addBook.Handle(context.Background(), addBookCmd2)
 	assert.NoError(t, err, "Should add book2 to circulation")
 
-	addBookCmd3 := addbookcopy.BuildCommand(books.book3, "978-0-134-75316-6", "Effective Java", "Joshua Bloch", "Third Edition", "Addison-Wesley", 2017, fakeClock.Add(2*time.Minute))
+	addBookCmd3 := addbookcopy.BuildCommand(
+		books.book3, "978-0-134-75316-6", "Effective Java", "Joshua Bloch", "Third Edition", "Addison-Wesley", 2017, fakeClock.Add(2*time.Minute),
+	)
 	_, err = handlers.addBook.Handle(context.Background(), addBookCmd3)
 	assert.NoError(t, err, "Should add book3 to circulation")
 }
 
 func registerSingleReader(t *testing.T, handlers testHandlers, readerID uuid.UUID, fakeClock time.Time) {
+	t.Helper()
+
 	registerReaderCmd := registerreader.BuildCommand(readerID, "Test Reader", fakeClock.Add(3*time.Minute))
 	_, err := handlers.registerReader.Handle(context.Background(), registerReaderCmd)
 	assert.NoError(t, err, "Should register reader")
 }
 
 func lendAllBooksToReader(t *testing.T, handlers testHandlers, books testBooks, readerID uuid.UUID, fakeClock time.Time) {
+	t.Helper()
+
 	lendBookCmd1 := lendbookcopytoreader.BuildCommand(books.book1, readerID, fakeClock.Add(time.Hour))
 	_, err := handlers.lendBook.Handle(context.Background(), lendBookCmd1)
 	assert.NoError(t, err, "Should lend book1 to reader")
@@ -287,6 +286,8 @@ type expectedBook struct {
 }
 
 func assertBooksSortedByLentAt(t *testing.T, books []bookslentbyreader.LendingInfo, expected []expectedBook) {
+	t.Helper()
+
 	assert.Len(t, books, len(expected), "Should have correct number of books")
 
 	for i, book := range books {
@@ -302,6 +303,8 @@ func assertBooksSortedByLentAt(t *testing.T, books []bookslentbyreader.LendingIn
 }
 
 func assertSpecificBookDetails(t *testing.T, book bookslentbyreader.LendingInfo, expectedBookID string, expectedLentAt time.Time) {
+	t.Helper()
+
 	assert.Equal(t, expectedBookID, book.BookID, "Book should have correct BookID")
 	assert.Equal(t, expectedLentAt, book.LentAt, "Book should have correct LentAt time")
 }
