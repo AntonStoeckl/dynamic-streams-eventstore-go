@@ -1,19 +1,19 @@
 // Package snapshot provides clean, observability-free snapshot optimization for query handlers.
 //
 // This package implements a pure, type-safe wrapper that adds incremental projection capabilities
-// to any CoreQueryHandler, significantly improving performance by avoiding full event history replay.
+// to any QueryHandler, significantly improving performance by avoiding full event history replay.
 // The wrapper is completely observability-free, focusing only on snapshot optimization logic.
 //
 // # Core Components
 //
 // ## Main Wrapper
-// QueryWrapper[Q, R] - The clean wrapper that transforms any CoreQueryHandler into a
+// QueryWrapper[Q, R] - The clean wrapper that transforms any QueryHandler into a
 // snapshot-aware handler. It uses Go generics to ensure type safety between queries (Q) and results (R).
 //
 // ## Interface Architecture
 // - SavesAndLoadsSnapshots - Pure snapshot operations (SaveSnapshot, LoadSnapshot)
 // - QueriesEventsAndHandlesSnapshots - Composite interface combining shell.QueriesEvents + SavesAndLoadsSnapshots
-// - CoreQueryHandler - Clean handlers without observability dependencies
+// - QueryHandler - Clean handlers without observability dependencies
 //
 // # Usage Pattern
 //
@@ -50,7 +50,7 @@
 // # Clean Architecture
 //
 // The new architecture separates concerns cleanly:
-// - CoreQueryHandler: Pure business logic, no observability
+// - QueryHandler: Pure business logic, no observability
 // - QueryWrapper: Pure snapshot optimization, no observability
 // - Observable wrappers: Pure observability instrumentation
 //
