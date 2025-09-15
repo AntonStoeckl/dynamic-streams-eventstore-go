@@ -480,42 +480,56 @@ func main() {
 		log.Panicf("Failed to create CanceledReaders observable wrapper: %v", err)
 	}
 
-	baseRemovedBooksHandler, err := removedbooks.NewQueryHandler(eventStore, buildRemovedBooksOptions(obsConfig)...)
-	if err != nil {
-		log.Panicf("Failed to create RemovedBooks handler: %v", err)
-	}
+	// RemovedBooks: Core → Snapshot → Observable
+	removedBooksCoreHandler := removedbooks.NewQueryHandler(eventStore)
 
-	removedBooksHandler, err := snapshot.NewGenericSnapshotWrapper[
+	removedBooksSnapshotHandler, err := snapshot.NewQueryWrapper[
 		removedbooks.Query,
 		removedbooks.RemovedBooks,
 	](
-		baseRemovedBooksHandler,
+		removedBooksCoreHandler,
+		eventStore,
 		removedbooks.Project,
 		func(_ removedbooks.Query) eventstore.Filter {
 			return removedbooks.BuildEventFilter()
 		},
 	)
 	if err != nil {
-		log.Panicf("Failed to create snapshot-aware RemovedBooks handler: %v", err)
+		log.Panicf("Failed to create RemovedBooks snapshot wrapper: %v", err)
 	}
 
-	baseFinishedLendingsHandler, err := finishedlendings.NewQueryHandler(eventStore, buildFinishedLendingsOptions(obsConfig)...)
+	removedBooksHandler, err := observable.NewQueryWrapper(
+		removedBooksSnapshotHandler,
+		buildQueryOptions[removedbooks.Query, removedbooks.RemovedBooks](obsConfig)...,
+	)
 	if err != nil {
-		log.Panicf("Failed to create FinishedLendings handler: %v", err)
+		log.Panicf("Failed to create RemovedBooks observable wrapper: %v", err)
 	}
 
-	finishedLendingsHandler, err := snapshot.NewGenericSnapshotWrapper[
+	// FinishedLendings: Core → Snapshot → Observable
+	finishedLendingsCoreHandler := finishedlendings.NewQueryHandler(eventStore)
+
+	finishedLendingsSnapshotHandler, err := snapshot.NewQueryWrapper[
 		finishedlendings.Query,
 		finishedlendings.FinishedLendings,
 	](
-		baseFinishedLendingsHandler,
+		finishedLendingsCoreHandler,
+		eventStore,
 		finishedlendings.Project,
 		func(_ finishedlendings.Query) eventstore.Filter {
 			return finishedlendings.BuildEventFilter()
 		},
 	)
 	if err != nil {
-		log.Panicf("Failed to create snapshot-aware FinishedLendings handler: %v", err)
+		log.Panicf("Failed to create FinishedLendings snapshot wrapper: %v", err)
+	}
+
+	finishedLendingsHandler, err := observable.NewQueryWrapper(
+		finishedLendingsSnapshotHandler,
+		buildQueryOptions[finishedlendings.Query, finishedlendings.FinishedLendings](obsConfig)...,
+	)
+	if err != nil {
+		log.Panicf("Failed to create FinishedLendings observable wrapper: %v", err)
 	}
 
 	// Query all data
@@ -1374,44 +1388,6 @@ func processReturnCommand(ctx context.Context, handler *returnbookcopyfromreader
 
 	stats.RecordSuccess(bookID, readerID)
 	return true
-}
-
-// buildReturnBookOptions creates options for ReturnBookCopyFromReader command handler.
-
-// buildRemovedBooksOptions creates options for the RemovedBooks query handler.
-func buildRemovedBooksOptions(obsConfig ObservabilityConfig) []removedbooks.Option {
-	var opts []removedbooks.Option
-	if obsConfig.MetricsCollector != nil {
-		opts = append(opts, removedbooks.WithMetrics(obsConfig.MetricsCollector))
-	}
-	if obsConfig.TracingCollector != nil {
-		opts = append(opts, removedbooks.WithTracing(obsConfig.TracingCollector))
-	}
-	if obsConfig.ContextualLogger != nil {
-		opts = append(opts, removedbooks.WithContextualLogging(obsConfig.ContextualLogger))
-	}
-	if obsConfig.Logger != nil {
-		opts = append(opts, removedbooks.WithLogging(obsConfig.Logger))
-	}
-	return opts
-}
-
-// buildFinishedLendingsOptions creates options for FinishedLendings query handler.
-func buildFinishedLendingsOptions(obsConfig ObservabilityConfig) []finishedlendings.Option {
-	var opts []finishedlendings.Option
-	if obsConfig.MetricsCollector != nil {
-		opts = append(opts, finishedlendings.WithMetrics(obsConfig.MetricsCollector))
-	}
-	if obsConfig.TracingCollector != nil {
-		opts = append(opts, finishedlendings.WithTracing(obsConfig.TracingCollector))
-	}
-	if obsConfig.ContextualLogger != nil {
-		opts = append(opts, finishedlendings.WithContextualLogging(obsConfig.ContextualLogger))
-	}
-	if obsConfig.Logger != nil {
-		opts = append(opts, finishedlendings.WithLogging(obsConfig.Logger))
-	}
-	return opts
 }
 
 func parseFlags() Config {

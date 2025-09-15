@@ -10,9 +10,9 @@ import (
 // CommandWrapper provides comprehensive observability instrumentation for any command handler.
 // It wraps a core command handler and adds metrics, tracing, logging, and retry logic.
 // The wrapper handles all infrastructure concerns while delegating business logic to the wrapped handler.
-// This follows the same composition pattern as GenericSnapshotWrapper for consistency.
+// This follows the same composition pattern as snapshot.QueryWrapper for consistency.
 type CommandWrapper[C shell.Command] struct {
-	coreHandler      shell.CoreCommandHandler[C]
+	coreHandler      shell.CommandHandler[C]
 	commandType      string
 	metricsCollector shell.MetricsCollector
 	tracingCollector shell.TracingCollector
@@ -24,7 +24,7 @@ type CommandWrapper[C shell.Command] struct {
 // The wrapper will instrument the handler with comprehensive observability while delegating
 // all business logic to the wrapped handler.
 func NewCommandWrapper[C shell.Command](
-	coreHandler shell.CoreCommandHandler[C],
+	coreHandler shell.CommandHandler[C],
 	opts ...CommandOption[C],
 ) (*CommandWrapper[C], error) {
 	// Extract command type from a zero-value instance

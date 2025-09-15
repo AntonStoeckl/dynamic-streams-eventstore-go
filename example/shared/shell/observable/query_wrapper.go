@@ -12,7 +12,7 @@ import (
 // The wrapper handles all infrastructure concerns while delegating business logic to the wrapped handler.
 // This follows the same composition pattern as CommandWrapper for consistency.
 type QueryWrapper[Q shell.Query, R shell.QueryResult] struct {
-	coreHandler      shell.CoreQueryHandler[Q, R]
+	coreHandler      shell.QueryHandler[Q, R]
 	queryType        string
 	metricsCollector shell.MetricsCollector
 	tracingCollector shell.TracingCollector
@@ -24,7 +24,7 @@ type QueryWrapper[Q shell.Query, R shell.QueryResult] struct {
 // The wrapper will instrument the handler with comprehensive observability while delegating
 // all business logic to the wrapped handler.
 func NewQueryWrapper[Q shell.Query, R shell.QueryResult](
-	coreHandler shell.CoreQueryHandler[Q, R],
+	coreHandler shell.QueryHandler[Q, R],
 	opts ...QueryOption[Q, R],
 ) (*QueryWrapper[Q, R], error) {
 	// Extract query type from a zero-value instance

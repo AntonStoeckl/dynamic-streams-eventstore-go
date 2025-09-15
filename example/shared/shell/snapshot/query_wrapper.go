@@ -43,13 +43,26 @@ var (
 	ErrInitialSnapshotSaveFailed = errors.New("initial snapshot save failed")
 )
 
+// SavesAndLoadsSnapshots defines the interface needed for snapshot-aware operations.
+type SavesAndLoadsSnapshots interface {
+	SaveSnapshot(ctx context.Context, snapshot eventstore.Snapshot) error
+	LoadSnapshot(ctx context.Context, projectionType string, filter eventstore.Filter) (*eventstore.Snapshot, error)
+}
+
+// QueriesEventsAndHandlesSnapshots defines the interface needed for snapshot-aware operations.
+// This extends the basic EventStore interface with snapshot management capabilities.
+type QueriesEventsAndHandlesSnapshots interface {
+	shell.QueriesEvents
+	SavesAndLoadsSnapshots
+}
+
 // QueryWrapper provides snapshot-based optimization for query handlers.
 // It wraps a base handler and adds incremental projection capabilities using snapshots.
 // The wrapper attempts to load existing snapshots, perform incremental updates, and save
 // updated snapshots, falling back to the base handler if snapshots are unavailable.
 // This version is completely observability-free - no logging, metrics, or tracing.
 type QueryWrapper[Q shell.Query, R shell.QueryResult] struct {
-	coreHandler   shell.CoreQueryHandler[Q, R]
+	coreHandler   shell.QueryHandler[Q, R]
 	eventStore    QueriesEventsAndHandlesSnapshots
 	projectFunc   shell.ProjectionFunc[Q, R]
 	filterBuilder shell.FilterBuilderFunc[Q]
@@ -60,7 +73,7 @@ type QueryWrapper[Q shell.Query, R shell.QueryResult] struct {
 // to the base handler if snapshots are not available or incompatible.
 // The eventStore must be passed separately and must support snapshot operations.
 func NewQueryWrapper[Q shell.Query, R shell.QueryResult](
-	baseHandler shell.CoreQueryHandler[Q, R],
+	baseHandler shell.QueryHandler[Q, R],
 	eventStore QueriesEventsAndHandlesSnapshots,
 	projectFunc shell.ProjectionFunc[Q, R],
 	filterBuilder shell.FilterBuilderFunc[Q],

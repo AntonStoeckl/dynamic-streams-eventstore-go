@@ -19,17 +19,6 @@ type QueriesEvents interface {
 	)
 }
 
-// ExposesSnapshotWrapperDependencies provides access to internal components needed for snapshot wrapping.
-// This interface represents a pragmatic trade-off in the vertical slice architecture to enable
-// cross-cutting snapshot optimization without duplicating wrapper logic in each feature slice.
-type ExposesSnapshotWrapperDependencies interface {
-	ExposeEventStore() QueriesEvents
-	ExposeMetricsCollector() MetricsCollector
-	ExposeTracingCollector() TracingCollector
-	ExposeContextualLogger() ContextualLogger
-	ExposeLogger() Logger
-}
-
 // Query represents the contract for all query types in the event-sourced application.
 // Each query encapsulates the intent and parameters needed to retrieve a specific projection.
 // The QueryType method enables polymorphic handling and snapshot type generation.
@@ -48,23 +37,13 @@ type QueryResult interface {
 	GetSequenceNumber() uint
 }
 
-// CoreQueryHandler defines the contract for components that process queries with pure business logic.
+// QueryHandler defines the contract for components that process queries with pure business logic.
 // Handlers orchestrate the complete query workflow: retrieving events, unmarshaling, and projecting.
 // The generic parameters Q and R ensure type safety between queries and their corresponding results.
 // Implementations should focus purely on business logic without observability or infrastructure concerns.
 // This interface is designed to be wrapped with observability decorators for complete functionality.
-type CoreQueryHandler[Q Query, R QueryResult] interface {
-	Handle(ctx context.Context, query Q) (R, error)
-}
-
-// QueryHandler defines the contract for components that process queries and return projections.
-// Handlers orchestrate the complete query workflow: retrieving events, unmarshaling, and projecting.
-// The generic parameters Q and R ensure type safety between queries and their corresponding results.
-// Implementations handle infrastructure concerns (EventStore access, observability) while delegating
-// business logic to pure projection functions.
 type QueryHandler[Q Query, R QueryResult] interface {
 	Handle(ctx context.Context, query Q) (R, error)
-	ExposesSnapshotWrapperDependencies
 }
 
 // ProjectionFunc defines the signature for pure functions that transform events into projections.
@@ -93,12 +72,12 @@ type Command interface {
 	CommandType() string
 }
 
-// CoreCommandHandler defines the contract for components that process commands with pure business logic.
+// CommandHandler defines the contract for components that process commands with pure business logic.
 // Handlers orchestrate the complete command workflow: retrieving events, unmarshaling, business logic, and appending.
 // The generic parameter C ensures type safety between commands and their corresponding handlers.
 // Implementations should focus purely on business logic without observability or infrastructure concerns.
 // This interface is designed to be wrapped with observability decorators for complete functionality.
 // Handlers return HandlerResult containing business outcomes (idempotency) and execution metadata (retry info).
-type CoreCommandHandler[C Command] interface {
+type CommandHandler[C Command] interface {
 	Handle(ctx context.Context, command C) (HandlerResult, error)
 }

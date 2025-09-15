@@ -410,7 +410,7 @@ func (c mockCommand) CommandType() string {
 	return "TestCommand"
 }
 
-// mockCoreHandler implements shell.CoreCommandHandler for testing.
+// mockCoreHandler implements shell.CommandHandler for testing.
 type mockCoreHandler struct {
 	result shell.HandlerResult
 	err    error
@@ -446,7 +446,7 @@ func (c customMockCommand) CommandType() string {
 	return "CustomCommandType"
 }
 
-// mockCoreHandlerCustom implements shell.CoreCommandHandler for custom command.
+// mockCoreHandlerCustom implements shell.CommandHandler for custom command.
 type mockCoreHandlerCustom struct {
 	result shell.HandlerResult
 	err    error
