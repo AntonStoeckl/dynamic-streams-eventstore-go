@@ -26,6 +26,7 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/registeredreaders"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/features/query/removedbooks"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/observable"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/snapshot"
 )
 
@@ -412,25 +413,35 @@ func main() {
 		log.Panicf("Failed to create snapshot-aware BooksLentOut handler: %v", err)
 	}
 
-	// create a base BooksInCirculation handler and wrap it with the generic snapshot wrapper
+	// Create BooksInCirculation handler using new composition pattern
+	// Core Handler -> Snapshot Wrapper -> Observable Wrapper
 
-	baseBooksInCirculationHandler, err := booksincirculation.NewQueryHandler(eventStore, buildBooksInCirculationOptions(obsConfig)...)
-	if err != nil {
-		log.Panicf("Failed to create BooksInCirculation handler: %v", err)
-	}
+	baseBooksInCirculationHandler := booksincirculation.NewQueryHandler(eventStore)
 
-	booksInCirculationHandler, err := snapshot.NewGenericSnapshotWrapper[
+	booksInCirculationSnapshotHandler, err := snapshot.NewQueryWrapper[
 		booksincirculation.Query,
 		booksincirculation.BooksInCirculation,
 	](
 		baseBooksInCirculationHandler,
+		eventStore,
 		booksincirculation.Project,
 		func(_ booksincirculation.Query) eventstore.Filter {
 			return booksincirculation.BuildEventFilter()
 		},
 	)
 	if err != nil {
-		log.Panicf("Failed to create snapshot-aware BooksInCirculation handler: %v", err)
+		log.Panicf("Failed to create BooksInCirculation snapshot wrapper: %v", err)
+	}
+
+	booksInCirculationHandler, err := observable.NewQueryWrapper[
+		booksincirculation.Query,
+		booksincirculation.BooksInCirculation,
+	](
+		booksInCirculationSnapshotHandler,
+		buildBooksInCirculationQueryOptions(obsConfig)...,
+	)
+	if err != nil {
+		log.Panicf("Failed to create BooksInCirculation observable wrapper: %v", err)
 	}
 
 	// create a base CanceledReaders handler and wrap it with the generic snapshot wrapper
@@ -1260,19 +1271,19 @@ func buildBooksLentOutOptions(obsConfig ObservabilityConfig) []bookslentout.Opti
 }
 
 // buildBooksInCirculationOptions creates options for BooksInCirculation query handler.
-func buildBooksInCirculationOptions(obsConfig ObservabilityConfig) []booksincirculation.Option {
-	var opts []booksincirculation.Option
+func buildBooksInCirculationQueryOptions(obsConfig ObservabilityConfig) []observable.QueryOption[booksincirculation.Query, booksincirculation.BooksInCirculation] {
+	var opts []observable.QueryOption[booksincirculation.Query, booksincirculation.BooksInCirculation]
 	if obsConfig.MetricsCollector != nil {
-		opts = append(opts, booksincirculation.WithMetrics(obsConfig.MetricsCollector))
+		opts = append(opts, observable.WithQueryMetrics[booksincirculation.Query, booksincirculation.BooksInCirculation](obsConfig.MetricsCollector))
 	}
 	if obsConfig.TracingCollector != nil {
-		opts = append(opts, booksincirculation.WithTracing(obsConfig.TracingCollector))
+		opts = append(opts, observable.WithQueryTracing[booksincirculation.Query, booksincirculation.BooksInCirculation](obsConfig.TracingCollector))
 	}
 	if obsConfig.ContextualLogger != nil {
-		opts = append(opts, booksincirculation.WithContextualLogging(obsConfig.ContextualLogger))
+		opts = append(opts, observable.WithQueryContextualLogging[booksincirculation.Query, booksincirculation.BooksInCirculation](obsConfig.ContextualLogger))
 	}
 	if obsConfig.Logger != nil {
-		opts = append(opts, booksincirculation.WithLogging(obsConfig.Logger))
+		opts = append(opts, observable.WithQueryLogging[booksincirculation.Query, booksincirculation.BooksInCirculation](obsConfig.Logger))
 	}
 	return opts
 }

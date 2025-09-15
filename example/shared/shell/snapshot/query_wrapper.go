@@ -3,7 +3,6 @@ package snapshot
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	jsoniter "github.com/json-iterator/go"
@@ -19,9 +18,6 @@ const (
 )
 
 var (
-	// ErrCoreHandlerEventStoreNotSnapshotCapable is returned when the core handler's EventStore doesn't support snapshot operations.
-	ErrCoreHandlerEventStoreNotSnapshotCapable = errors.New("core handler's EventStore does not support snapshot operations")
-
 	// ErrSnapshotLoadFailed is returned when snapshot loading fails.
 	ErrSnapshotLoadFailed = errors.New("snapshot load failed")
 
@@ -53,7 +49,7 @@ var (
 // updated snapshots, falling back to the base handler if snapshots are unavailable.
 // This version is completely observability-free - no logging, metrics, or tracing.
 type QueryWrapper[Q shell.Query, R shell.QueryResult] struct {
-	coreHandler   shell.QueryHandler[Q, R]
+	coreHandler   shell.CoreQueryHandler[Q, R]
 	eventStore    QueriesEventsAndHandlesSnapshots
 	projectFunc   shell.ProjectionFunc[Q, R]
 	filterBuilder shell.FilterBuilderFunc[Q]
@@ -62,27 +58,17 @@ type QueryWrapper[Q shell.Query, R shell.QueryResult] struct {
 // NewQueryWrapper creates a new snapshot-aware wrapper around a query handler.
 // The wrapper will attempt to use snapshots for performance optimization but will fall back
 // to the base handler if snapshots are not available or incompatible.
-// This version extracts the EventStore from the base handler for compatibility with existing handlers.
-// Returns an error if the base handler's EventStore doesn't support snapshot operations.
+// The eventStore must be passed separately and must support snapshot operations.
 func NewQueryWrapper[Q shell.Query, R shell.QueryResult](
-	baseHandler shell.QueryHandler[Q, R],
+	baseHandler shell.CoreQueryHandler[Q, R],
+	eventStore QueriesEventsAndHandlesSnapshots,
 	projectFunc shell.ProjectionFunc[Q, R],
 	filterBuilder shell.FilterBuilderFunc[Q],
 ) (*QueryWrapper[Q, R], error) {
 
-	baseEventStore := baseHandler.ExposeEventStore()
-
-	snapshotCapableEventStore, ok := baseEventStore.(QueriesEventsAndHandlesSnapshots)
-	if !ok {
-		return nil, errors.Join(
-			ErrCoreHandlerEventStoreNotSnapshotCapable,
-			fmt.Errorf("EventStore type %T does not support snapshots", baseEventStore),
-		)
-	}
-
 	wrapper := &QueryWrapper[Q, R]{
 		coreHandler:   baseHandler,
-		eventStore:    snapshotCapableEventStore,
+		eventStore:    eventStore,
 		projectFunc:   projectFunc,
 		filterBuilder: filterBuilder,
 	}
@@ -109,12 +95,10 @@ func (w *QueryWrapper[Q, R]) Handle(ctx context.Context, query Q) (R, error) {
 		return w.fallbackAndSaveSnapshot(ctx, query, baseFilter)
 	}
 
-	// Reopen filter for sequence filtering (compile-time check)
-	reopened := baseFilter.ReopenForSequenceFiltering()
-	sequenceCapableFilter := reopened.(eventstore.SequenceFilteringCapable)
-
 	// Incremental Query phase
-	storableEvents, maxSeq, err := w.queryIncrementalEvents(ctx, sequenceCapableFilter, snapshot.SequenceNumber)
+	reopenedFilter := baseFilter.ReopenForSequenceFiltering().(eventstore.SequenceFilteringCapable)
+
+	storableEvents, maxSeq, err := w.queryIncrementalEvents(ctx, reopenedFilter, snapshot.SequenceNumber)
 	if err != nil {
 		return *new(R), errors.Join(ErrIncrementalQueryFailed, err)
 	}
@@ -173,10 +157,10 @@ func (w *QueryWrapper[Q, R]) loadSnapshot(
 // queryIncrementalEvents handles the incremental query phase.
 func (w *QueryWrapper[Q, R]) queryIncrementalEvents(
 	ctx context.Context,
-	capable eventstore.SequenceFilteringCapable,
+	filter eventstore.SequenceFilteringCapable,
 	fromSequence uint,
 ) (eventstore.StorableEvents, eventstore.MaxSequenceNumberUint, error) {
-	incrementalFilter := capable.WithSequenceNumberHigherThan(fromSequence).Finalize()
+	incrementalFilter := filter.WithSequenceNumberHigherThan(fromSequence).Finalize()
 	storableEvents, maxSeq, err := w.eventStore.Query(ctx, incrementalFilter)
 
 	if err != nil {

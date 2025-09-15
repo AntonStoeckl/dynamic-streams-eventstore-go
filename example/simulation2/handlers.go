@@ -37,7 +37,7 @@ type HandlerBundle struct {
 	returnBookCopyHandler *observable.CommandWrapper[returnbookcopyfromreader.Command]
 
 	// Query handlers for state refresh.
-	booksInCirculationHandler *snapshot.GenericSnapshotWrapper[booksincirculation.Query, booksincirculation.BooksInCirculation]
+	booksInCirculationHandler *observable.QueryWrapper[booksincirculation.Query, booksincirculation.BooksInCirculation]
 	booksLentByReaderHandler  *snapshot.GenericSnapshotWrapper[bookslentbyreader.Query, bookslentbyreader.BooksCurrentlyLent]
 	booksLentOutHandler       *snapshot.GenericSnapshotWrapper[bookslentout.Query, bookslentout.BooksLentOut]
 	registeredReadersHandler  *snapshot.GenericSnapshotWrapper[registeredreaders.Query, registeredreaders.RegisteredReaders]
@@ -101,18 +101,18 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 		return nil, fmt.Errorf("failed to wrap ReturnBookCopyFromReader handler with observability: %w", err)
 	}
 
-	// Create query handlers.
-	// Query handlers are wrapped with snapshotting if enabled.
-	booksInCirculationBaseHandler, err := booksincirculation.NewQueryHandler(eventStore, buildBooksInCirculationOptions(obsConfig)...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create BooksInCirculation handler: %w", err)
-	}
+	// Create query handlers using new composition pattern.
+	// Core Handler -> Snapshot Wrapper -> Observable Wrapper
 
-	booksInCirculationHandler, err := snapshot.NewGenericSnapshotWrapper[
+	// BooksInCirculation: Clean handler -> Snapshot wrapper -> Observable wrapper
+	booksInCirculationCoreHandler := booksincirculation.NewQueryHandler(eventStore)
+
+	booksInCirculationSnapshotHandler, err := snapshot.NewQueryWrapper[
 		booksincirculation.Query,
 		booksincirculation.BooksInCirculation,
 	](
-		booksInCirculationBaseHandler,
+		booksInCirculationCoreHandler,
+		eventStore,
 		booksincirculation.Project,
 		func(_ booksincirculation.Query) eventstore.Filter {
 			return booksincirculation.BuildEventFilter()
@@ -120,6 +120,17 @@ func NewHandlerBundle(eventStore *postgresengine.EventStore, cfg Config) (*Handl
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create BooksInCirculation snapshot wrapper: %w", err)
+	}
+
+	booksInCirculationHandler, err := observable.NewQueryWrapper[
+		booksincirculation.Query,
+		booksincirculation.BooksInCirculation,
+	](
+		booksInCirculationSnapshotHandler,
+		buildBooksInCirculationQueryOptions(obsConfig)...,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create BooksInCirculation observable wrapper: %w", err)
 	}
 
 	booksLentByReaderBaseHandler, err := bookslentbyreader.NewQueryHandler(eventStore, buildBooksLentByReaderOptions(obsConfig)...)
@@ -561,19 +572,19 @@ func generateReaderName() string {
 // OBSERVABILITY OPTIONS BUILDERS
 // =================================================================
 
-func buildBooksInCirculationOptions(obsConfig ObservabilityConfig) []booksincirculation.Option {
-	var opts []booksincirculation.Option
+func buildBooksInCirculationQueryOptions(obsConfig ObservabilityConfig) []observable.QueryOption[booksincirculation.Query, booksincirculation.BooksInCirculation] {
+	var opts []observable.QueryOption[booksincirculation.Query, booksincirculation.BooksInCirculation]
 	if obsConfig.MetricsCollector != nil {
-		opts = append(opts, booksincirculation.WithMetrics(obsConfig.MetricsCollector))
+		opts = append(opts, observable.WithQueryMetrics[booksincirculation.Query, booksincirculation.BooksInCirculation](obsConfig.MetricsCollector))
 	}
 	if obsConfig.TracingCollector != nil {
-		opts = append(opts, booksincirculation.WithTracing(obsConfig.TracingCollector))
+		opts = append(opts, observable.WithQueryTracing[booksincirculation.Query, booksincirculation.BooksInCirculation](obsConfig.TracingCollector))
 	}
 	if obsConfig.ContextualLogger != nil {
-		opts = append(opts, booksincirculation.WithContextualLogging(obsConfig.ContextualLogger))
+		opts = append(opts, observable.WithQueryContextualLogging[booksincirculation.Query, booksincirculation.BooksInCirculation](obsConfig.ContextualLogger))
 	}
 	if obsConfig.Logger != nil {
-		opts = append(opts, booksincirculation.WithLogging(obsConfig.Logger))
+		opts = append(opts, observable.WithQueryLogging[booksincirculation.Query, booksincirculation.BooksInCirculation](obsConfig.Logger))
 	}
 	return opts
 }
