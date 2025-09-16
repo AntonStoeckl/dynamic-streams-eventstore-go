@@ -53,7 +53,7 @@ jobs:
           go test -race -coverprofile=coverage-eventstore.out -coverpkg=./eventstore/... -covermode=atomic ./eventstore/
           
           echo "Running factory function tests..."
-          go test -race -coverprofile=coverage-factory.out -coverpkg=./eventstore/... -covermode=atomic ./eventstore/postgresengine -run "^Test_FactoryFunctions_" -skip "Replica"
+          go test -race -coverprofile=coverage-factory.out -coverpkg=./eventstore/... -covermode=atomic ./eventstore/postgresengine -run "^Test_FactoryFunctions_" -skip "ReplicaFactoryMethods"
           
           echo "Running observability tests..."
           go test -race -coverprofile=coverage-observability.out -coverpkg=./eventstore/... -covermode=atomic ./eventstore/postgresengine -run "^Test_Observability_"
