@@ -16,10 +16,12 @@ import (
 
 // GivenUniqueID generates a unique UUID for testing.
 func GivenUniqueID(t testing.TB) uuid.UUID {
-	bookID, err := uuid.NewV7()
+	t.Helper()
+
+	id, err := uuid.NewV7()
 	assert.NoError(t, err, "error in arranging test data")
 
-	return bookID
+	return id
 }
 
 // QueryMaxSequenceNumberBeforeAppend queries the current max sequence number for a filter.
@@ -29,6 +31,8 @@ func QueryMaxSequenceNumberBeforeAppend(
 	es *postgresengine.EventStore,
 	filter eventstore.Filter,
 ) eventstore.MaxSequenceNumberUint {
+
+	t.Helper()
 
 	_, maxSequenceNumBeforeAppend, err := es.Query(ctx, filter)
 	assert.NoError(t, err, "error in arranging test data")
@@ -109,6 +113,8 @@ func FixtureBookCopyReturnedByReader(
 
 // ToStorable converts a domain event to a storable event for testing.
 func ToStorable(t testing.TB, domainEvent core.DomainEvent) eventstore.StorableEvent {
+	t.Helper()
+
 	storableEvent, err := shell.StorableEventWithEmptyMetadataFrom(domainEvent)
 	assert.NoError(t, err, "error in arranging test data")
 
@@ -121,6 +127,8 @@ func ToStorableWithMetadata(
 	domainEvent core.DomainEvent,
 	eventMetadata shell.EventMetadata,
 ) eventstore.StorableEvent {
+
+	t.Helper()
 
 	storableEvent, err := shell.StorableEventFrom(domainEvent, eventMetadata)
 	assert.NoError(t, err, "error in arranging test data")
@@ -136,6 +144,8 @@ func GivenBookCopyAddedToCirculationWasAppended(
 	bookID uuid.UUID,
 	fakeClock time.Time,
 ) core.DomainEvent {
+
+	t.Helper()
 
 	filter := FilterAllEventTypesForOneBook(bookID)
 	event := FixtureBookCopyAddedToCirculation(bookID, fakeClock)
@@ -158,6 +168,8 @@ func GivenBookCopyRemovedFromCirculationWasAppended(
 	bookID uuid.UUID,
 	fakeClock time.Time,
 ) core.DomainEvent {
+
+	t.Helper()
 
 	filter := FilterAllEventTypesForOneBook(bookID)
 	event := FixtureBookCopyRemovedFromCirculation(bookID, fakeClock)
@@ -182,6 +194,8 @@ func GivenBookCopyLentToReaderWasAppended(
 	fakeClock time.Time,
 ) core.DomainEvent {
 
+	t.Helper()
+
 	filter := FilterAllEventTypesForOneBookOrReader(bookID, readerID)
 	event := FixtureBookCopyLentToReader(bookID, readerID, fakeClock)
 	err := es.Append(
@@ -204,6 +218,8 @@ func GivenBookCopyReturnedByReaderWasAppended(
 	readerID uuid.UUID,
 	fakeClock time.Time,
 ) core.DomainEvent {
+
+	t.Helper()
 
 	filter := FilterAllEventTypesForOneBookOrReader(bookID, readerID)
 	event := FixtureBookCopyReturnedByReader(bookID, readerID, fakeClock)
