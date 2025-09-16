@@ -348,6 +348,76 @@ func (c *LoggingTracingCollector) FinishSpan(spanCtx postgresengine.SpanContext,
 - **Error scenarios**: Detailed error classification (build_query, database_query, scan_results, database_exec, concurrency_conflict)
 - **Context propagation**: Trace context threaded through all database operations
 
+## Context-Based Consistency Control
+
+### ConsistencyLevel
+
+The EventStore supports optional primary-replica PostgreSQL setups with context-based query routing.
+
+> **⚠️ CRITICAL RULE**: Use `WithStrongConsistency()` for ALL command handlers that perform read-check-write operations. Use `WithEventualConsistency()` ONLY for pure query handlers that perform read-only operations. Violating this rule will cause concurrency conflicts or stale data issues.
+
+```go
+type ConsistencyLevel int
+
+const (
+    StrongConsistency    ConsistencyLevel = iota  // Default - use primary
+    EventualConsistency                           // Allow replica
+)
+```
+
+### Consistency Functions
+
+#### WithStrongConsistency
+
+```go
+func WithStrongConsistency(ctx context.Context) context.Context
+```
+
+Returns a context that signals EventStore operations should use the primary database for strong consistency guarantees.
+
+**Use Cases:**
+- Command handlers performing read-check-write operations
+- Operations requiring immediate read-after-write consistency
+- Preventing concurrency conflicts from replica lag
+
+**Example:**
+```go
+ctx = eventstore.WithStrongConsistency(ctx)
+events, maxSeq, err := eventStore.Query(ctx, filter)
+```
+
+#### WithEventualConsistency
+
+```go
+func WithEventualConsistency(ctx context.Context) context.Context
+```
+
+Returns a context that signals EventStore operations may use replica databases for eventual consistency, trading consistency for performance.
+
+**Use Cases:**
+- Pure query handlers that can tolerate slightly stale data
+- Read-heavy operations where performance is prioritized
+- Reducing load on the primary database
+
+**Example:**
+```go
+ctx = eventstore.WithEventualConsistency(ctx)
+events, _, err := eventStore.Query(ctx, filter)
+```
+
+#### GetConsistencyLevel
+
+```go
+func GetConsistencyLevel(ctx context.Context) ConsistencyLevel
+```
+
+Extracts the consistency level from the context. Returns `StrongConsistency` as the safe default if no consistency level is set.
+
+**Consistency Behavior:**
+- **StrongConsistency** (default): All operations use primary database
+- **EventualConsistency**: Read operations may use replica database
+- **Append operations**: Always use primary database regardless of context
+
 #### Methods
 
 ##### Query

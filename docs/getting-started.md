@@ -383,6 +383,88 @@ for _, storableEvent := range storableEvents {
 }
 ```
 
+## Optional: Primary-Replica Setup
+
+For high-performance applications, you can configure PostgreSQL streaming replication with context-based query routing.
+
+### Benefits
+
+- **Load Distribution**: Read queries can use replica, reducing primary load
+- **Scalability**: Better resource utilization across database cluster
+- **Proper Consistency**: Strong consistency by default prevents subtle bugs
+
+### Setup Requirements
+
+1. **PostgreSQL Streaming Replication**: Primary and replica databases configured
+2. **Separate Connections**: Connection pools for both primary and replica
+3. **Context-Based Routing**: Application handlers specify consistency requirements
+
+### Basic Configuration
+
+```go
+// Create separate connection pools
+primaryPool, err := pgxpool.New(ctx, "postgres://user:pass@primary:5432/events")
+if err != nil {
+    log.Fatal(err)
+}
+
+replicaPool, err := pgxpool.New(ctx, "postgres://user:pass@replica:5432/events")
+if err != nil {
+    log.Fatal(err)
+}
+
+// Create EventStore with replica support
+eventStore, err := postgresengine.NewEventStoreFromPGXPoolWithReplica(
+    primaryPool,
+    replicaPool)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+### Usage with Consistency Context
+
+> **⚠️ CRITICAL RULE**: Command handlers MUST use `WithStrongConsistency()` - they need read-after-write consistency for optimistic locking. Query handlers can use `WithEventualConsistency()` - they only read data and can tolerate slight staleness.
+
+```go
+import "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
+
+// Command handlers - use strong consistency (primary)
+func HandleLendBookCommand(ctx context.Context, es EventStore, bookID, readerID string) error {
+    ctx = eventstore.WithStrongConsistency(ctx)
+
+    // This routes to primary database
+    events, maxSeq, err := es.Query(ctx, filter)
+    // ... business logic ...
+    return es.Append(ctx, filter, maxSeq, newEvent)
+}
+
+// Query handlers - use eventual consistency (replica)
+func HandleGetBooksQuery(ctx context.Context, es EventStore) ([]Book, error) {
+    ctx = eventstore.WithEventualConsistency(ctx)
+
+    // This may route to replica database
+    events, _, err := es.Query(ctx, filter)
+    // ... projection logic ...
+    return books, nil
+}
+```
+
+### Docker Development Setup
+
+For local development, you can use the provided Docker Compose configuration:
+
+```bash
+# Start primary and replica databases
+cd testutil/postgresengine
+docker-compose up -d postgres_benchmark_master postgres_benchmark_replica
+
+# Primary: localhost:5433
+# Replica: localhost:5434
+```
+
+See [Development Guide](./development.md) for complete Docker setup instructions.
+
 ## Testing
 
 See [Development Guide](./development.md) for testing with different database adapters.

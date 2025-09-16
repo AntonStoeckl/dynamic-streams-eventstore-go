@@ -237,6 +237,68 @@ func withExponentialBackoff(operation func() error, maxRetries int) error {
 3. **Use Multiple Databases**: Shard by business domain
 4. **Implement CQRS**: Separate read and write models
 
+## Primary-Replica Performance Benefits
+
+For applications with mixed read/write workloads, primary-replica setups with context-based routing provide significant performance improvements.
+
+### Performance Characteristics
+
+**Command Handlers (Strong Consistency):**
+- **Consistent primary performance** for read-check-write operations
+- **Proper read-after-write consistency** for optimistic locking
+- **No concurrency conflicts** from reading stale replica data
+- **Optimal resource utilization** for write-heavy workloads
+
+**Query Handlers (Eventual Consistency):**
+- **Offloaded read traffic** from primary to replica
+- **Improved primary write capacity** due to reduced read load
+- **Horizontal read scaling** across replica nodes
+- **Minor performance variation** acceptable for read-only operations
+
+### Load Distribution
+
+**Optimal Routing Pattern:**
+```
+Primary Database:
+- All command handler operations (read + write)
+- All append operations
+- All operations requiring strong consistency
+
+Replica Database:
+- Pure query operations from query handlers
+- Read-only projections and reporting
+- Operations tolerating eventual consistency
+```
+
+**Performance Impact:**
+- **Primary Load**: Reduced by query handler traffic (typically 30-70% of total reads)
+- **Replica Load**: Handles read-only traffic efficiently
+- **Overall System**: Better resource utilization across database cluster
+
+### Consistency Trade-offs
+
+**Strong Consistency (Default):**
+- Guarantees read-after-write consistency
+- Essential for optimistic concurrency control
+- Required for command handlers using read-check-write patterns
+- Performance: ~2.5ms average append time
+
+**Eventual Consistency:**
+- Accepts potential staleness for performance gains
+- Suitable for pure query operations
+- Reduces primary database load
+- Performance: Replica lag typically <1ms
+
+### Setup Requirements
+
+For optimal performance benefits:
+1. **PostgreSQL Streaming Replication**: Sub-millisecond lag preferred
+2. **Separate Connection Pools**: Independent primary/replica connections
+3. **Explicit Context Usage**: Application handlers must specify consistency requirements
+4. **Workload Profiling**: Measure read/write ratio to assess benefits
+
+See [Getting Started](./getting-started.md) for replica setup instructions.
+
 ## Performance Testing
 
 The benchmarks in `eventstore/postgresengine/postgres_benchmark_test.go` provide comprehensive performance testing. Run with different adapters using the `ADAPTER_TYPE` environment variable.

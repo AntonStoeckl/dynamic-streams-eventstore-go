@@ -77,6 +77,53 @@ make fmt                 # Format code
 make clean               # Remove generated files
 ```
 
+## Database Setup
+
+### Docker Compose Configuration
+
+The project includes Docker Compose setup for development and testing databases:
+
+```bash
+cd testutil/postgresengine
+docker-compose up -d
+```
+
+**Available Services:**
+- **postgres_test** (port 5432): Basic test database for unit tests
+- **postgres_benchmark_master** (port 5433): Primary database for benchmarking and replica testing
+- **postgres_benchmark_replica** (port 5434): Replica database for primary-replica testing
+
+### Primary-Replica Setup
+
+For testing primary-replica functionality:
+
+```bash
+# Start both primary and replica
+docker-compose up -d postgres_benchmark_master postgres_benchmark_replica
+
+# Check replication status
+docker exec -it postgresengine_postgres_benchmark_master_1 \
+  psql -U postgres -d benchmarkdb -c "SELECT * FROM check_replication_health();"
+```
+
+**Replica Configuration:**
+- **Streaming Replication**: Sub-millisecond lag between primary and replica
+- **Memory Allocation**: Primary (7GB), Replica (3GB) optimized for performance testing
+- **Health Monitoring**: Built-in replication status functions
+
+### Connection Strings
+
+```bash
+# Test database
+export DATABASE_URL="postgres://postgres:postgres@localhost:5432/testdb"
+
+# Primary database
+export PRIMARY_URL="postgres://postgres:postgres@localhost:5433/benchmarkdb"
+
+# Replica database
+export REPLICA_URL="postgres://postgres:postgres@localhost:5434/benchmarkdb"
+```
+
 ## Project Structure
 
 ```
@@ -94,22 +141,18 @@ make clean               # Remove generated files
 │   ├── filter.go                       # Filter builder implementation
 │   └── storable_event.go               # Event data structures
 ├── testutil/                           # Test infrastructure
-│   └── postgresengine/                 # PostgreSQL-specific test utilities
-│       ├── cmd/                        # Utility commands
-│       │   ├── generate/               # Fixture data generation
-│       │   └── import/                 # Data import utilities
-│       ├── initdb/                     # Database initialization
-│       ├── helper/postgreswrapper/     # Adapter-agnostic test wrapper
-│       ├── docker-compose.yml          # Test database setup
-│       ├── fixtures/                   # Generated fixture data
-│       └── helper.go                   # Test utilities
-├── example/                            # Example domain (used in tests)
-│   ├── shared/                         # Shared components
-│   │   ├── core/                       # Domain events (domain layer)
-│   │   └── shell/                      # Event mapping (infrastructure layer)
-│   │       └── config/                 # Test database configuration
-│   └── features/                       # Feature implementations
-│       └── removebookcopy/             # Complete feature slice example
+│   ├── eventstore/                     # EventStore-agnostic test utilities
+│   │   ├── fixtures/                   # Minimal test events for library testing
+│   │   ├── estesthelpers/              # EventStore test helper functions
+│   │   └── shared/                     # Common interfaces and types
+│   ├── postgresengine/                 # PostgreSQL-specific test utilities
+│   │   ├── pgtesthelpers/              # PostgreSQL test helper functions
+│   │   ├── initdb/                     # Database initialization
+│   │   ├── config/                     # Database configuration
+│   │   └── docker-compose.yml          # Test database setup
+│   └── observability/                  # Observability test utilities
+│       ├── testdoubles/                # Test spies and mocks
+│       └── config/                     # Observability configuration
 ├── docs/                               # Documentation
 └── go.mod                              # Go module definition
 ```

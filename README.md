@@ -221,8 +221,36 @@ logExporter := otlplog.New(...)
 **Database Adapters:**
 The event store supports three PostgreSQL adapters, switchable via factory functions:
 - **pgx.Pool** (default): High-performance connection pooling
-- **database/sql**: Standard library with lib/pq driver  
+- **database/sql**: Standard library with lib/pq driver
 - **sqlx**: Enhanced database/sql with additional features
+
+**Primary-Replica Support:**
+Optional PostgreSQL streaming replication support with context-based query routing:
+
+> **⚠️ CRITICAL RULE**: Always use `WithStrongConsistency()` for command handlers (read-check-write operations) and `WithEventualConsistency()` only for pure query handlers (read-only operations). Mixing these up will cause concurrency conflicts or stale data issues.
+
+```go
+import "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
+
+// Command handlers - require strong consistency (routes to primary)
+ctx = eventstore.WithStrongConsistency(ctx)
+events, maxSeq, err := eventStore.Query(ctx, filter)
+err = eventStore.Append(ctx, filter, maxSeq, newEvent)
+
+// Query handlers - can use eventual consistency (routes to replica)
+ctx = eventstore.WithEventualConsistency(ctx)
+events, _, err := eventStore.Query(ctx, filter)
+```
+
+**Consistency Guarantees:**
+- **Strong Consistency** (default): All operations use primary database, ensuring read-after-write consistency
+- **Eventual Consistency**: Read operations may use replica database, trading consistency for performance
+- **Safe Defaults**: Strong consistency by default prevents subtle bugs in event sourcing scenarios
+
+**Performance Benefits:**
+- **Reduced primary load** for read-heavy workloads using replica for queries
+- **Optimal load distribution**: Writes to primary, reads from replica
+- **Proper consistency guarantees** without performance penalties
 
 **Key Pattern:**
 ```sql
@@ -244,7 +272,6 @@ See [Performance Documentation](./docs/performance.md) for detailed benchmarks a
 
 See [Development Guide](./docs/development.md) for complete testing instructions including adapter switching and benchmarks.
 
-Note: The `example/` directory contains shared domain components and feature examples used by the test suite.
 
 ## 🤝 Contributing
 

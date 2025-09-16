@@ -2,7 +2,7 @@
 
 Practical examples demonstrating entity-independent operations with dynamic-streams-eventstore-go.
 
-**Note:** The `example/` directory contains shared domain components (`example/shared/core/` and `example/shared/shell/`) and complete feature implementations (`example/features/`) used by the test suite.
+**Note:** The minimal test fixtures in `/testutil/eventstore/fixtures/` demonstrate the event types used throughout these examples.
 
 ## Example: Library Book Lending System
 
@@ -273,3 +273,111 @@ func TestLendBookToReaderWithMetrics(t *testing.T) {
         WithOperation("query").WithStatus("success").Assert())
 }
 ```
+
+## Primary-Replica Setup with Context-Based Routing
+
+The EventStore supports optional PostgreSQL primary-replica setups with context-based query routing for performance optimization.
+
+> **⚠️ CRITICAL RULE**: Command handlers MUST use `WithStrongConsistency()` and query handlers MUST use `WithEventualConsistency()`. Never mix these up - command handlers need to read their own writes, while query handlers can tolerate eventual consistency.
+
+### Consistency Context Examples
+
+#### Command Handler Pattern (Strong Consistency)
+
+Command handlers perform read-check-write operations and require strong consistency to ensure they see their own writes:
+
+```go
+import "github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
+
+func LendBookToReaderCommand(ctx context.Context, es eventstore.EventStore, bookID, readerID string) error {
+    // Explicitly request strong consistency for command handlers
+    ctx = eventstore.WithStrongConsistency(ctx)
+
+    filter := BuildEventFilter().
+        Matching().
+        AnyEventTypeOf("BookCopyAddedToCirculation", "BookCopyLentToReader").
+        AndAnyPredicateOf(P("BookID", bookID)).
+        Finalize()
+
+    // Query operation routes to primary database
+    events, maxSeq, err := es.Query(ctx, filter)
+    if err != nil {
+        return fmt.Errorf("failed to query events: %w", err)
+    }
+
+    // Business logic to determine if book can be lent
+    if isBookAlreadyLent(events) {
+        return fmt.Errorf("book %s is already lent out", bookID)
+    }
+
+    newEvent := BookCopyLentToReader{
+        BookID:     bookID,
+        ReaderID:   readerID,
+        OccurredAt: time.Now(),
+    }
+
+    // Append operation uses primary database
+    return es.Append(ctx, filter, maxSeq, newEvent)
+}
+```
+
+#### Query Handler Pattern (Eventual Consistency)
+
+Query handlers perform read-only operations and can use eventual consistency for better performance:
+
+```go
+func GetBooksInCirculationQuery(ctx context.Context, es eventstore.EventStore) ([]Book, error) {
+    // Explicitly request eventual consistency for query handlers
+    ctx = eventstore.WithEventualConsistency(ctx)
+
+    filter := BuildEventFilter().
+        Matching().
+        AnyEventTypeOf("BookCopyAddedToCirculation", "BookCopyRemovedFromCirculation").
+        Finalize()
+
+    // Query operation may route to replica database for performance
+    events, _, err := es.Query(ctx, filter)
+    if err != nil {
+        return nil, fmt.Errorf("failed to query events: %w", err)
+    }
+
+    // Project current state from events
+    books := projectBooksInCirculation(events)
+    return books, nil
+}
+```
+
+### Consistency Guarantees
+
+**Strong Consistency (Default):**
+- All operations use the primary database
+- Guarantees read-after-write consistency
+- Essential for command handlers using optimistic locking
+- Prevents concurrency conflicts from replica lag
+
+**Eventual Consistency:**
+- Read operations may use replica database
+- Accepts potential data staleness for performance gains
+- Suitable for read-only queries that don't require immediate consistency
+- Reduces load on primary database
+
+### Performance Characteristics
+
+**Command Handlers with Strong Consistency:**
+- Consistent primary database performance
+- Proper read-after-write consistency for optimistic locking
+- No concurrency conflicts from reading stale replica data
+
+**Query Handlers with Eventual Consistency:**
+- Offloads read traffic from primary to replica
+- Potential minor performance variation on replica
+- Optimal load distribution across database cluster
+
+### Setup Requirements
+
+Primary-replica support is optional and requires:
+1. PostgreSQL streaming replication configured
+2. EventStore factory with replica connection
+3. Context-based routing in application handlers
+
+See [Development Guide](../docs/development.md) for Docker Compose replica setup instructions.
