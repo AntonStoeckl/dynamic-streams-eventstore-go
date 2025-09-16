@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/eventstore/estesthelpers"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/eventstore/fixtures"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/eventstore/shared"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/pgtesthelpers"
 )
 
@@ -31,9 +31,9 @@ func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
-	maxSequenceNumberBeforeAppend := helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
+	maxSequenceNumberBeforeAppend := estesthelpers.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 
 	// act
 	fakeClock = fakeClock.Add(time.Second)
@@ -41,7 +41,7 @@ func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
 	)
 
 	// assert
@@ -61,11 +61,11 @@ func Test_Append_When_SomeEvents_MatchTheQuery_BeforeAppend(t *testing.T) {
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
+	bookID := estesthelpers.GivenUniqueID(t)
 	fakeClock = fakeClock.Add(time.Second)
-	helper.GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
-	maxSequenceNumberBeforeAppend := helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
+	estesthelpers.GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
+	maxSequenceNumberBeforeAppend := estesthelpers.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 
 	// act
 	fakeClock = fakeClock.Add(time.Second)
@@ -73,7 +73,7 @@ func Test_Append_When_SomeEvents_MatchTheQuery_BeforeAppend(t *testing.T) {
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		helper.ToStorable(t, helper.FixtureBookCopyRemovedFromCirculation(bookID, fakeClock)),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyRemovedFromCirculation(bookID, fakeClock)),
 	)
 
 	// assert
@@ -93,14 +93,14 @@ func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
-	readerID := helper.GivenUniqueID(t)
+	bookID := estesthelpers.GivenUniqueID(t)
+	readerID := estesthelpers.GivenUniqueID(t)
 	fakeClock = fakeClock.Add(time.Second)
-	helper.GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
-	maxSequenceNumberBeforeAppend := helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
+	estesthelpers.GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
+	maxSequenceNumberBeforeAppend := estesthelpers.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 	fakeClock = fakeClock.Add(time.Second)
-	helper.GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID, readerID, fakeClock) // concurrent append
+	estesthelpers.GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID, readerID, fakeClock) // concurrent append
 
 	// act
 	fakeClock = fakeClock.Add(time.Second)
@@ -108,7 +108,7 @@ func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		helper.ToStorable(t, helper.FixtureBookCopyRemovedFromCirculation(bookID, fakeClock)),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyRemovedFromCirculation(bookID, fakeClock)),
 	)
 
 	// assert
@@ -128,12 +128,12 @@ func Test_AppendMultiple(t *testing.T) {
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
-	readerID := helper.GivenUniqueID(t)
+	bookID := estesthelpers.GivenUniqueID(t)
+	readerID := estesthelpers.GivenUniqueID(t)
 	fakeClock = fakeClock.Add(time.Second)
-	helper.GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
-	maxSequenceNumberBeforeAppend := helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
+	estesthelpers.GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
+	maxSequenceNumberBeforeAppend := estesthelpers.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 
 	// act
 	fakeClock = fakeClock.Add(time.Second)
@@ -141,8 +141,8 @@ func Test_AppendMultiple(t *testing.T) {
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		helper.ToStorable(t, helper.FixtureBookCopyLentToReader(bookID, readerID, fakeClock)),
-		helper.ToStorable(t, helper.FixtureBookCopyReturnedByReader(bookID, readerID, fakeClock)),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyLentToReader(bookID, readerID, fakeClock)),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyReturnedByReader(bookID, readerID, fakeClock)),
 	)
 
 	// assert
@@ -165,14 +165,14 @@ func Test_AppendMultiple_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
-	readerID := helper.GivenUniqueID(t)
+	bookID := estesthelpers.GivenUniqueID(t)
+	readerID := estesthelpers.GivenUniqueID(t)
 	fakeClock = fakeClock.Add(time.Second)
-	helper.GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
-	maxSequenceNumberBeforeAppend := helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
+	estesthelpers.GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
+	maxSequenceNumberBeforeAppend := estesthelpers.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 	fakeClock = fakeClock.Add(time.Second)
-	helper.GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID, readerID, fakeClock) // concurrent append
+	estesthelpers.GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID, readerID, fakeClock) // concurrent append
 
 	// act
 	fakeClock = fakeClock.Add(time.Second)
@@ -180,8 +180,8 @@ func Test_AppendMultiple_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		helper.ToStorable(t, helper.FixtureBookCopyLentToReader(bookID, readerID, fakeClock)),
-		helper.ToStorable(t, helper.FixtureBookCopyReturnedByReader(bookID, readerID, fakeClock)),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyLentToReader(bookID, readerID, fakeClock)),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyReturnedByReader(bookID, readerID, fakeClock)),
 	)
 
 	// assert
@@ -204,8 +204,8 @@ func Test_Append_Concurrent(t *testing.T) {
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
-	readerID := helper.GivenUniqueID(t)
+	bookID := estesthelpers.GivenUniqueID(t)
+	readerID := estesthelpers.GivenUniqueID(t)
 
 	successCountSingle := atomic.Int32{}
 	successCountMultiple := atomic.Int32{}
@@ -225,8 +225,8 @@ func Test_Append_Concurrent(t *testing.T) {
 			defer wg.Done()
 
 			for j := 0; j < operationsPerGoroutine; j++ {
-				filter := helper.FilterAllEventTypesForOneBookOrReader(bookID, readerID)
-				maxSeq := helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
+				filter := estesthelpers.FilterAllEventTypesForOneBookOrReader(bookID, readerID)
+				maxSeq := estesthelpers.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 
 				// Randomly choose between appending single and multiple event(s)
 				if rand.IntN(2)%2 == 0 { //nolint:gosec
@@ -235,7 +235,7 @@ func Test_Append_Concurrent(t *testing.T) {
 						ctxWithTimeout,
 						filter,
 						maxSeq,
-						helper.ToStorable(t, helper.FixtureBookCopyLentToReader(bookID, readerID, fakeClock)),
+						estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyLentToReader(bookID, readerID, fakeClock)),
 					)
 					switch {
 					case err == nil:
@@ -248,8 +248,8 @@ func Test_Append_Concurrent(t *testing.T) {
 					}
 				} else {
 					// Multiple events
-					event1 := helper.ToStorable(t, helper.FixtureBookCopyLentToReader(bookID, readerID, fakeClock))
-					event2 := helper.ToStorable(t, helper.FixtureBookCopyReturnedByReader(bookID, readerID, fakeClock))
+					event1 := estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyLentToReader(bookID, readerID, fakeClock))
+					event2 := estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyReturnedByReader(bookID, readerID, fakeClock))
 					err := es.Append(
 						ctxWithTimeout,
 						filter,
@@ -279,7 +279,7 @@ func Test_Append_Concurrent(t *testing.T) {
 	assert.Greater(t, conflictCountSingle.Load(), int32(0))
 	assert.Greater(t, conflictCountMultiple.Load(), int32(0))
 
-	events, _, err := es.Query(ctxWithTimeout, helper.FilterAllEventTypesForOneBookOrReader(bookID, readerID))
+	events, _, err := es.Query(ctxWithTimeout, estesthelpers.FilterAllEventTypesForOneBookOrReader(bookID, readerID))
 	assert.NoError(t, err)
 	assert.Equal(t, int(eventCount.Load()), len(events))
 }
@@ -297,23 +297,23 @@ func Test_Append_EventWithMetadata(t *testing.T) {
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
-	maxSequenceNumberBeforeAppend := helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
+	maxSequenceNumberBeforeAppend := estesthelpers.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 	fakeClock = fakeClock.Add(time.Second)
-	bookCopyAddedToCirculation := helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock)
+	bookCopyAddedToCirculation := estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock)
 
-	messageID := helper.GivenUniqueID(t)
-	causationID := helper.GivenUniqueID(t)
-	correlationID := helper.GivenUniqueID(t)
-	eventMetadata := shell.BuildEventMetadata(messageID, causationID, correlationID)
+	messageID := estesthelpers.GivenUniqueID(t)
+	causationID := estesthelpers.GivenUniqueID(t)
+	correlationID := estesthelpers.GivenUniqueID(t)
+	eventMetadata := shared.BuildEventMetadata(messageID, causationID, correlationID)
 
 	// act (append)
 	err := es.Append(
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		helper.ToStorableWithMetadata(t, bookCopyAddedToCirculation, eventMetadata),
+		estesthelpers.ToStorableWithMetadata(t, bookCopyAddedToCirculation, eventMetadata),
 	)
 
 	// assert (append)
@@ -325,9 +325,9 @@ func Test_Append_EventWithMetadata(t *testing.T) {
 	// assert (query)
 	assert.NoError(t, queryErr)
 	assert.Len(t, actualEvents, 1)
-	actualDomainEvent, mappingErr := shell.DomainEventFrom(actualEvents[0])
+	actualDomainEvent, mappingErr := fixtures.DomainEventFrom(actualEvents[0])
 	assert.NoError(t, mappingErr)
-	actualEventMetadata, mappingErr := shell.EventMetadataFrom(actualEvents[0])
+	actualEventMetadata, mappingErr := shared.EventMetadataFrom(actualEvents[0])
 	assert.NoError(t, mappingErr)
 	assert.Equal(t, bookCopyAddedToCirculation, actualDomainEvent)
 	assert.Equal(t, eventMetadata, actualEventMetadata)
@@ -351,30 +351,30 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
 
-	bookID1 := helper.GivenUniqueID(t)
-	bookID2 := helper.GivenUniqueID(t)
-	readerID1 := helper.GivenUniqueID(t)
-	readerID2 := helper.GivenUniqueID(t)
+	bookID1 := estesthelpers.GivenUniqueID(t)
+	bookID2 := estesthelpers.GivenUniqueID(t)
+	readerID1 := estesthelpers.GivenUniqueID(t)
+	readerID2 := estesthelpers.GivenUniqueID(t)
 
 	fakeClock = fakeClock.Add(time.Second)
-	bookCopy1AddedToCirculationBook := helper.GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID1, fakeClock)
+	bookCopy1AddedToCirculationBook := estesthelpers.GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID1, fakeClock)
 	fakeClock = fakeClock.Add(time.Second)
-	bookCopy1LentToReader1 := helper.GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID1, readerID1, fakeClock)
+	bookCopy1LentToReader1 := estesthelpers.GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID1, readerID1, fakeClock)
 	fakeClock = fakeClock.Add(time.Second)
-	bookCopy1ReturnedByReader1 := helper.GivenBookCopyReturnedByReaderWasAppended(t, ctxWithTimeout, es, bookID1, readerID1, fakeClock)
+	bookCopy1ReturnedByReader1 := estesthelpers.GivenBookCopyReturnedByReaderWasAppended(t, ctxWithTimeout, es, bookID1, readerID1, fakeClock)
 	fakeClock = fakeClock.Add(time.Second)
-	bookCopy1RemovedFromCirculationBook := helper.GivenBookCopyRemovedFromCirculationWasAppended(t, ctxWithTimeout, es, bookID1, fakeClock)
+	bookCopy1RemovedFromCirculationBook := estesthelpers.GivenBookCopyRemovedFromCirculationWasAppended(t, ctxWithTimeout, es, bookID1, fakeClock)
 
 	fakeClock = fakeClock.Add(time.Second)
-	bookCopy2AddedToCirculationBook := helper.GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID2, fakeClock)
+	bookCopy2AddedToCirculationBook := estesthelpers.GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID2, fakeClock)
 	fakeClock = fakeClock.Add(time.Second)
-	bookCopy2LentToReader2 := helper.GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID2, fakeClock)
+	bookCopy2LentToReader2 := estesthelpers.GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID2, fakeClock)
 	fakeClock = fakeClock.Add(time.Second)
-	bookCopy2ReturnedByReader2 := helper.GivenBookCopyReturnedByReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID2, fakeClock)
+	bookCopy2ReturnedByReader2 := estesthelpers.GivenBookCopyReturnedByReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID2, fakeClock)
 	fakeClock = fakeClock.Add(time.Second)
-	bookCopy2LentToReader1 := helper.GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID1, fakeClock)
+	bookCopy2LentToReader1 := estesthelpers.GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID1, fakeClock)
 	fakeClock = fakeClock.Add(time.Second)
-	bookCopy2ReturnedByReader1 := helper.GivenBookCopyReturnedByReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID1, fakeClock)
+	bookCopy2ReturnedByReader1 := estesthelpers.GivenBookCopyReturnedByReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID1, fakeClock)
 
 	/******************************/
 
@@ -382,13 +382,13 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 		description       string
 		filter            eventstore.Filter
 		expectedNumEvents int
-		expectedEvents    core.DomainEvents
+		expectedEvents    shared.DomainEvents
 	}{
 		{
 			description:       "empty filter",
 			filter:            eventstore.BuildEventFilter().MatchingAnyEvent(),
 			expectedNumEvents: 9,
-			expectedEvents:    core.DomainEvents{}, // we don't want to assert the concrete events here
+			expectedEvents:    shared.DomainEvents{}, // we don't want to assert the concrete events here
 		},
 		{
 			description: "only (occurredFrom)",
@@ -396,7 +396,7 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 				OccurredFrom(bookCopy2AddedToCirculationBook.HasOccurredAt()).
 				Finalize(),
 			expectedNumEvents: 5,
-			expectedEvents:    core.DomainEvents{}, // we don't want to assert the concrete events here
+			expectedEvents:    shared.DomainEvents{}, // we don't want to assert the concrete events here
 		},
 		{
 			description: "only (occurredUntil)",
@@ -404,7 +404,7 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 				OccurredUntil(bookCopy1AddedToCirculationBook.HasOccurredAt()).
 				Finalize(),
 			expectedNumEvents: 1,
-			expectedEvents:    core.DomainEvents{}, // we don't want to assert the concrete events here
+			expectedEvents:    shared.DomainEvents{}, // we don't want to assert the concrete events here
 		},
 		{
 			description: "only (occurredFrom to occurredUntil)",
@@ -413,16 +413,16 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 				AndOccurredUntil(bookCopy2ReturnedByReader2.HasOccurredAt()).
 				Finalize(),
 			expectedNumEvents: 6,
-			expectedEvents:    core.DomainEvents{}, // we don't want to assert the concrete events here
+			expectedEvents:    shared.DomainEvents{}, // we don't want to assert the concrete events here
 		},
 		{
 			description: "(EventType)",
 			filter: eventstore.BuildEventFilter().
 				Matching().
-				AnyEventTypeOf(core.BookCopyAddedToCirculationEventType).
+				AnyEventTypeOf(fixtures.BookCopyAddedToCirculationEventType).
 				Finalize(),
 			expectedNumEvents: 2,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: shared.DomainEvents{
 				bookCopy1AddedToCirculationBook,
 				bookCopy2AddedToCirculationBook},
 		},
@@ -431,11 +431,11 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			filter: eventstore.BuildEventFilter().
 				Matching().
 				AnyEventTypeOf(
-					core.BookCopyAddedToCirculationEventType,
-					core.BookCopyRemovedFromCirculationEventType).
+					fixtures.BookCopyAddedToCirculationEventType,
+					fixtures.BookCopyRemovedFromCirculationEventType).
 				Finalize(),
 			expectedNumEvents: 3,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: shared.DomainEvents{
 				bookCopy1AddedToCirculationBook,
 				bookCopy1RemovedFromCirculationBook,
 				bookCopy2AddedToCirculationBook},
@@ -447,7 +447,7 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 				AnyPredicateOf(eventstore.P("BookID", bookID1.String())).
 				Finalize(),
 			expectedNumEvents: 4,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: shared.DomainEvents{
 				bookCopy1AddedToCirculationBook,
 				bookCopy1LentToReader1,
 				bookCopy1ReturnedByReader1,
@@ -462,7 +462,7 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 					eventstore.P("ReaderID", readerID1.String())).
 				Finalize(),
 			expectedNumEvents: 6,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: shared.DomainEvents{
 				bookCopy1AddedToCirculationBook,
 				bookCopy1LentToReader1,
 				bookCopy1ReturnedByReader1,
@@ -479,7 +479,7 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 					eventstore.P("ReaderID", readerID1.String())).
 				Finalize(),
 			expectedNumEvents: 2,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: shared.DomainEvents{
 				bookCopy1LentToReader1,
 				bookCopy1ReturnedByReader1},
 		},
@@ -487,11 +487,11 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			description: "(EventType AND Predicate)",
 			filter: eventstore.BuildEventFilter().
 				Matching().
-				AnyEventTypeOf(core.BookCopyLentToReaderEventType).
+				AnyEventTypeOf(fixtures.BookCopyLentToReaderEventType).
 				AndAnyPredicateOf(eventstore.P("ReaderID", readerID1.String())).
 				Finalize(),
 			expectedNumEvents: 2,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: shared.DomainEvents{
 				bookCopy1LentToReader1,
 				bookCopy2LentToReader1},
 		},
@@ -499,13 +499,13 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			description: "(EventType AND (Predicate OR Predicate...))",
 			filter: eventstore.BuildEventFilter().
 				Matching().
-				AnyEventTypeOf(core.BookCopyLentToReaderEventType).
+				AnyEventTypeOf(fixtures.BookCopyLentToReaderEventType).
 				AndAnyPredicateOf(
 					eventstore.P("BookID", bookID1.String()),
 					eventstore.P("ReaderID", readerID2.String())).
 				Finalize(),
 			expectedNumEvents: 2,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: shared.DomainEvents{
 				bookCopy1LentToReader1,
 				bookCopy2LentToReader2},
 		},
@@ -513,25 +513,25 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			description: "(EventType AND (Predicate AND Predicate...))",
 			filter: eventstore.BuildEventFilter().
 				Matching().
-				AnyEventTypeOf(core.BookCopyLentToReaderEventType).
+				AnyEventTypeOf(fixtures.BookCopyLentToReaderEventType).
 				AndAllPredicatesOf(
 					eventstore.P("BookID", bookID2.String()),
 					eventstore.P("ReaderID", readerID1.String())).
 				Finalize(),
 			expectedNumEvents: 1,
-			expectedEvents:    core.DomainEvents{bookCopy2LentToReader1},
+			expectedEvents:    shared.DomainEvents{bookCopy2LentToReader1},
 		},
 		{
 			description: "((EventType OR EventType...) AND Predicate...)",
 			filter: eventstore.BuildEventFilter().
 				Matching().
 				AnyEventTypeOf(
-					core.BookCopyAddedToCirculationEventType,
-					core.BookCopyRemovedFromCirculationEventType).
+					fixtures.BookCopyAddedToCirculationEventType,
+					fixtures.BookCopyRemovedFromCirculationEventType).
 				AndAnyPredicateOf(eventstore.P("BookID", bookID1.String())).
 				Finalize(),
 			expectedNumEvents: 2,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: shared.DomainEvents{
 				bookCopy1AddedToCirculationBook,
 				bookCopy1RemovedFromCirculationBook},
 		},
@@ -540,14 +540,14 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			filter: eventstore.BuildEventFilter().
 				Matching().
 				AnyEventTypeOf(
-					core.BookCopyLentToReaderEventType,
-					core.BookCopyReturnedByReaderEventType).
+					fixtures.BookCopyLentToReaderEventType,
+					fixtures.BookCopyReturnedByReaderEventType).
 				AndAnyPredicateOf(
 					eventstore.P("BookID", bookID1.String()),
 					eventstore.P("BookID", bookID2.String())).
 				Finalize(),
 			expectedNumEvents: 6,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: shared.DomainEvents{
 				bookCopy1LentToReader1,
 				bookCopy1ReturnedByReader1,
 				bookCopy2LentToReader2,
@@ -560,14 +560,14 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			filter: eventstore.BuildEventFilter().
 				Matching().
 				AnyEventTypeOf(
-					core.BookCopyLentToReaderEventType,
-					core.BookCopyReturnedByReaderEventType).
+					fixtures.BookCopyLentToReaderEventType,
+					fixtures.BookCopyReturnedByReaderEventType).
 				AndAllPredicatesOf(
 					eventstore.P("BookID", bookID2.String()),
 					eventstore.P("ReaderID", readerID1.String())).
 				Finalize(),
 			expectedNumEvents: 2,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: shared.DomainEvents{
 				bookCopy2LentToReader1,
 				bookCopy2ReturnedByReader1},
 		},
@@ -576,13 +576,13 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			filter: eventstore.BuildEventFilter().
 				Matching().
 				AnyPredicateOf(eventstore.P("BookID", bookID1.String())).
-				AndAnyEventTypeOf(core.BookCopyLentToReaderEventType).
+				AndAnyEventTypeOf(fixtures.BookCopyLentToReaderEventType).
 				OrMatching().
 				AnyPredicateOf(eventstore.P("BookID", bookID2.String())).
-				AndAnyEventTypeOf(core.BookCopyReturnedByReaderEventType).
+				AndAnyEventTypeOf(fixtures.BookCopyReturnedByReaderEventType).
 				Finalize(),
 			expectedNumEvents: 3,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: shared.DomainEvents{
 				bookCopy1LentToReader1,
 				bookCopy2ReturnedByReader2,
 				bookCopy2ReturnedByReader1},
@@ -592,14 +592,14 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			filter: eventstore.BuildEventFilter().
 				Matching().
 				AnyPredicateOf(eventstore.P("BookID", bookID1.String())).
-				AndAnyEventTypeOf(core.BookCopyLentToReaderEventType).
+				AndAnyEventTypeOf(fixtures.BookCopyLentToReaderEventType).
 				OrMatching().
 				AnyPredicateOf(eventstore.P("BookID", bookID2.String())).
-				AndAnyEventTypeOf(core.BookCopyReturnedByReaderEventType).
+				AndAnyEventTypeOf(fixtures.BookCopyReturnedByReaderEventType).
 				OccurredFrom(bookCopy2ReturnedByReader2.HasOccurredAt()).
 				Finalize(),
 			expectedNumEvents: 2,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: shared.DomainEvents{
 				bookCopy2ReturnedByReader2,
 				bookCopy2ReturnedByReader1},
 		},
@@ -608,14 +608,14 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			filter: eventstore.BuildEventFilter().
 				Matching().
 				AnyPredicateOf(eventstore.P("BookID", bookID1.String())).
-				AndAnyEventTypeOf(core.BookCopyLentToReaderEventType).
+				AndAnyEventTypeOf(fixtures.BookCopyLentToReaderEventType).
 				OrMatching().
 				AnyPredicateOf(eventstore.P("BookID", bookID2.String())).
-				AndAnyEventTypeOf(core.BookCopyReturnedByReaderEventType).
+				AndAnyEventTypeOf(fixtures.BookCopyReturnedByReaderEventType).
 				OccurredUntil(bookCopy2ReturnedByReader2.HasOccurredAt()).
 				Finalize(),
 			expectedNumEvents: 2,
-			expectedEvents: core.DomainEvents{
+			expectedEvents: shared.DomainEvents{
 				bookCopy1LentToReader1,
 				bookCopy2ReturnedByReader2},
 		},
@@ -624,29 +624,29 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			filter: eventstore.BuildEventFilter().
 				Matching().
 				AnyPredicateOf(eventstore.P("BookID", bookID1.String())).
-				AndAnyEventTypeOf(core.BookCopyLentToReaderEventType).
+				AndAnyEventTypeOf(fixtures.BookCopyLentToReaderEventType).
 				OrMatching().
 				AnyPredicateOf(eventstore.P("BookID", bookID2.String())).
-				AndAnyEventTypeOf(core.BookCopyReturnedByReaderEventType).
+				AndAnyEventTypeOf(fixtures.BookCopyReturnedByReaderEventType).
 				OccurredFrom(bookCopy2ReturnedByReader2.HasOccurredAt()).
 				AndOccurredUntil(bookCopy2ReturnedByReader2.HasOccurredAt()).
 				Finalize(),
 			expectedNumEvents: 1,
-			expectedEvents:    core.DomainEvents{bookCopy2ReturnedByReader2},
+			expectedEvents:    shared.DomainEvents{bookCopy2ReturnedByReader2},
 		},
 		{
 			description: "... (sequenceNumberHigherThan)",
 			filter: eventstore.BuildEventFilter().
 				Matching().
 				AnyPredicateOf(eventstore.P("BookID", bookID1.String())).
-				AndAnyEventTypeOf(core.BookCopyLentToReaderEventType).
+				AndAnyEventTypeOf(fixtures.BookCopyLentToReaderEventType).
 				OrMatching().
 				AnyPredicateOf(eventstore.P("BookID", bookID2.String())).
-				AndAnyEventTypeOf(core.BookCopyReturnedByReaderEventType).
+				AndAnyEventTypeOf(fixtures.BookCopyReturnedByReaderEventType).
 				WithSequenceNumberHigherThan(8).
 				Finalize(),
 			expectedNumEvents: 1,
-			expectedEvents:    core.DomainEvents{bookCopy2ReturnedByReader1},
+			expectedEvents:    shared.DomainEvents{bookCopy2ReturnedByReader1},
 		},
 	}
 
@@ -659,7 +659,7 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 			assert.NoError(t, queryErr)
 			assert.Len(t, actualEvents, tc.expectedNumEvents)
 
-			actualDomainEvents, mappingErr := shell.DomainEventsFrom(actualEvents)
+			actualDomainEvents, mappingErr := fixtures.DomainEventsFrom(actualEvents)
 			assert.NoError(t, mappingErr)
 
 			for i := 0; i < len(tc.expectedEvents); i++ {
@@ -678,10 +678,10 @@ func Test_Append_When_Context_Is_Cancelled(t *testing.T) {
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
-	maxSequenceNumberBeforeAppend := helper.QueryMaxSequenceNumberBeforeAppend(t, context.Background(), es, filter)
+	maxSequenceNumberBeforeAppend := estesthelpers.QueryMaxSequenceNumberBeforeAppend(t, context.Background(), es, filter)
 
 	ctxWithCancel, cancel := context.WithCancel(context.Background())
 
@@ -692,7 +692,7 @@ func Test_Append_When_Context_Is_Cancelled(t *testing.T) {
 		ctxWithCancel,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
 	)
 
 	// assert
@@ -711,10 +711,10 @@ func Test_Append_When_Context_Times_out(t *testing.T) {
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
-	maxSequenceNumberBeforeAppend := helper.QueryMaxSequenceNumberBeforeAppend(t, context.Background(), es, filter)
+	maxSequenceNumberBeforeAppend := estesthelpers.QueryMaxSequenceNumberBeforeAppend(t, context.Background(), es, filter)
 
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), time.Microsecond)
 	defer cancel()
@@ -727,7 +727,7 @@ func Test_Append_When_Context_Times_out(t *testing.T) {
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
 	)
 
 	// assert
@@ -746,12 +746,12 @@ func Test_Query_When_Context_Is_Canceled(t *testing.T) {
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
+	bookID := estesthelpers.GivenUniqueID(t)
 
 	fakeClock = fakeClock.Add(time.Second)
-	helper.GivenBookCopyAddedToCirculationWasAppended(t, context.Background(), es, bookID, fakeClock)
+	estesthelpers.GivenBookCopyAddedToCirculationWasAppended(t, context.Background(), es, bookID, fakeClock)
 
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	ctxWithCancel, cancel := context.WithCancel(context.Background())
 
@@ -774,12 +774,12 @@ func Test_Query_When_Context_Times_Out(t *testing.T) {
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
+	bookID := estesthelpers.GivenUniqueID(t)
 
 	fakeClock = fakeClock.Add(time.Second)
-	helper.GivenBookCopyAddedToCirculationWasAppended(t, context.Background(), es, bookID, fakeClock)
+	estesthelpers.GivenBookCopyAddedToCirculationWasAppended(t, context.Background(), es, bookID, fakeClock)
 
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), time.Microsecond)
 	defer cancel()

@@ -1,7 +1,9 @@
-package shell
+package shared
 
 import (
+	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
@@ -11,6 +13,30 @@ import (
 
 // ErrMappingToEventMetadataFailed is returned when metadata conversion fails.
 var ErrMappingToEventMetadataFailed = errors.New("mapping to event metadata failed")
+
+// QueriesAndAppendsEvents abstracts EventStore operations for test helpers.
+// This interface enables test utilities to work with any EventStore implementation
+// (PostgreSQL, future backends) by providing the essential query and append operations
+// needed for test setup and verification.
+type QueriesAndAppendsEvents interface {
+	Query(ctx context.Context, filter eventstore.Filter) (eventstore.StorableEvents, eventstore.MaxSequenceNumberUint, error)
+	Append(ctx context.Context, filter eventstore.Filter, maxSeq eventstore.MaxSequenceNumberUint, events ...eventstore.StorableEvent) error
+}
+
+// DomainEvent represents a business event that has occurred in the domain.
+type DomainEvent interface {
+	// IsEventType HasEventType returns the string identifier for this event type.
+	IsEventType() string
+
+	// HasOccurredAt returns when this event occurred.
+	HasOccurredAt() time.Time
+
+	// IsErrorEvent returns true if this event represents an error or failure condition.
+	IsErrorEvent() bool
+}
+
+// DomainEvents is a slice of DomainEvent instances.
+type DomainEvents = []DomainEvent
 
 // MessageID represents a unique message identifier.
 type MessageID = string

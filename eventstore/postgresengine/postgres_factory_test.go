@@ -13,8 +13,8 @@ import (
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/eventstore/estesthelpers"
+	config2 "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/config"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/pgtesthelpers"
 )
 
@@ -91,7 +91,7 @@ func Test_FactoryFunctions_NewEventStore_ShouldFail_WithNilDatabaseConnection(t 
 		{
 			name: "NewEventStoreFromPGXPoolAndReplica with nil primary",
 			factoryFunc: func() (*postgresengine.EventStore, error) {
-				replica, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolReplicaConfig())
+				replica, err := pgxpool.NewWithConfig(context.Background(), config2.PostgresPGXPoolReplicaConfig())
 				if err != nil {
 					return nil, fmt.Errorf("test setup failed: %w", err)
 				}
@@ -103,7 +103,7 @@ func Test_FactoryFunctions_NewEventStore_ShouldFail_WithNilDatabaseConnection(t 
 		{
 			name: "NewEventStoreFromSQLDBAndReplica with nil primary",
 			factoryFunc: func() (*postgresengine.EventStore, error) {
-				replica := config.PostgresSQLDBReplicaConfig()
+				replica := config2.PostgresSQLDBReplicaConfig()
 				defer func() { _ = replica.Close() }()
 
 				return postgresengine.NewEventStoreFromSQLDBAndReplica(nil, replica)
@@ -112,7 +112,7 @@ func Test_FactoryFunctions_NewEventStore_ShouldFail_WithNilDatabaseConnection(t 
 		{
 			name: "NewEventStoreFromSQLXAndReplica with nil primary",
 			factoryFunc: func() (*postgresengine.EventStore, error) {
-				replica := config.PostgresSQLXReplicaConfig()
+				replica := config2.PostgresSQLXReplicaConfig()
 				defer func() { _ = replica.Close() }()
 
 				return postgresengine.NewEventStoreFromSQLXAndReplica(nil, replica)
@@ -145,14 +145,14 @@ func Test_FactoryFunctions_EventStore_WithTableName_ShouldWorkCorrectly(t *testi
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	err := es.Append(
 		ctxWithTimeout,
 		filter,
 		0,
-		helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
 	)
 	assert.NoError(t, err)
 
@@ -173,7 +173,7 @@ func Test_FactoryFunctions_FactoryFunctions_ShouldFail_WithEmptyTableName(t *tes
 		{
 			name: "NewEventStoreFromPGXPool with empty table name",
 			factoryFunc: func(_ *testing.T) (*postgresengine.EventStore, error) {
-				connPool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolSingleConfig())
+				connPool, err := pgxpool.NewWithConfig(context.Background(), config2.PostgresPGXPoolSingleConfig())
 				if err != nil {
 					return nil, fmt.Errorf("test setup failed: %w", err)
 				}
@@ -185,7 +185,7 @@ func Test_FactoryFunctions_FactoryFunctions_ShouldFail_WithEmptyTableName(t *tes
 		{
 			name: "NewEventStoreFromSQLDB with empty table name",
 			factoryFunc: func(_ *testing.T) (*postgresengine.EventStore, error) {
-				db := config.PostgresSQLDBSingleConfig()
+				db := config2.PostgresSQLDBSingleConfig()
 				defer func() { _ = db.Close() }()
 
 				return postgresengine.NewEventStoreFromSQLDB(db, postgresengine.WithTableName(""))
@@ -194,7 +194,7 @@ func Test_FactoryFunctions_FactoryFunctions_ShouldFail_WithEmptyTableName(t *tes
 		{
 			name: "NewEventStoreFromSQLX with empty table name",
 			factoryFunc: func(_ *testing.T) (*postgresengine.EventStore, error) {
-				db := config.PostgresSQLXSingleConfig()
+				db := config2.PostgresSQLXSingleConfig()
 				defer func() { _ = db.Close() }()
 
 				return postgresengine.NewEventStoreFromSQLX(db, postgresengine.WithTableName(""))
@@ -203,13 +203,13 @@ func Test_FactoryFunctions_FactoryFunctions_ShouldFail_WithEmptyTableName(t *tes
 		{
 			name: "NewEventStoreFromPGXPoolAndReplica with empty table name",
 			factoryFunc: func(_ *testing.T) (*postgresengine.EventStore, error) {
-				primary, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolPrimaryConfig())
+				primary, err := pgxpool.NewWithConfig(context.Background(), config2.PostgresPGXPoolPrimaryConfig())
 				if err != nil {
 					return nil, fmt.Errorf("test setup failed: %w", err)
 				}
 				defer primary.Close()
 
-				replica, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolReplicaConfig())
+				replica, err := pgxpool.NewWithConfig(context.Background(), config2.PostgresPGXPoolReplicaConfig())
 				if err != nil {
 					return nil, fmt.Errorf("test setup failed: %w", err)
 				}
@@ -221,10 +221,10 @@ func Test_FactoryFunctions_FactoryFunctions_ShouldFail_WithEmptyTableName(t *tes
 		{
 			name: "NewEventStoreFromSQLDBAndReplica with empty table name",
 			factoryFunc: func(_ *testing.T) (*postgresengine.EventStore, error) {
-				primary := config.PostgresSQLDBPrimaryConfig()
+				primary := config2.PostgresSQLDBPrimaryConfig()
 				defer func() { _ = primary.Close() }()
 
-				replica := config.PostgresSQLDBReplicaConfig()
+				replica := config2.PostgresSQLDBReplicaConfig()
 				defer func() { _ = replica.Close() }()
 
 				return postgresengine.NewEventStoreFromSQLDBAndReplica(primary, replica, postgresengine.WithTableName(""))
@@ -233,10 +233,10 @@ func Test_FactoryFunctions_FactoryFunctions_ShouldFail_WithEmptyTableName(t *tes
 		{
 			name: "NewEventStoreFromSQLXAndReplica with empty table name",
 			factoryFunc: func(_ *testing.T) (*postgresengine.EventStore, error) {
-				primary := config.PostgresSQLXPrimaryConfig()
+				primary := config2.PostgresSQLXPrimaryConfig()
 				defer func() { _ = primary.Close() }()
 
-				replica := config.PostgresSQLXReplicaConfig()
+				replica := config2.PostgresSQLXReplicaConfig()
 				defer func() { _ = replica.Close() }()
 
 				return postgresengine.NewEventStoreFromSQLXAndReplica(primary, replica, postgresengine.WithTableName(""))
@@ -265,8 +265,8 @@ func Test_FactoryFunctions_EventStore_WithTableName_ShouldFail_WithNonExistentTa
 	es := wrapper.GetEventStore()
 
 	// arrange
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// act
 	_, _, err := es.Query(ctxWithTimeout, filter)
@@ -283,7 +283,7 @@ func Test_FactoryFunctions_SingleConnectionMethods_ShouldWorkCorrectly(t *testin
 		{
 			name: "NewEventStoreFromPGXPool with single connection",
 			factoryFunc: func() (*postgresengine.EventStore, error) {
-				pool, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolSingleConfig())
+				pool, err := pgxpool.NewWithConfig(context.Background(), config2.PostgresPGXPoolSingleConfig())
 				if err != nil {
 					return nil, fmt.Errorf("test setup failed: %w", err)
 				}
@@ -295,7 +295,7 @@ func Test_FactoryFunctions_SingleConnectionMethods_ShouldWorkCorrectly(t *testin
 		{
 			name: "NewEventStoreFromSQLDB with single connection",
 			factoryFunc: func() (*postgresengine.EventStore, error) {
-				db := config.PostgresSQLDBSingleConfig()
+				db := config2.PostgresSQLDBSingleConfig()
 
 				// Note: Close calls will be handled by the EventStore cleanup
 				return postgresengine.NewEventStoreFromSQLDB(db)
@@ -304,7 +304,7 @@ func Test_FactoryFunctions_SingleConnectionMethods_ShouldWorkCorrectly(t *testin
 		{
 			name: "NewEventStoreFromSQLX with single connection",
 			factoryFunc: func() (*postgresengine.EventStore, error) {
-				db := config.PostgresSQLXSingleConfig()
+				db := config2.PostgresSQLXSingleConfig()
 
 				// Note: Close calls will be handled by the EventStore cleanup
 				return postgresengine.NewEventStoreFromSQLX(db)
@@ -326,8 +326,8 @@ func Test_FactoryFunctions_SingleConnectionMethods_ShouldWorkCorrectly(t *testin
 			assert.NotNil(t, es)
 
 			// Test basic functionality - query should work
-			bookID := helper.GivenUniqueID(t)
-			filter := helper.FilterAllEventTypesForOneBook(bookID)
+			bookID := estesthelpers.GivenUniqueID(t)
+			filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 			// Query should work (even with no data)
 			events, maxSeq, queryErr := es.Query(ctxWithTimeout, filter)
@@ -346,12 +346,12 @@ func Test_FactoryFunctions_ReplicaFactoryMethods_ShouldWorkCorrectly(t *testing.
 		{
 			name: "NewEventStoreFromPGXPoolAndReplica with valid connections",
 			factoryFunc: func() (*postgresengine.EventStore, error) {
-				primary, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolPrimaryConfig())
+				primary, err := pgxpool.NewWithConfig(context.Background(), config2.PostgresPGXPoolPrimaryConfig())
 				if err != nil {
 					return nil, fmt.Errorf("test setup failed: %w", err)
 				}
 
-				replica, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolReplicaConfig())
+				replica, err := pgxpool.NewWithConfig(context.Background(), config2.PostgresPGXPoolReplicaConfig())
 				if err != nil {
 					return nil, fmt.Errorf("test setup failed: %w", err)
 				}
@@ -363,8 +363,8 @@ func Test_FactoryFunctions_ReplicaFactoryMethods_ShouldWorkCorrectly(t *testing.
 		{
 			name: "NewEventStoreFromSQLDBAndReplica with valid connections",
 			factoryFunc: func() (*postgresengine.EventStore, error) {
-				primary := config.PostgresSQLDBPrimaryConfig()
-				replica := config.PostgresSQLDBReplicaConfig()
+				primary := config2.PostgresSQLDBPrimaryConfig()
+				replica := config2.PostgresSQLDBReplicaConfig()
 
 				// Note: Close calls will be handled by the EventStore cleanup
 				return postgresengine.NewEventStoreFromSQLDBAndReplica(primary, replica)
@@ -373,8 +373,8 @@ func Test_FactoryFunctions_ReplicaFactoryMethods_ShouldWorkCorrectly(t *testing.
 		{
 			name: "NewEventStoreFromSQLXAndReplica with valid connections",
 			factoryFunc: func() (*postgresengine.EventStore, error) {
-				primary := config.PostgresSQLXPrimaryConfig()
-				replica := config.PostgresSQLXReplicaConfig()
+				primary := config2.PostgresSQLXPrimaryConfig()
+				replica := config2.PostgresSQLXReplicaConfig()
 
 				// Note: Close calls will be handled by the EventStore cleanup
 				return postgresengine.NewEventStoreFromSQLXAndReplica(primary, replica)
@@ -396,8 +396,8 @@ func Test_FactoryFunctions_ReplicaFactoryMethods_ShouldWorkCorrectly(t *testing.
 			assert.NotNil(t, es)
 
 			// Test basic functionality - query should work
-			bookID := helper.GivenUniqueID(t)
-			filter := helper.FilterAllEventTypesForOneBook(bookID)
+			bookID := estesthelpers.GivenUniqueID(t)
+			filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 			// Query should work (even with no data)
 			events, maxSeq, queryErr := es.Query(ctxWithTimeout, filter)
@@ -416,7 +416,7 @@ func Test_FactoryFunctions_ReplicaFactoryMethods_WithNilReplica_ShouldWorkCorrec
 		{
 			name: "NewEventStoreFromPGXPoolAndReplica with nil replica",
 			factoryFunc: func() (*postgresengine.EventStore, error) {
-				primary, err := pgxpool.NewWithConfig(context.Background(), config.PostgresPGXPoolPrimaryConfig())
+				primary, err := pgxpool.NewWithConfig(context.Background(), config2.PostgresPGXPoolPrimaryConfig())
 				if err != nil {
 					return nil, fmt.Errorf("test setup failed: %w", err)
 				}
@@ -428,7 +428,7 @@ func Test_FactoryFunctions_ReplicaFactoryMethods_WithNilReplica_ShouldWorkCorrec
 		{
 			name: "NewEventStoreFromSQLDBAndReplica with nil replica",
 			factoryFunc: func() (*postgresengine.EventStore, error) {
-				primary := config.PostgresSQLDBPrimaryConfig()
+				primary := config2.PostgresSQLDBPrimaryConfig()
 
 				// Pass nil replica - should fallback to primary for reads
 				return postgresengine.NewEventStoreFromSQLDBAndReplica(primary, nil)
@@ -437,7 +437,7 @@ func Test_FactoryFunctions_ReplicaFactoryMethods_WithNilReplica_ShouldWorkCorrec
 		{
 			name: "NewEventStoreFromSQLXAndReplica with nil replica",
 			factoryFunc: func() (*postgresengine.EventStore, error) {
-				primary := config.PostgresSQLXPrimaryConfig()
+				primary := config2.PostgresSQLXPrimaryConfig()
 
 				// Pass nil replica - should fallback to primary for reads
 				return postgresengine.NewEventStoreFromSQLXAndReplica(primary, nil)
@@ -459,8 +459,8 @@ func Test_FactoryFunctions_ReplicaFactoryMethods_WithNilReplica_ShouldWorkCorrec
 			assert.NotNil(t, es)
 
 			// Test that it can still query and append (using primary for both)
-			bookID := helper.GivenUniqueID(t)
-			filter := helper.FilterAllEventTypesForOneBook(bookID)
+			bookID := estesthelpers.GivenUniqueID(t)
+			filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 			// Query should work (fallback to primary)
 			events, maxSeq, queryErr := es.Query(ctxWithTimeout, filter)

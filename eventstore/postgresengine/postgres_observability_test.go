@@ -13,9 +13,9 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/oteladapters"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/eventstore/estesthelpers"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/observability/config"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/observability/testdoubles"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/pgtesthelpers"
 )
 
@@ -33,8 +33,8 @@ func Test_Observability_Eventstore_WithLogger_LogsQueries(t *testing.T) {
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// act
 	_, _, err := es.Query(ctxWithTimeout, filter)
@@ -72,15 +72,15 @@ func Test_Observability_Eventstore_WithLogger_LogsAppends(t *testing.T) {
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// act
 	err := es.Append(
 		ctxWithTimeout,
 		filter,
-		helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
-		helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
+		estesthelpers.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
 	)
 
 	// assert
@@ -126,8 +126,8 @@ func Test_Observability_Eventstore_WithLogger_LogsOperations(t *testing.T) {
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// act
 	_, _, err := es.Query(ctxWithTimeout, filter)
@@ -159,15 +159,15 @@ func Test_Observability_Eventstore_WithLogger_LogsAppendOperations(t *testing.T)
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// act
 	err := es.Append(
 		ctxWithTimeout,
 		filter,
-		helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
-		helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
+		estesthelpers.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
 	)
 
 	// assert
@@ -203,15 +203,15 @@ func Test_Observability_Eventstore_WithLogger_LogsConcurrencyConflicts(t *testin
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// First, add an event to establish a sequence number
 	err := es.Append(
 		ctxWithTimeout,
 		filter,
 		0, // Start with sequence 0
-		helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
 	)
 	assert.NoError(t, err)
 
@@ -223,7 +223,7 @@ func Test_Observability_Eventstore_WithLogger_LogsConcurrencyConflicts(t *testin
 		ctxWithTimeout,
 		filter,
 		0, // Wrong sequence number - should be 1 now
-		helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
 	)
 
 	// assert
@@ -250,8 +250,8 @@ func Test_Observability_Eventstore_WithMetrics_RecordsQueryMetrics(t *testing.T)
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// act
 	_, _, err := es.Query(ctxWithTimeout, filter)
@@ -282,15 +282,15 @@ func Test_Observability_Eventstore_WithMetrics_RecordsAppendMetrics(t *testing.T
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// act
 	err := es.Append(
 		ctxWithTimeout,
 		filter,
-		helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
-		helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
+		estesthelpers.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
 	)
 
 	// assert
@@ -332,8 +332,8 @@ func Test_Observability_Eventstore_WithMetrics_RecordsCompleteHierarchy(t *testi
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
 	fakeClock := time.Now()
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// act - perform query and append operations
 	_, _, queryErr := es.Query(ctxWithTimeout, filter)
@@ -342,8 +342,8 @@ func Test_Observability_Eventstore_WithMetrics_RecordsCompleteHierarchy(t *testi
 	appendErr := es.Append(
 		ctxWithTimeout,
 		filter,
-		helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
-		helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
+		estesthelpers.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
 	)
 	assert.NoError(t, appendErr)
 
@@ -411,15 +411,15 @@ func Test_Observability_Eventstore_WithMetrics_RecordsConcurrencyConflicts(t *te
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// First, add an event to establish a sequence number
 	err := es.Append(
 		ctxWithTimeout,
 		filter,
 		0, // Start with sequence 0
-		helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
 	)
 	assert.NoError(t, err)
 
@@ -431,7 +431,7 @@ func Test_Observability_Eventstore_WithMetrics_RecordsConcurrencyConflicts(t *te
 		ctxWithTimeout,
 		filter,
 		0, // Wrong sequence number - should be 1 now
-		helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
 	)
 
 	// assert
@@ -453,8 +453,8 @@ func Test_Observability_Eventstore_WithMetrics_RecordsErrorMetrics(t *testing.T)
 	es := wrapper.GetEventStore()
 
 	// arrange
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// act - attempt to query the non-existent table
 	_, _, err := es.Query(ctxWithTimeout, filter)
@@ -484,8 +484,8 @@ func Test_Observability_Eventstore_WithTracing_RecordsQuerySpans(t *testing.T) {
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// act
 	_, _, err := es.Query(ctxWithTimeout, filter)
@@ -512,15 +512,15 @@ func Test_Observability_Eventstore_WithTracing_RecordsAppendSpans(t *testing.T) 
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// act
 	err := es.Append(
 		ctxWithTimeout,
 		filter,
-		helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
-		helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
+		estesthelpers.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
 	)
 
 	// assert
@@ -547,15 +547,15 @@ func Test_Observability_Eventstore_WithTracing_RecordsConcurrencyConflictSpans(t
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// Append the first event successfully
 	err := es.Append(
 		ctxWithTimeout,
 		filter,
-		helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
-		helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
+		estesthelpers.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
 	)
 	assert.NoError(t, err)
 
@@ -567,7 +567,7 @@ func Test_Observability_Eventstore_WithTracing_RecordsConcurrencyConflictSpans(t
 		ctxWithTimeout,
 		filter,
 		0, // wrong expected sequence - should be 1
-		helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(2*time.Second))),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(2*time.Second))),
 	)
 
 	// assert
@@ -590,8 +590,8 @@ func Test_Observability_Eventstore_WithTracing_RecordsErrorSpans(t *testing.T) {
 	es := wrapper.GetEventStore()
 
 	// arrange
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// act - attempt to query the non-existent table
 	_, _, err := es.Query(ctxWithTimeout, filter)
@@ -617,8 +617,8 @@ func Test_Observability_Eventstore_WithContextualLogger_LogsQueries(t *testing.T
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// act
 	_, _, err := es.Query(ctxWithTimeout, filter)
@@ -644,15 +644,15 @@ func Test_Observability_Eventstore_WithContextualLogger_LogsAppends(t *testing.T
 
 	// arrange
 	pgtesthelpers.CleanUp(t, wrapper)
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// act
 	err := es.Append(
 		ctxWithTimeout,
 		filter,
-		helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
-		helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
+		estesthelpers.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Second))),
 	)
 
 	// assert
@@ -675,8 +675,8 @@ func Test_Observability_Eventstore_WithContextualLogger_LogsErrors(t *testing.T)
 	es := wrapper.GetEventStore()
 
 	// arrange
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// act - attempt to query the non-existent table
 	_, _, err := es.Query(ctxWithTimeout, filter)
@@ -698,8 +698,8 @@ func Test_Observability_Eventstore_WithoutLogger_HandlesLogErrorGracefully(t *te
 	es := wrapper.GetEventStore()
 
 	// arrange
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// act - attempt to query the non-existent table, this should trigger logError with nil logger
 	_, _, err := es.Query(ctxWithTimeout, filter)
@@ -722,8 +722,8 @@ func Test_Observability_Eventstore_WithLogger_LogsErrorsCorrectly(t *testing.T) 
 	es := wrapper.GetEventStore()
 
 	// arrange
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// act - attempt to query the non-existent table, this should trigger logError with the configured logger
 	_, _, err := es.Query(ctxWithTimeout, filter)
@@ -747,9 +747,9 @@ func Test_Observability_Eventstore_WithTracing_RecordsAppendErrorWithDuration(t 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
-	event := helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock))
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
+	event := estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock))
 
 	// act - attempt to append to a non-existent table to trigger append error with span
 	// This should exercise the formatDuration method in appendTracingObserver.finishError
@@ -775,8 +775,8 @@ func Test_Observability_Eventstore_WithMetrics_FallbackToNonContextual(t *testin
 	es := wrapper.GetEventStore()
 
 	// arrange
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// act - attempt to query non-existent table to trigger fallback metric recording
 	_, _, err := es.Query(ctxWithTimeout, filter)
@@ -807,8 +807,8 @@ func Test_Observability_Eventstore_WithContextualMetrics_UsesContextualPath(t *t
 	es := wrapper.GetEventStore()
 
 	// arrange
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// act - attempt to query non-existent table to trigger contextual metric recording
 	_, _, err := es.Query(ctxWithTimeout, filter)
@@ -869,8 +869,8 @@ func Test_Observability_Eventstore_WithRealObservabilityStack_RealisticLoad(t *t
 
 	// Pattern 1: Mixed read operations
 	for i := 0; i < 10; i++ {
-		bookID := helper.GivenUniqueID(t)
-		filter := helper.FilterAllEventTypesForOneBook(bookID)
+		bookID := estesthelpers.GivenUniqueID(t)
+		filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 		_, _, err := es.Query(ctxWithTimeout, filter)
 		assert.NoError(t, err, "query should succeed")
@@ -882,14 +882,14 @@ func Test_Observability_Eventstore_WithRealObservabilityStack_RealisticLoad(t *t
 	// Pattern 2: Mixed write operations
 	fakeClock := time.Unix(0, 0).UTC()
 	for i := 0; i < 5; i++ {
-		bookID := helper.GivenUniqueID(t)
-		filter := helper.FilterAllEventTypesForOneBook(bookID)
+		bookID := estesthelpers.GivenUniqueID(t)
+		filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 		err := es.Append(
 			ctxWithTimeout,
 			filter,
-			helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
-			helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Duration(i)*time.Second))),
+			estesthelpers.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter),
+			estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock.Add(time.Duration(i)*time.Second))),
 		)
 		assert.NoError(t, err, "append should succeed")
 
@@ -897,8 +897,8 @@ func Test_Observability_Eventstore_WithRealObservabilityStack_RealisticLoad(t *t
 	}
 
 	// Pattern 3: Cross-entity queries (demonstrating dynamic streams)
-	readerID := helper.GivenUniqueID(t)
-	bookID := helper.GivenUniqueID(t)
+	readerID := estesthelpers.GivenUniqueID(t)
+	bookID := estesthelpers.GivenUniqueID(t)
 
 	crossEntityFilter := eventstore.BuildEventFilter().
 		Matching().
@@ -910,15 +910,15 @@ func Test_Observability_Eventstore_WithRealObservabilityStack_RealisticLoad(t *t
 	assert.NoError(t, err, "cross-entity query should succeed")
 
 	// Pattern 4: Demonstrate concurrency conflict detection
-	conflictBookID := helper.GivenUniqueID(t)
-	conflictFilter := helper.FilterAllEventTypesForOneBook(conflictBookID)
+	conflictBookID := estesthelpers.GivenUniqueID(t)
+	conflictFilter := estesthelpers.FilterAllEventTypesForOneBook(conflictBookID)
 
 	// First, add an event to establish a sequence number
 	err = es.Append(
 		ctxWithTimeout,
 		conflictFilter,
 		0,
-		helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(conflictBookID, fakeClock)),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyAddedToCirculation(conflictBookID, fakeClock)),
 	)
 	assert.NoError(t, err, "initial append should succeed")
 
@@ -927,7 +927,7 @@ func Test_Observability_Eventstore_WithRealObservabilityStack_RealisticLoad(t *t
 		ctxWithTimeout,
 		conflictFilter,
 		0, // Wrong sequence number - should be 1 now
-		helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(conflictBookID, fakeClock.Add(time.Second))),
+		estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyAddedToCirculation(conflictBookID, fakeClock.Add(time.Second))),
 	)
 	assert.ErrorContains(t, err, eventstore.ErrConcurrencyConflict.Error(), "should detect concurrency conflict")
 

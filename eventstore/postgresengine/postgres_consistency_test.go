@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/eventstore/estesthelpers"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/pgtesthelpers"
 )
 
@@ -18,11 +18,11 @@ func Test_ConsistencyRouting_DefaultsToStrongConsistency(t *testing.T) {
 	defer cleanup()
 
 	eventStore := wrapper.GetEventStore()
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// Create a test event first
-	testEvent := helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, time.Now()))
+	testEvent := estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, time.Now()))
 	appendErr := eventStore.Append(ctx, filter, 0, testEvent)
 	assert.NoError(t, appendErr, "Should append test event")
 
@@ -42,11 +42,11 @@ func Test_ConsistencyRouting_RespectsExplicitConsistency(t *testing.T) {
 	defer cleanup()
 
 	eventStore := wrapper.GetEventStore()
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// Create a test event first
-	testEvent := helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, time.Now()))
+	testEvent := estesthelpers.ToStorable(t, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, time.Now()))
 	appendErr := eventStore.Append(ctx, filter, 0, testEvent)
 	assert.NoError(t, appendErr, "Should append test event")
 
@@ -78,8 +78,8 @@ func Test_ConsistencyRouting_SnapshotOperationsWorkCorrectly(t *testing.T) {
 	defer cleanup()
 
 	eventStore := wrapper.GetEventStore()
-	bookID := helper.GivenUniqueID(t)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(t)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// Create a test snapshot
 	snapshot := eventstore.Snapshot{

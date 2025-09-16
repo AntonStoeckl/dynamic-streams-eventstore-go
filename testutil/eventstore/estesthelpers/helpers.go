@@ -1,4 +1,4 @@
-package helper
+package estesthelpers
 
 import (
 	"context"
@@ -9,9 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/eventstore/fixtures"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/eventstore/shared"
 )
 
 // GivenUniqueID generates a unique UUID for testing.
@@ -28,7 +27,7 @@ func GivenUniqueID(t testing.TB) uuid.UUID {
 func QueryMaxSequenceNumberBeforeAppend(
 	t testing.TB,
 	ctx context.Context, //nolint:revive //nolint:revive
-	es *postgresengine.EventStore,
+	es shared.QueriesAndAppendsEvents,
 	filter eventstore.Filter,
 ) eventstore.MaxSequenceNumberUint {
 
@@ -45,10 +44,10 @@ func FilterAllEventTypesForOneBook(bookID uuid.UUID) eventstore.Filter {
 	filter := eventstore.BuildEventFilter().
 		Matching().
 		AnyEventTypeOf(
-			core.BookCopyAddedToCirculationEventType,
-			core.BookCopyRemovedFromCirculationEventType,
-			core.BookCopyLentToReaderEventType,
-			core.BookCopyReturnedByReaderEventType).
+			fixtures.BookCopyAddedToCirculationEventType,
+			fixtures.BookCopyRemovedFromCirculationEventType,
+			fixtures.BookCopyLentToReaderEventType,
+			fixtures.BookCopyReturnedByReaderEventType).
 		AndAnyPredicateOf(eventstore.P("BookID", bookID.String())).
 		Finalize()
 
@@ -60,10 +59,10 @@ func FilterAllEventTypesForOneBookOrReader(bookID uuid.UUID, readerID uuid.UUID)
 	filter := eventstore.BuildEventFilter().
 		Matching().
 		AnyEventTypeOf(
-			core.BookCopyAddedToCirculationEventType,
-			core.BookCopyRemovedFromCirculationEventType,
-			core.BookCopyLentToReaderEventType,
-			core.BookCopyReturnedByReaderEventType).
+			fixtures.BookCopyAddedToCirculationEventType,
+			fixtures.BookCopyRemovedFromCirculationEventType,
+			fixtures.BookCopyLentToReaderEventType,
+			fixtures.BookCopyReturnedByReaderEventType).
 		AndAnyPredicateOf(
 			eventstore.P("BookID", bookID.String()),
 			eventstore.P("ReaderID", readerID.String())).
@@ -73,8 +72,8 @@ func FilterAllEventTypesForOneBookOrReader(bookID uuid.UUID, readerID uuid.UUID)
 }
 
 // FixtureBookCopyAddedToCirculation creates a test event for adding a book to circulation.
-func FixtureBookCopyAddedToCirculation(bookID uuid.UUID, fakeClock time.Time) core.DomainEvent {
-	return core.BuildBookCopyAddedToCirculation(
+func FixtureBookCopyAddedToCirculation(bookID uuid.UUID, fakeClock time.Time) shared.DomainEvent {
+	return fixtures.BuildBookCopyAddedToCirculation(
 		bookID,
 		"978-1-098-10013-1",
 		"Learning Domain-Driven Design",
@@ -87,8 +86,8 @@ func FixtureBookCopyAddedToCirculation(bookID uuid.UUID, fakeClock time.Time) co
 }
 
 // FixtureBookCopyRemovedFromCirculation creates a test event for removing a book from circulation.
-func FixtureBookCopyRemovedFromCirculation(bookID uuid.UUID, fakeClock time.Time) core.DomainEvent {
-	return core.BuildBookCopyRemovedFromCirculation(bookID, fakeClock)
+func FixtureBookCopyRemovedFromCirculation(bookID uuid.UUID, fakeClock time.Time) shared.DomainEvent {
+	return fixtures.BuildBookCopyRemovedFromCirculation(bookID, fakeClock)
 }
 
 // FixtureBookCopyLentToReader creates a test event for lending a book to a reader.
@@ -96,9 +95,9 @@ func FixtureBookCopyLentToReader(
 	bookID uuid.UUID,
 	readerID uuid.UUID,
 	fakeClock time.Time,
-) core.DomainEvent {
+) shared.DomainEvent {
 
-	return core.BuildBookCopyLentToReader(bookID, readerID, fakeClock)
+	return fixtures.BuildBookCopyLentToReader(bookID, readerID, fakeClock)
 }
 
 // FixtureBookCopyReturnedByReader creates a test event for returning a book.
@@ -106,16 +105,16 @@ func FixtureBookCopyReturnedByReader(
 	bookID uuid.UUID,
 	readerID uuid.UUID,
 	fakeClock time.Time,
-) core.DomainEvent {
+) shared.DomainEvent {
 
-	return core.BuildBookCopyReturnedFromReader(bookID, readerID, fakeClock)
+	return fixtures.BuildBookCopyReturnedFromReader(bookID, readerID, fakeClock)
 }
 
 // ToStorable converts a domain event to a storable event for testing.
-func ToStorable(t testing.TB, domainEvent core.DomainEvent) eventstore.StorableEvent {
+func ToStorable(t testing.TB, domainEvent shared.DomainEvent) eventstore.StorableEvent {
 	t.Helper()
 
-	storableEvent, err := shell.StorableEventWithEmptyMetadataFrom(domainEvent)
+	storableEvent, err := fixtures.StorableEventWithEmptyMetadataFrom(domainEvent)
 	assert.NoError(t, err, "error in arranging test data")
 
 	return storableEvent
@@ -124,13 +123,13 @@ func ToStorable(t testing.TB, domainEvent core.DomainEvent) eventstore.StorableE
 // ToStorableWithMetadata converts a domain event to a storable event with metadata.
 func ToStorableWithMetadata(
 	t testing.TB,
-	domainEvent core.DomainEvent,
-	eventMetadata shell.EventMetadata,
+	domainEvent shared.DomainEvent,
+	eventMetadata shared.EventMetadata,
 ) eventstore.StorableEvent {
 
 	t.Helper()
 
-	storableEvent, err := shell.StorableEventFrom(domainEvent, eventMetadata)
+	storableEvent, err := fixtures.StorableEventFrom(domainEvent, eventMetadata)
 	assert.NoError(t, err, "error in arranging test data")
 
 	return storableEvent
@@ -139,11 +138,11 @@ func ToStorableWithMetadata(
 // GivenBookCopyAddedToCirculationWasAppended appends a book addition event for testing.
 func GivenBookCopyAddedToCirculationWasAppended(
 	t testing.TB,
-	ctx context.Context, //nolint:revive //nolint:revive
-	es *postgresengine.EventStore,
+	ctx context.Context, //nolint:revive
+	es shared.QueriesAndAppendsEvents,
 	bookID uuid.UUID,
 	fakeClock time.Time,
-) core.DomainEvent {
+) shared.DomainEvent {
 
 	t.Helper()
 
@@ -164,10 +163,10 @@ func GivenBookCopyAddedToCirculationWasAppended(
 func GivenBookCopyRemovedFromCirculationWasAppended(
 	t testing.TB,
 	ctx context.Context, //nolint:revive
-	es *postgresengine.EventStore,
+	es shared.QueriesAndAppendsEvents,
 	bookID uuid.UUID,
 	fakeClock time.Time,
-) core.DomainEvent {
+) shared.DomainEvent {
 
 	t.Helper()
 
@@ -188,11 +187,11 @@ func GivenBookCopyRemovedFromCirculationWasAppended(
 func GivenBookCopyLentToReaderWasAppended(
 	t testing.TB,
 	ctx context.Context, //nolint:revive
-	es *postgresengine.EventStore,
+	es shared.QueriesAndAppendsEvents,
 	bookID uuid.UUID,
 	readerID uuid.UUID,
 	fakeClock time.Time,
-) core.DomainEvent {
+) shared.DomainEvent {
 
 	t.Helper()
 
@@ -213,11 +212,11 @@ func GivenBookCopyLentToReaderWasAppended(
 func GivenBookCopyReturnedByReaderWasAppended(
 	t testing.TB,
 	ctx context.Context, //nolint:revive
-	es *postgresengine.EventStore,
+	es shared.QueriesAndAppendsEvents,
 	bookID uuid.UUID,
 	readerID uuid.UUID,
 	fakeClock time.Time,
-) core.DomainEvent {
+) shared.DomainEvent {
 
 	t.Helper()
 

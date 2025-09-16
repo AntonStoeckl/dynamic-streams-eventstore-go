@@ -1,4 +1,4 @@
-package shell
+package fixtures
 
 import (
 	"errors"
@@ -6,7 +6,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/eventstore/shared"
 )
 
 var (
@@ -18,8 +18,8 @@ var (
 )
 
 // DomainEventsFrom converts multiple StorableEvents to DomainEvents.
-func DomainEventsFrom(storableEvents eventstore.StorableEvents) (core.DomainEvents, error) {
-	domainEvents := make(core.DomainEvents, 0, len(storableEvents))
+func DomainEventsFrom(storableEvents eventstore.StorableEvents) (shared.DomainEvents, error) {
+	domainEvents := make(shared.DomainEvents, 0, len(storableEvents))
 
 	for _, storableEvent := range storableEvents {
 		domainEvent, err := DomainEventFrom(storableEvent)
@@ -34,18 +34,18 @@ func DomainEventsFrom(storableEvents eventstore.StorableEvents) (core.DomainEven
 }
 
 // DomainEventFrom converts a StorableEvent to its corresponding DomainEvent.
-func DomainEventFrom(storableEvent eventstore.StorableEvent) (core.DomainEvent, error) {
+func DomainEventFrom(storableEvent eventstore.StorableEvent) (shared.DomainEvent, error) {
 	switch storableEvent.EventType {
-	case core.BookCopyAddedToCirculationEventType:
+	case BookCopyAddedToCirculationEventType:
 		return unmarshalBookCopyAddedToCirculation(storableEvent.PayloadJSON)
 
-	case core.BookCopyRemovedFromCirculationEventType:
+	case BookCopyRemovedFromCirculationEventType:
 		return unmarshalBookCopyRemovedFromCirculation(storableEvent.PayloadJSON)
 
-	case core.BookCopyLentToReaderEventType:
+	case BookCopyLentToReaderEventType:
 		return unmarshalBookCopyLentToReader(storableEvent.PayloadJSON)
 
-	case core.BookCopyReturnedByReaderEventType:
+	case BookCopyReturnedByReaderEventType:
 		return unmarshalBookCopyReturnedByReader(storableEvent.PayloadJSON)
 
 	default:
@@ -53,45 +53,45 @@ func DomainEventFrom(storableEvent eventstore.StorableEvent) (core.DomainEvent, 
 	}
 }
 
-func unmarshalBookCopyAddedToCirculation(payloadJSON []byte) (core.DomainEvent, error) {
-	var event core.BookCopyAddedToCirculation
+func unmarshalBookCopyAddedToCirculation(payloadJSON []byte) (shared.DomainEvent, error) {
+	var event BookCopyAddedToCirculation
 
 	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &event)
 	if err != nil {
-		return core.BookCopyAddedToCirculation{}, errors.Join(ErrMappingToDomainEventFailed, err)
+		return BookCopyAddedToCirculation{}, errors.Join(ErrMappingToDomainEventFailed, err)
 	}
 
 	return event, nil
 }
 
-func unmarshalBookCopyRemovedFromCirculation(payloadJSON []byte) (core.DomainEvent, error) {
-	var event core.BookCopyRemovedFromCirculation
+func unmarshalBookCopyRemovedFromCirculation(payloadJSON []byte) (shared.DomainEvent, error) {
+	var event BookCopyRemovedFromCirculation
 
 	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &event)
 	if err != nil {
-		return core.BookCopyRemovedFromCirculation{}, errors.Join(ErrMappingToDomainEventFailed, err)
+		return BookCopyRemovedFromCirculation{}, errors.Join(ErrMappingToDomainEventFailed, err)
 	}
 
 	return event, nil
 }
 
-func unmarshalBookCopyLentToReader(payloadJSON []byte) (core.DomainEvent, error) {
-	var event core.BookCopyLentToReader
+func unmarshalBookCopyLentToReader(payloadJSON []byte) (shared.DomainEvent, error) {
+	var event BookCopyLentToReader
 
 	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &event)
 	if err != nil {
-		return core.BookCopyLentToReader{}, errors.Join(ErrMappingToDomainEventFailed, err)
+		return BookCopyLentToReader{}, errors.Join(ErrMappingToDomainEventFailed, err)
 	}
 
 	return event, nil
 }
 
-func unmarshalBookCopyReturnedByReader(payloadJSON []byte) (core.DomainEvent, error) {
-	var event core.BookCopyReturnedByReader
+func unmarshalBookCopyReturnedByReader(payloadJSON []byte) (shared.DomainEvent, error) {
+	var event BookCopyReturnedByReader
 
 	err := jsoniter.ConfigFastest.Unmarshal(payloadJSON, &event)
 	if err != nil {
-		return core.BookCopyReturnedByReader{}, errors.Join(ErrMappingToDomainEventFailed, err)
+		return BookCopyReturnedByReader{}, errors.Join(ErrMappingToDomainEventFailed, err)
 	}
 
 	return event, nil

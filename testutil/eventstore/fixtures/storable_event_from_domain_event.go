@@ -1,4 +1,4 @@
-package shell
+package fixtures
 
 import (
 	"errors"
@@ -6,7 +6,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/eventstore/shared"
 )
 
 // ErrMappingToStorableEventFailedForDomainEvent is returned when domain event serialization fails.
@@ -16,7 +16,7 @@ var ErrMappingToStorableEventFailedForDomainEvent = errors.New("mapping to stora
 var ErrMappingToStorableEventFailedForMetadata = errors.New("mapping to storable event failed for metadata")
 
 // StorableEventFrom converts a DomainEvent and EventMetadata to a StorableEvent.
-func StorableEventFrom(event core.DomainEvent, metadata EventMetadata) (eventstore.StorableEvent, error) {
+func StorableEventFrom(event shared.DomainEvent, metadata shared.EventMetadata) (eventstore.StorableEvent, error) {
 	payloadJSON, err := jsoniter.ConfigFastest.Marshal(event)
 	if err != nil {
 		return eventstore.StorableEvent{}, errors.Join(ErrMappingToStorableEventFailedForDomainEvent, err)
@@ -42,7 +42,7 @@ func StorableEventFrom(event core.DomainEvent, metadata EventMetadata) (eventsto
 }
 
 // StorableEventWithEmptyMetadataFrom converts a DomainEvent to a StorableEvent with empty metadata.
-func StorableEventWithEmptyMetadataFrom(event core.DomainEvent) (eventstore.StorableEvent, error) {
+func StorableEventWithEmptyMetadataFrom(event shared.DomainEvent) (eventstore.StorableEvent, error) {
 	payloadJSON, err := jsoniter.ConfigFastest.Marshal(event)
 	if err != nil {
 		return eventstore.StorableEvent{}, errors.Join(ErrMappingToStorableEventFailedForDomainEvent, err)

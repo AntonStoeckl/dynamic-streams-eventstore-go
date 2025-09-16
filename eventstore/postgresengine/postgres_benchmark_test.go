@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/eventstore/estesthelpers"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/pgtesthelpers"
 )
 
@@ -22,8 +22,8 @@ func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 	pgtesthelpers.GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 1000)
 	fakeClock := pgtesthelpers.GetGreatestOccurredAtTimeFromDB(b, wrapper).Add(time.Second)
 
-	bookID := helper.GivenUniqueID(b)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(b)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// act
 	b.Run("append 1 event", func(b *testing.B) {
@@ -32,10 +32,10 @@ func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
-			maxSequenceNumberBeforeAppend := helper.QueryMaxSequenceNumberBeforeAppend(b, ctx, es, filter)
+			maxSequenceNumberBeforeAppend := estesthelpers.QueryMaxSequenceNumberBeforeAppend(b, ctx, es, filter)
 
 			fakeClock = fakeClock.Add(time.Second)
-			event := helper.ToStorable(b, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock))
+			event := estesthelpers.ToStorable(b, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock))
 
 			b.StartTimer()
 			start := time.Now()
@@ -75,8 +75,8 @@ func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 	pgtesthelpers.GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 1000)
 	fakeClock := pgtesthelpers.GetGreatestOccurredAtTimeFromDB(b, wrapper).Add(time.Second)
 
-	bookID := helper.GivenUniqueID(b)
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	bookID := estesthelpers.GivenUniqueID(b)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// act
 	b.Run("append 5 events", func(b *testing.B) {
@@ -86,18 +86,18 @@ func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
 
-			maxSequenceNumberBeforeAppend := helper.QueryMaxSequenceNumberBeforeAppend(b, ctx, es, filter)
+			maxSequenceNumberBeforeAppend := estesthelpers.QueryMaxSequenceNumberBeforeAppend(b, ctx, es, filter)
 
 			fakeClock = fakeClock.Add(time.Second)
-			event1 := helper.ToStorable(b, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock))
+			event1 := estesthelpers.ToStorable(b, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock))
 			fakeClock = fakeClock.Add(time.Second)
-			event2 := helper.ToStorable(b, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock))
+			event2 := estesthelpers.ToStorable(b, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock))
 			fakeClock = fakeClock.Add(time.Second)
-			event3 := helper.ToStorable(b, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock))
+			event3 := estesthelpers.ToStorable(b, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock))
 			fakeClock = fakeClock.Add(time.Second)
-			event4 := helper.ToStorable(b, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock))
+			event4 := estesthelpers.ToStorable(b, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock))
 			fakeClock = fakeClock.Add(time.Second)
-			event5 := helper.ToStorable(b, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock))
+			event5 := estesthelpers.ToStorable(b, estesthelpers.FixtureBookCopyAddedToCirculation(bookID, fakeClock))
 
 			b.StartTimer()
 			start := time.Now()
@@ -137,7 +137,7 @@ func Benchmark_Query_With_Many_Events_InTheStore(b *testing.B) {
 	pgtesthelpers.GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 1000)
 	bookID := pgtesthelpers.GetLatestBookIDFromDB(b, wrapper)
 
-	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	filter := estesthelpers.FilterAllEventTypesForOneBook(bookID)
 
 	// act
 	b.Run("query", func(b *testing.B) {
