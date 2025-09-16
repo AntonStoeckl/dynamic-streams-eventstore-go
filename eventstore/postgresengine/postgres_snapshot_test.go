@@ -13,7 +13,7 @@ import (
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/pgtesthelpers"
 )
 
 func Test_SaveAndLoad_Snapshot(t *testing.T) {
@@ -21,12 +21,12 @@ func Test_SaveAndLoad_Snapshot(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -61,12 +61,12 @@ func Test_LoadSnapshot_IfSnapshotIs_NotFound(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -84,7 +84,7 @@ func Test_Snapshot_SaveSnapshot_ValidatesInput(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -137,7 +137,7 @@ func Test_Snapshot_SaveSnapshot_ValidatesInput(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// arrange
-			postgreswrapper.CleanUp(t, wrapper) //nolint:contextcheck
+			pgtesthelpers.CleanUp(t, wrapper) //nolint:contextcheck
 			snapshot := tt.snapshot()
 
 			// act
@@ -154,12 +154,12 @@ func Test_Snapshot_PreservesHigherSequence_WhenTryToUpsertWithLowerSequence(t *t
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -200,12 +200,12 @@ func Test_Snapshot_ConcurrentSave_SequenceProtection(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -260,12 +260,12 @@ func Test_Snapshots_WithDifferentFilters_CreateDifferentSnapshots(t *testing.T) 
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID1 := helper.GivenUniqueID(t)
 	bookID2 := helper.GivenUniqueID(t)
 	filter1 := helper.FilterAllEventTypesForOneBook(bookID1)
@@ -309,12 +309,12 @@ func Test_Snapshots_WithSameFilter_UpsertsSnapshot(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -352,12 +352,12 @@ func Test_SaveSnapshot_WithLargeJSONB_WithinLimits(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -422,12 +422,12 @@ func Test_DeleteSnapshot(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -460,12 +460,12 @@ func Test_DeleteSnapshot_Is_Idempotent(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -478,12 +478,12 @@ func Test_DeleteSnapshot_Is_Idempotent(t *testing.T) {
 
 func Test_Snapshot_Context_Cancellation(t *testing.T) {
 	// setup
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 

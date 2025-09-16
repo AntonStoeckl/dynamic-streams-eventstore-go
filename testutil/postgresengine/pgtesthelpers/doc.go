@@ -1,4 +1,4 @@
-// Package postgreswrapper provides test utilities for abstracting over different PostgreSQL database adapters.
+// Package pgtesthelpers provides test utilities for abstracting over different PostgreSQL database adapters.
 //
 // This package enables testing of the event store implementation across multiple database drivers
 // (pgx, sql.DB, sqlx.DB) using a common Wrapper interface. The specific adapter type is determined
@@ -22,4 +22,4 @@
 //
 //	// Use the event store
 //	store := wrapper.GetEventStore()
-package postgreswrapper
+package pgtesthelpers

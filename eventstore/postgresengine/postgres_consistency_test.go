@@ -9,7 +9,7 @@ import (
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/pgtesthelpers"
 )
 
 func Test_ConsistencyRouting_DefaultsToStrongConsistency(t *testing.T) {
@@ -116,10 +116,10 @@ func Test_ConsistencyRouting_SnapshotOperationsWorkCorrectly(t *testing.T) {
 }
 
 // Test setup helpers.
-func setupConsistencyTestEnvironment(t *testing.T) (context.Context, postgreswrapper.Wrapper, func()) {
+func setupConsistencyTestEnvironment(t *testing.T) (context.Context, pgtesthelpers.Wrapper, func()) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
-	postgreswrapper.CleanUp(t, wrapper)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
+	pgtesthelpers.CleanUp(t, wrapper)
 
 	cleanup := func() {
 		cancel()

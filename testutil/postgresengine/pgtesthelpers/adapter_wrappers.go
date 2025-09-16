@@ -1,4 +1,4 @@
-package postgreswrapper
+package pgtesthelpers
 
 import (
 	"context"

@@ -8,19 +8,19 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/pgtesthelpers"
 )
 
 func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 	// setup
 	ctx := context.Background()
-	wrapper := postgreswrapper.CreateWrapperWithBenchmarkConfig(b)
+	wrapper := pgtesthelpers.CreateWrapperWithBenchmarkConfig(b)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	postgreswrapper.GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 1000)
-	fakeClock := postgreswrapper.GetGreatestOccurredAtTimeFromDB(b, wrapper).Add(time.Second)
+	pgtesthelpers.GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 1000)
+	fakeClock := pgtesthelpers.GetGreatestOccurredAtTimeFromDB(b, wrapper).Add(time.Second)
 
 	bookID := helper.GivenUniqueID(b)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
@@ -50,12 +50,12 @@ func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 
 			assert.NoError(b, err)
 
-			rowsAffected, dbErr := postgreswrapper.CleanUpBookEvents(ctx, wrapper, bookID)
+			rowsAffected, dbErr := pgtesthelpers.CleanUpBookEvents(ctx, wrapper, bookID)
 			assert.NoError(b, dbErr)
 			assert.Equal(b, int64(1), rowsAffected)
 
 			if i%100 == 0 {
-				dbErr = postgreswrapper.OptimizeDBWhileBenchmarking(ctx, wrapper)
+				dbErr = pgtesthelpers.OptimizeDBWhileBenchmarking(ctx, wrapper)
 				assert.NoError(b, dbErr)
 			}
 		}
@@ -67,13 +67,13 @@ func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 	// setup
 	ctx := context.Background()
-	wrapper := postgreswrapper.CreateWrapperWithBenchmarkConfig(b)
+	wrapper := pgtesthelpers.CreateWrapperWithBenchmarkConfig(b)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	postgreswrapper.GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 1000)
-	fakeClock := postgreswrapper.GetGreatestOccurredAtTimeFromDB(b, wrapper).Add(time.Second)
+	pgtesthelpers.GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 1000)
+	fakeClock := pgtesthelpers.GetGreatestOccurredAtTimeFromDB(b, wrapper).Add(time.Second)
 
 	bookID := helper.GivenUniqueID(b)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
@@ -112,12 +112,12 @@ func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 
 			assert.NoError(b, err)
 
-			rowsAffected, dbErr := postgreswrapper.CleanUpBookEvents(ctx, wrapper, bookID)
+			rowsAffected, dbErr := pgtesthelpers.CleanUpBookEvents(ctx, wrapper, bookID)
 			assert.NoError(b, dbErr)
 			assert.Equal(b, int64(5), rowsAffected)
 
 			if i%100 == 0 {
-				dbErr = postgreswrapper.OptimizeDBWhileBenchmarking(ctx, wrapper)
+				dbErr = pgtesthelpers.OptimizeDBWhileBenchmarking(ctx, wrapper)
 				assert.NoError(b, dbErr)
 			}
 		}
@@ -129,13 +129,13 @@ func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 func Benchmark_Query_With_Many_Events_InTheStore(b *testing.B) {
 	// setup
 	ctx := context.Background()
-	wrapper := postgreswrapper.CreateWrapperWithBenchmarkConfig(b)
+	wrapper := pgtesthelpers.CreateWrapperWithBenchmarkConfig(b)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	postgreswrapper.GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 1000)
-	bookID := postgreswrapper.GetLatestBookIDFromDB(b, wrapper)
+	pgtesthelpers.GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 1000)
+	bookID := pgtesthelpers.GetLatestBookIDFromDB(b, wrapper)
 
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 

@@ -15,7 +15,7 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/pgtesthelpers"
 )
 
 func Test_FactoryFunctions_NewEventStore_ShouldPanic_WithUnsupportedAdapterType(t *testing.T) {
@@ -36,7 +36,7 @@ func Test_FactoryFunctions_NewEventStore_ShouldPanic_WithUnsupportedAdapterType(
 	assert.NoError(t, err)
 
 	assert.Panics(t, func() {
-		createErr := postgreswrapper.TryCreateEventStoreWithTableName(t, postgresengine.WithTableName("event_data"))
+		createErr := pgtesthelpers.TryCreateEventStoreWithTableName(t, postgresengine.WithTableName("event_data"))
 		assert.NoError(t, createErr)
 	})
 }
@@ -59,7 +59,7 @@ func Test_FactoryFunctions_NewEventStoreWithTableName_ShouldPanic_WithUnsupporte
 	assert.NoError(t, err)
 
 	assert.Panics(t, func() {
-		createErr := postgreswrapper.TryCreateEventStoreWithTableName(t, postgresengine.WithTableName("event_data"))
+		createErr := pgtesthelpers.TryCreateEventStoreWithTableName(t, postgresengine.WithTableName("event_data"))
 		assert.NoError(t, createErr)
 	})
 }
@@ -137,14 +137,14 @@ func Test_FactoryFunctions_EventStore_WithTableName_ShouldWorkCorrectly(t *testi
 	defer cancel()
 
 	customTableName := "events"
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithTableName(customTableName))
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithTableName(customTableName))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -260,7 +260,7 @@ func Test_FactoryFunctions_EventStore_WithTableName_ShouldFail_WithNonExistentTa
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_1"))
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_1"))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 

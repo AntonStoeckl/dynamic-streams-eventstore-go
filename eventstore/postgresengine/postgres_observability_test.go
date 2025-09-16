@@ -14,8 +14,9 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/oteladapters"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/observability/testdoubles"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/pgtesthelpers"
 )
 
 func Test_Observability_Eventstore_WithLogger_LogsQueries(t *testing.T) {
@@ -23,15 +24,15 @@ func Test_Observability_Eventstore_WithLogger_LogsQueries(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	testHandler := helper.NewLogHandlerSpy(false)
+	testHandler := testdoubles.NewLogHandlerSpy(false)
 	logger := slog.New(testHandler)
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithLogger(logger))
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithLogger(logger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -60,17 +61,17 @@ func Test_Observability_Eventstore_WithLogger_LogsAppends(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	testHandler := helper.NewLogHandlerSpy(false)
+	testHandler := testdoubles.NewLogHandlerSpy(false)
 	logger := slog.New(testHandler)
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithLogger(logger))
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithLogger(logger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -116,15 +117,15 @@ func Test_Observability_Eventstore_WithLogger_LogsOperations(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	testHandler := helper.NewLogHandlerSpy(false)
+	testHandler := testdoubles.NewLogHandlerSpy(false)
 	logger := slog.New(testHandler)
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithLogger(logger))
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithLogger(logger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -147,17 +148,17 @@ func Test_Observability_Eventstore_WithLogger_LogsAppendOperations(t *testing.T)
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	testHandler := helper.NewLogHandlerSpy(false)
+	testHandler := testdoubles.NewLogHandlerSpy(false)
 	logger := slog.New(testHandler)
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithLogger(logger))
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithLogger(logger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -191,17 +192,17 @@ func Test_Observability_Eventstore_WithLogger_LogsConcurrencyConflicts(t *testin
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	testHandler := helper.NewLogHandlerSpy(false)
+	testHandler := testdoubles.NewLogHandlerSpy(false)
 	logger := slog.New(testHandler)
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithLogger(logger))
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithLogger(logger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -242,13 +243,13 @@ func Test_Observability_Eventstore_WithMetrics_RecordsQueryMetrics(t *testing.T)
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	metricsCollector := helper.NewMetricsCollectorSpy(true)
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithMetrics(metricsCollector))
+	metricsCollector := testdoubles.NewMetricsCollectorSpy(true)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithMetrics(metricsCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -272,15 +273,15 @@ func Test_Observability_Eventstore_WithMetrics_RecordsAppendMetrics(t *testing.T
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	metricsCollector := helper.NewMetricsCollectorSpy(true)
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithMetrics(metricsCollector))
+	metricsCollector := testdoubles.NewMetricsCollectorSpy(true)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithMetrics(metricsCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -323,13 +324,13 @@ func Test_Observability_Eventstore_WithMetrics_RecordsCompleteHierarchy(t *testi
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	metricsCollector := helper.NewMetricsCollectorSpy(true)
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithMetrics(metricsCollector))
+	metricsCollector := testdoubles.NewMetricsCollectorSpy(true)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithMetrics(metricsCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	fakeClock := time.Now()
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
@@ -401,15 +402,15 @@ func Test_Observability_Eventstore_WithMetrics_RecordsConcurrencyConflicts(t *te
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	metricsCollector := helper.NewMetricsCollectorSpy(true)
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithMetrics(metricsCollector))
+	metricsCollector := testdoubles.NewMetricsCollectorSpy(true)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithMetrics(metricsCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -446,8 +447,8 @@ func Test_Observability_Eventstore_WithMetrics_RecordsErrorMetrics(t *testing.T)
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	metricsCollector := helper.NewMetricsCollectorSpy(true)
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_2"), postgresengine.WithMetrics(metricsCollector))
+	metricsCollector := testdoubles.NewMetricsCollectorSpy(true)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_2"), postgresengine.WithMetrics(metricsCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -476,13 +477,13 @@ func Test_Observability_Eventstore_WithTracing_RecordsQuerySpans(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	tracingCollector := helper.NewTracingCollectorSpy(true)
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithTracing(tracingCollector))
+	tracingCollector := testdoubles.NewTracingCollectorSpy(true)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithTracing(tracingCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -502,15 +503,15 @@ func Test_Observability_Eventstore_WithTracing_RecordsAppendSpans(t *testing.T) 
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	tracingCollector := helper.NewTracingCollectorSpy(true)
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithTracing(tracingCollector))
+	tracingCollector := testdoubles.NewTracingCollectorSpy(true)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithTracing(tracingCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -537,15 +538,15 @@ func Test_Observability_Eventstore_WithTracing_RecordsConcurrencyConflictSpans(t
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	tracingCollector := helper.NewTracingCollectorSpy(true)
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithTracing(tracingCollector))
+	tracingCollector := testdoubles.NewTracingCollectorSpy(true)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithTracing(tracingCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -583,8 +584,8 @@ func Test_Observability_Eventstore_WithTracing_RecordsErrorSpans(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	tracingCollector := helper.NewTracingCollectorSpy(true)
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_3"), postgresengine.WithTracing(tracingCollector))
+	tracingCollector := testdoubles.NewTracingCollectorSpy(true)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_3"), postgresengine.WithTracing(tracingCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -609,13 +610,13 @@ func Test_Observability_Eventstore_WithContextualLogger_LogsQueries(t *testing.T
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	contextualLogger := helper.NewContextualLoggerSpy(true)
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithContextualLogger(contextualLogger))
+	contextualLogger := testdoubles.NewContextualLoggerSpy(true)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithContextualLogger(contextualLogger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -634,15 +635,15 @@ func Test_Observability_Eventstore_WithContextualLogger_LogsAppends(t *testing.T
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	contextualLogger := helper.NewContextualLoggerSpy(true)
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithContextualLogger(contextualLogger))
+	contextualLogger := testdoubles.NewContextualLoggerSpy(true)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithContextualLogger(contextualLogger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -668,8 +669,8 @@ func Test_Observability_Eventstore_WithContextualLogger_LogsErrors(t *testing.T)
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	contextualLogger := helper.NewContextualLoggerSpy(true)
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_contextual"), postgresengine.WithContextualLogger(contextualLogger))
+	contextualLogger := testdoubles.NewContextualLoggerSpy(true)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_contextual"), postgresengine.WithContextualLogger(contextualLogger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -692,7 +693,7 @@ func Test_Observability_Eventstore_WithoutLogger_HandlesLogErrorGracefully(t *te
 	defer cancel()
 
 	// Create EventStore without a logger to test logError's nil logger branch
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_no_logger"))
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_no_logger"))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -714,9 +715,9 @@ func Test_Observability_Eventstore_WithLogger_LogsErrorsCorrectly(t *testing.T) 
 	defer cancel()
 
 	// Create EventStore with a logger to test logError's configured logger branch
-	testHandler := helper.NewLogHandlerSpy(true) // Enable recording to capture error logs
+	testHandler := testdoubles.NewLogHandlerSpy(true) // Enable recording to capture error logs
 	logger := slog.New(testHandler)
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_with_logger"), postgresengine.WithLogger(logger))
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_with_logger"), postgresengine.WithLogger(logger))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -738,8 +739,8 @@ func Test_Observability_Eventstore_WithTracing_RecordsAppendErrorWithDuration(t 
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	tracingCollector := helper.NewTracingCollectorSpy(true)
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_tracing"), postgresengine.WithTracing(tracingCollector))
+	tracingCollector := testdoubles.NewTracingCollectorSpy(true)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_tracing"), postgresengine.WithTracing(tracingCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -768,8 +769,8 @@ func Test_Observability_Eventstore_WithMetrics_FallbackToNonContextual(t *testin
 
 	// Use the basic metrics collector (doesn't implement ContextualMetricsCollector)
 	// This will test the fallback paths in recordDurationMetricsContext, recordValueMetricsContext, etc.
-	metricsCollector := helper.NewMetricsCollectorSpy(true)
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_fallback"), postgresengine.WithMetrics(metricsCollector))
+	metricsCollector := testdoubles.NewMetricsCollectorSpy(true)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_fallback"), postgresengine.WithMetrics(metricsCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -800,8 +801,8 @@ func Test_Observability_Eventstore_WithContextualMetrics_UsesContextualPath(t *t
 	defer cancel()
 
 	// Use the contextual metrics collector to test the contextual code paths
-	metricsCollector := helper.NewContextualMetricsCollectorSpy(true)
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_contextual"), postgresengine.WithMetrics(metricsCollector))
+	metricsCollector := testdoubles.NewContextualMetricsCollectorSpy(true)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_contextual"), postgresengine.WithMetrics(metricsCollector))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -855,7 +856,7 @@ func Test_Observability_Eventstore_WithRealObservabilityStack_RealisticLoad(t *t
 
 	// Use test database configuration with observability options
 	// Note: We use test config instead of benchmark config since benchmark config doesn't support options
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t,
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t,
 		postgresengine.WithMetrics(metricsCollector),
 		postgresengine.WithTracing(tracingCollector),
 		postgresengine.WithContextualLogger(contextualLogger),

@@ -15,7 +15,7 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
-	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/pgtesthelpers"
 )
 
 func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
@@ -23,14 +23,14 @@ func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 	maxSequenceNumberBeforeAppend := helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
@@ -53,14 +53,14 @@ func Test_Append_When_SomeEvents_MatchTheQuery_BeforeAppend(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	fakeClock = fakeClock.Add(time.Second)
 	helper.GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
@@ -85,14 +85,14 @@ func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	readerID := helper.GivenUniqueID(t)
 	fakeClock = fakeClock.Add(time.Second)
@@ -120,14 +120,14 @@ func Test_AppendMultiple(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	readerID := helper.GivenUniqueID(t)
 	fakeClock = fakeClock.Add(time.Second)
@@ -157,14 +157,14 @@ func Test_AppendMultiple_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	readerID := helper.GivenUniqueID(t)
 	fakeClock = fakeClock.Add(time.Second)
@@ -197,13 +197,13 @@ func Test_Append_Concurrent(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	readerID := helper.GivenUniqueID(t)
 
@@ -289,14 +289,14 @@ func Test_Append_EventWithMetadata(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 	maxSequenceNumberBeforeAppend := helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
@@ -342,14 +342,14 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 
 	bookID1 := helper.GivenUniqueID(t)
 	bookID2 := helper.GivenUniqueID(t)
@@ -671,13 +671,13 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 
 func Test_Append_When_Context_Is_Cancelled(t *testing.T) {
 	// setup
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -704,13 +704,13 @@ func Test_Append_When_Context_Is_Cancelled(t *testing.T) {
 
 func Test_Append_When_Context_Times_out(t *testing.T) {
 	// setup
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
@@ -739,13 +739,13 @@ func Test_Append_When_Context_Times_out(t *testing.T) {
 
 func Test_Query_When_Context_Is_Canceled(t *testing.T) {
 	// setup
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 
 	fakeClock = fakeClock.Add(time.Second)
@@ -767,13 +767,13 @@ func Test_Query_When_Context_Is_Canceled(t *testing.T) {
 
 func Test_Query_When_Context_Times_Out(t *testing.T) {
 	// setup
-	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	wrapper := pgtesthelpers.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	postgreswrapper.CleanUp(t, wrapper)
+	pgtesthelpers.CleanUp(t, wrapper)
 	bookID := helper.GivenUniqueID(t)
 
 	fakeClock = fakeClock.Add(time.Second)
