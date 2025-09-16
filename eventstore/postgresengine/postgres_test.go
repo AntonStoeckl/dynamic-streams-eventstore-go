@@ -14,8 +14,8 @@ import (
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/core"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"                 //nolint:revive
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper" //nolint:revive
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper"
 )
 
 func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
@@ -23,17 +23,17 @@ func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
-	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
+	postgreswrapper.CleanUp(t, wrapper)
+	bookID := helper.GivenUniqueID(t)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	maxSequenceNumberBeforeAppend := helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 
 	// act
 	fakeClock = fakeClock.Add(time.Second)
@@ -41,7 +41,7 @@ func Test_Append_When_NoEvent_MatchesTheQuery_BeforeAppend(t *testing.T) {
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
+		helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
 	)
 
 	// assert
@@ -53,19 +53,19 @@ func Test_Append_When_SomeEvents_MatchTheQuery_BeforeAppend(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
+	postgreswrapper.CleanUp(t, wrapper)
+	bookID := helper.GivenUniqueID(t)
 	fakeClock = fakeClock.Add(time.Second)
-	GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
-	filter := FilterAllEventTypesForOneBook(bookID)
-	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
+	helper.GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	maxSequenceNumberBeforeAppend := helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 
 	// act
 	fakeClock = fakeClock.Add(time.Second)
@@ -73,7 +73,7 @@ func Test_Append_When_SomeEvents_MatchTheQuery_BeforeAppend(t *testing.T) {
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		ToStorable(t, FixtureBookCopyRemovedFromCirculation(bookID, fakeClock)),
+		helper.ToStorable(t, helper.FixtureBookCopyRemovedFromCirculation(bookID, fakeClock)),
 	)
 
 	// assert
@@ -85,22 +85,22 @@ func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
-	readerID := GivenUniqueID(t)
+	postgreswrapper.CleanUp(t, wrapper)
+	bookID := helper.GivenUniqueID(t)
+	readerID := helper.GivenUniqueID(t)
 	fakeClock = fakeClock.Add(time.Second)
-	GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
-	filter := FilterAllEventTypesForOneBook(bookID)
-	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
+	helper.GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	maxSequenceNumberBeforeAppend := helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 	fakeClock = fakeClock.Add(time.Second)
-	GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID, readerID, fakeClock) // concurrent append
+	helper.GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID, readerID, fakeClock) // concurrent append
 
 	// act
 	fakeClock = fakeClock.Add(time.Second)
@@ -108,7 +108,7 @@ func Test_Append_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		ToStorable(t, FixtureBookCopyRemovedFromCirculation(bookID, fakeClock)),
+		helper.ToStorable(t, helper.FixtureBookCopyRemovedFromCirculation(bookID, fakeClock)),
 	)
 
 	// assert
@@ -120,20 +120,20 @@ func Test_AppendMultiple(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
-	readerID := GivenUniqueID(t)
+	postgreswrapper.CleanUp(t, wrapper)
+	bookID := helper.GivenUniqueID(t)
+	readerID := helper.GivenUniqueID(t)
 	fakeClock = fakeClock.Add(time.Second)
-	GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
-	filter := FilterAllEventTypesForOneBook(bookID)
-	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
+	helper.GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	maxSequenceNumberBeforeAppend := helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 
 	// act
 	fakeClock = fakeClock.Add(time.Second)
@@ -141,8 +141,8 @@ func Test_AppendMultiple(t *testing.T) {
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		ToStorable(t, FixtureBookCopyLentToReader(bookID, readerID, fakeClock)),
-		ToStorable(t, FixtureBookCopyReturnedByReader(bookID, readerID, fakeClock)),
+		helper.ToStorable(t, helper.FixtureBookCopyLentToReader(bookID, readerID, fakeClock)),
+		helper.ToStorable(t, helper.FixtureBookCopyReturnedByReader(bookID, readerID, fakeClock)),
 	)
 
 	// assert
@@ -157,22 +157,22 @@ func Test_AppendMultiple_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
-	readerID := GivenUniqueID(t)
+	postgreswrapper.CleanUp(t, wrapper)
+	bookID := helper.GivenUniqueID(t)
+	readerID := helper.GivenUniqueID(t)
 	fakeClock = fakeClock.Add(time.Second)
-	GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
-	filter := FilterAllEventTypesForOneBook(bookID)
-	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
+	helper.GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID, fakeClock)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	maxSequenceNumberBeforeAppend := helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 	fakeClock = fakeClock.Add(time.Second)
-	GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID, readerID, fakeClock) // concurrent append
+	helper.GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID, readerID, fakeClock) // concurrent append
 
 	// act
 	fakeClock = fakeClock.Add(time.Second)
@@ -180,8 +180,8 @@ func Test_AppendMultiple_When_A_ConcurrencyConflict_ShouldHappen(t *testing.T) {
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		ToStorable(t, FixtureBookCopyLentToReader(bookID, readerID, fakeClock)),
-		ToStorable(t, FixtureBookCopyReturnedByReader(bookID, readerID, fakeClock)),
+		helper.ToStorable(t, helper.FixtureBookCopyLentToReader(bookID, readerID, fakeClock)),
+		helper.ToStorable(t, helper.FixtureBookCopyReturnedByReader(bookID, readerID, fakeClock)),
 	)
 
 	// assert
@@ -197,15 +197,15 @@ func Test_Append_Concurrent(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
-	readerID := GivenUniqueID(t)
+	postgreswrapper.CleanUp(t, wrapper)
+	bookID := helper.GivenUniqueID(t)
+	readerID := helper.GivenUniqueID(t)
 
 	successCountSingle := atomic.Int32{}
 	successCountMultiple := atomic.Int32{}
@@ -225,8 +225,8 @@ func Test_Append_Concurrent(t *testing.T) {
 			defer wg.Done()
 
 			for j := 0; j < operationsPerGoroutine; j++ {
-				filter := FilterAllEventTypesForOneBookOrReader(bookID, readerID)
-				maxSeq := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
+				filter := helper.FilterAllEventTypesForOneBookOrReader(bookID, readerID)
+				maxSeq := helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 
 				// Randomly choose between appending single and multiple event(s)
 				if rand.IntN(2)%2 == 0 { //nolint:gosec
@@ -235,7 +235,7 @@ func Test_Append_Concurrent(t *testing.T) {
 						ctxWithTimeout,
 						filter,
 						maxSeq,
-						ToStorable(t, FixtureBookCopyLentToReader(bookID, readerID, fakeClock)),
+						helper.ToStorable(t, helper.FixtureBookCopyLentToReader(bookID, readerID, fakeClock)),
 					)
 					switch {
 					case err == nil:
@@ -248,8 +248,8 @@ func Test_Append_Concurrent(t *testing.T) {
 					}
 				} else {
 					// Multiple events
-					event1 := ToStorable(t, FixtureBookCopyLentToReader(bookID, readerID, fakeClock))
-					event2 := ToStorable(t, FixtureBookCopyReturnedByReader(bookID, readerID, fakeClock))
+					event1 := helper.ToStorable(t, helper.FixtureBookCopyLentToReader(bookID, readerID, fakeClock))
+					event2 := helper.ToStorable(t, helper.FixtureBookCopyReturnedByReader(bookID, readerID, fakeClock))
 					err := es.Append(
 						ctxWithTimeout,
 						filter,
@@ -279,7 +279,7 @@ func Test_Append_Concurrent(t *testing.T) {
 	assert.Greater(t, conflictCountSingle.Load(), int32(0))
 	assert.Greater(t, conflictCountMultiple.Load(), int32(0))
 
-	events, _, err := es.Query(ctxWithTimeout, FilterAllEventTypesForOneBookOrReader(bookID, readerID))
+	events, _, err := es.Query(ctxWithTimeout, helper.FilterAllEventTypesForOneBookOrReader(bookID, readerID))
 	assert.NoError(t, err)
 	assert.Equal(t, int(eventCount.Load()), len(events))
 }
@@ -289,23 +289,23 @@ func Test_Append_EventWithMetadata(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
-	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
+	postgreswrapper.CleanUp(t, wrapper)
+	bookID := helper.GivenUniqueID(t)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
+	maxSequenceNumberBeforeAppend := helper.QueryMaxSequenceNumberBeforeAppend(t, ctxWithTimeout, es, filter)
 	fakeClock = fakeClock.Add(time.Second)
-	bookCopyAddedToCirculation := FixtureBookCopyAddedToCirculation(bookID, fakeClock)
+	bookCopyAddedToCirculation := helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock)
 
-	messageID := GivenUniqueID(t)
-	causationID := GivenUniqueID(t)
-	correlationID := GivenUniqueID(t)
+	messageID := helper.GivenUniqueID(t)
+	causationID := helper.GivenUniqueID(t)
+	correlationID := helper.GivenUniqueID(t)
 	eventMetadata := shell.BuildEventMetadata(messageID, causationID, correlationID)
 
 	// act (append)
@@ -313,7 +313,7 @@ func Test_Append_EventWithMetadata(t *testing.T) {
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		ToStorableWithMetadata(t, bookCopyAddedToCirculation, eventMetadata),
+		helper.ToStorableWithMetadata(t, bookCopyAddedToCirculation, eventMetadata),
 	)
 
 	// assert (append)
@@ -342,39 +342,39 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUp(t, wrapper)
+	postgreswrapper.CleanUp(t, wrapper)
 
-	bookID1 := GivenUniqueID(t)
-	bookID2 := GivenUniqueID(t)
-	readerID1 := GivenUniqueID(t)
-	readerID2 := GivenUniqueID(t)
-
-	fakeClock = fakeClock.Add(time.Second)
-	bookCopy1AddedToCirculationBook := GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID1, fakeClock)
-	fakeClock = fakeClock.Add(time.Second)
-	bookCopy1LentToReader1 := GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID1, readerID1, fakeClock)
-	fakeClock = fakeClock.Add(time.Second)
-	bookCopy1ReturnedByReader1 := GivenBookCopyReturnedByReaderWasAppended(t, ctxWithTimeout, es, bookID1, readerID1, fakeClock)
-	fakeClock = fakeClock.Add(time.Second)
-	bookCopy1RemovedFromCirculationBook := GivenBookCopyRemovedFromCirculationWasAppended(t, ctxWithTimeout, es, bookID1, fakeClock)
+	bookID1 := helper.GivenUniqueID(t)
+	bookID2 := helper.GivenUniqueID(t)
+	readerID1 := helper.GivenUniqueID(t)
+	readerID2 := helper.GivenUniqueID(t)
 
 	fakeClock = fakeClock.Add(time.Second)
-	bookCopy2AddedToCirculationBook := GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID2, fakeClock)
+	bookCopy1AddedToCirculationBook := helper.GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID1, fakeClock)
 	fakeClock = fakeClock.Add(time.Second)
-	bookCopy2LentToReader2 := GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID2, fakeClock)
+	bookCopy1LentToReader1 := helper.GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID1, readerID1, fakeClock)
 	fakeClock = fakeClock.Add(time.Second)
-	bookCopy2ReturnedByReader2 := GivenBookCopyReturnedByReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID2, fakeClock)
+	bookCopy1ReturnedByReader1 := helper.GivenBookCopyReturnedByReaderWasAppended(t, ctxWithTimeout, es, bookID1, readerID1, fakeClock)
 	fakeClock = fakeClock.Add(time.Second)
-	bookCopy2LentToReader1 := GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID1, fakeClock)
+	bookCopy1RemovedFromCirculationBook := helper.GivenBookCopyRemovedFromCirculationWasAppended(t, ctxWithTimeout, es, bookID1, fakeClock)
+
 	fakeClock = fakeClock.Add(time.Second)
-	bookCopy2ReturnedByReader1 := GivenBookCopyReturnedByReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID1, fakeClock)
+	bookCopy2AddedToCirculationBook := helper.GivenBookCopyAddedToCirculationWasAppended(t, ctxWithTimeout, es, bookID2, fakeClock)
+	fakeClock = fakeClock.Add(time.Second)
+	bookCopy2LentToReader2 := helper.GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID2, fakeClock)
+	fakeClock = fakeClock.Add(time.Second)
+	bookCopy2ReturnedByReader2 := helper.GivenBookCopyReturnedByReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID2, fakeClock)
+	fakeClock = fakeClock.Add(time.Second)
+	bookCopy2LentToReader1 := helper.GivenBookCopyLentToReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID1, fakeClock)
+	fakeClock = fakeClock.Add(time.Second)
+	bookCopy2ReturnedByReader1 := helper.GivenBookCopyReturnedByReaderWasAppended(t, ctxWithTimeout, es, bookID2, readerID1, fakeClock)
 
 	/******************************/
 
@@ -671,17 +671,17 @@ func Test_QueryingWithFilter_WorksAsExpected(t *testing.T) {
 
 func Test_Append_When_Context_Is_Cancelled(t *testing.T) {
 	// setup
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
+	postgreswrapper.CleanUp(t, wrapper)
+	bookID := helper.GivenUniqueID(t)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
-	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, context.Background(), es, filter)
+	maxSequenceNumberBeforeAppend := helper.QueryMaxSequenceNumberBeforeAppend(t, context.Background(), es, filter)
 
 	ctxWithCancel, cancel := context.WithCancel(context.Background())
 
@@ -692,7 +692,7 @@ func Test_Append_When_Context_Is_Cancelled(t *testing.T) {
 		ctxWithCancel,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
+		helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
 	)
 
 	// assert
@@ -704,17 +704,17 @@ func Test_Append_When_Context_Is_Cancelled(t *testing.T) {
 
 func Test_Append_When_Context_Times_out(t *testing.T) {
 	// setup
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
+	postgreswrapper.CleanUp(t, wrapper)
+	bookID := helper.GivenUniqueID(t)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
-	maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(t, context.Background(), es, filter)
+	maxSequenceNumberBeforeAppend := helper.QueryMaxSequenceNumberBeforeAppend(t, context.Background(), es, filter)
 
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), time.Microsecond)
 	defer cancel()
@@ -727,7 +727,7 @@ func Test_Append_When_Context_Times_out(t *testing.T) {
 		ctxWithTimeout,
 		filter,
 		maxSequenceNumberBeforeAppend,
-		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
+		helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
 	)
 
 	// assert
@@ -739,19 +739,19 @@ func Test_Append_When_Context_Times_out(t *testing.T) {
 
 func Test_Query_When_Context_Is_Canceled(t *testing.T) {
 	// setup
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
+	postgreswrapper.CleanUp(t, wrapper)
+	bookID := helper.GivenUniqueID(t)
 
 	fakeClock = fakeClock.Add(time.Second)
-	GivenBookCopyAddedToCirculationWasAppended(t, context.Background(), es, bookID, fakeClock)
+	helper.GivenBookCopyAddedToCirculationWasAppended(t, context.Background(), es, bookID, fakeClock)
 
-	filter := FilterAllEventTypesForOneBook(bookID)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
 	ctxWithCancel, cancel := context.WithCancel(context.Background())
 
@@ -767,19 +767,19 @@ func Test_Query_When_Context_Is_Canceled(t *testing.T) {
 
 func Test_Query_When_Context_Times_Out(t *testing.T) {
 	// setup
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
+	postgreswrapper.CleanUp(t, wrapper)
+	bookID := helper.GivenUniqueID(t)
 
 	fakeClock = fakeClock.Add(time.Second)
-	GivenBookCopyAddedToCirculationWasAppended(t, context.Background(), es, bookID, fakeClock)
+	helper.GivenBookCopyAddedToCirculationWasAppended(t, context.Background(), es, bookID, fakeClock)
 
-	filter := FilterAllEventTypesForOneBook(bookID)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), time.Microsecond)
 	defer cancel()

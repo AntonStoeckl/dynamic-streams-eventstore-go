@@ -8,14 +8,14 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	_ "github.com/lib/pq" // postgres driver
+	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore/postgresengine"
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/example/shared/shell/config"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"                 //nolint:revive
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper" //nolint:revive
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper"
 )
 
 func Test_FactoryFunctions_NewEventStore_ShouldPanic_WithUnsupportedAdapterType(t *testing.T) {
@@ -36,7 +36,7 @@ func Test_FactoryFunctions_NewEventStore_ShouldPanic_WithUnsupportedAdapterType(
 	assert.NoError(t, err)
 
 	assert.Panics(t, func() {
-		createErr := TryCreateEventStoreWithTableName(t, postgresengine.WithTableName("event_data"))
+		createErr := postgreswrapper.TryCreateEventStoreWithTableName(t, postgresengine.WithTableName("event_data"))
 		assert.NoError(t, createErr)
 	})
 }
@@ -59,7 +59,7 @@ func Test_FactoryFunctions_NewEventStoreWithTableName_ShouldPanic_WithUnsupporte
 	assert.NoError(t, err)
 
 	assert.Panics(t, func() {
-		createErr := TryCreateEventStoreWithTableName(t, postgresengine.WithTableName("event_data"))
+		createErr := postgreswrapper.TryCreateEventStoreWithTableName(t, postgresengine.WithTableName("event_data"))
 		assert.NoError(t, createErr)
 	})
 }
@@ -137,22 +137,22 @@ func Test_FactoryFunctions_EventStore_WithTableName_ShouldWorkCorrectly(t *testi
 	defer cancel()
 
 	customTableName := "events"
-	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithTableName(customTableName))
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithTableName(customTableName))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	fakeClock := time.Unix(0, 0).UTC()
 
 	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
+	postgreswrapper.CleanUp(t, wrapper)
+	bookID := helper.GivenUniqueID(t)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
 	err := es.Append(
 		ctxWithTimeout,
 		filter,
 		0,
-		ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
+		helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock)),
 	)
 	assert.NoError(t, err)
 
@@ -260,13 +260,13 @@ func Test_FactoryFunctions_EventStore_WithTableName_ShouldFail_WithNonExistentTa
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_1"))
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t, postgresengine.WithTableName("non_existent_table_1"))
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
+	bookID := helper.GivenUniqueID(t)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
 	// act
 	_, _, err := es.Query(ctxWithTimeout, filter)
@@ -326,8 +326,8 @@ func Test_FactoryFunctions_SingleConnectionMethods_ShouldWorkCorrectly(t *testin
 			assert.NotNil(t, es)
 
 			// Test basic functionality - query should work
-			bookID := GivenUniqueID(t)
-			filter := FilterAllEventTypesForOneBook(bookID)
+			bookID := helper.GivenUniqueID(t)
+			filter := helper.FilterAllEventTypesForOneBook(bookID)
 
 			// Query should work (even with no data)
 			events, maxSeq, queryErr := es.Query(ctxWithTimeout, filter)
@@ -396,8 +396,8 @@ func Test_FactoryFunctions_ReplicaFactoryMethods_ShouldWorkCorrectly(t *testing.
 			assert.NotNil(t, es)
 
 			// Test basic functionality - query should work
-			bookID := GivenUniqueID(t)
-			filter := FilterAllEventTypesForOneBook(bookID)
+			bookID := helper.GivenUniqueID(t)
+			filter := helper.FilterAllEventTypesForOneBook(bookID)
 
 			// Query should work (even with no data)
 			events, maxSeq, queryErr := es.Query(ctxWithTimeout, filter)
@@ -459,8 +459,8 @@ func Test_FactoryFunctions_ReplicaFactoryMethods_WithNilReplica_ShouldWorkCorrec
 			assert.NotNil(t, es)
 
 			// Test that it can still query and append (using primary for both)
-			bookID := GivenUniqueID(t)
-			filter := FilterAllEventTypesForOneBook(bookID)
+			bookID := helper.GivenUniqueID(t)
+			filter := helper.FilterAllEventTypesForOneBook(bookID)
 
 			// Query should work (fallback to primary)
 			events, maxSeq, queryErr := es.Query(ctxWithTimeout, filter)

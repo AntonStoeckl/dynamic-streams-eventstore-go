@@ -7,23 +7,23 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"                 //nolint:revive
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper" //nolint:revive
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper"
 )
 
 func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 	// setup
 	ctx := context.Background()
-	wrapper := CreateWrapperWithBenchmarkConfig(b)
+	wrapper := postgreswrapper.CreateWrapperWithBenchmarkConfig(b)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 1000)
-	fakeClock := GetGreatestOccurredAtTimeFromDB(b, wrapper).Add(time.Second)
+	postgreswrapper.GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 1000)
+	fakeClock := postgreswrapper.GetGreatestOccurredAtTimeFromDB(b, wrapper).Add(time.Second)
 
-	bookID := GivenUniqueID(b)
-	filter := FilterAllEventTypesForOneBook(bookID)
+	bookID := helper.GivenUniqueID(b)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
 	// act
 	b.Run("append 1 event", func(b *testing.B) {
@@ -32,10 +32,10 @@ func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
-			maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(b, ctx, es, filter)
+			maxSequenceNumberBeforeAppend := helper.QueryMaxSequenceNumberBeforeAppend(b, ctx, es, filter)
 
 			fakeClock = fakeClock.Add(time.Second)
-			event := ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, fakeClock))
+			event := helper.ToStorable(b, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock))
 
 			b.StartTimer()
 			start := time.Now()
@@ -50,12 +50,12 @@ func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 
 			assert.NoError(b, err)
 
-			rowsAffected, dbErr := CleanUpBookEvents(ctx, wrapper, bookID)
+			rowsAffected, dbErr := postgreswrapper.CleanUpBookEvents(ctx, wrapper, bookID)
 			assert.NoError(b, dbErr)
 			assert.Equal(b, int64(1), rowsAffected)
 
 			if i%100 == 0 {
-				dbErr = OptimizeDBWhileBenchmarking(ctx, wrapper)
+				dbErr = postgreswrapper.OptimizeDBWhileBenchmarking(ctx, wrapper)
 				assert.NoError(b, dbErr)
 			}
 		}
@@ -67,16 +67,16 @@ func Benchmark_SingleAppend_With_Many_Events_InTheStore(b *testing.B) {
 func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 	// setup
 	ctx := context.Background()
-	wrapper := CreateWrapperWithBenchmarkConfig(b)
+	wrapper := postgreswrapper.CreateWrapperWithBenchmarkConfig(b)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 1000)
-	fakeClock := GetGreatestOccurredAtTimeFromDB(b, wrapper).Add(time.Second)
+	postgreswrapper.GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 1000)
+	fakeClock := postgreswrapper.GetGreatestOccurredAtTimeFromDB(b, wrapper).Add(time.Second)
 
-	bookID := GivenUniqueID(b)
-	filter := FilterAllEventTypesForOneBook(bookID)
+	bookID := helper.GivenUniqueID(b)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
 	// act
 	b.Run("append 5 events", func(b *testing.B) {
@@ -86,18 +86,18 @@ func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 		for i := 0; i < b.N; i++ {
 			b.StopTimer()
 
-			maxSequenceNumberBeforeAppend := QueryMaxSequenceNumberBeforeAppend(b, ctx, es, filter)
+			maxSequenceNumberBeforeAppend := helper.QueryMaxSequenceNumberBeforeAppend(b, ctx, es, filter)
 
 			fakeClock = fakeClock.Add(time.Second)
-			event1 := ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, fakeClock))
+			event1 := helper.ToStorable(b, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock))
 			fakeClock = fakeClock.Add(time.Second)
-			event2 := ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, fakeClock))
+			event2 := helper.ToStorable(b, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock))
 			fakeClock = fakeClock.Add(time.Second)
-			event3 := ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, fakeClock))
+			event3 := helper.ToStorable(b, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock))
 			fakeClock = fakeClock.Add(time.Second)
-			event4 := ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, fakeClock))
+			event4 := helper.ToStorable(b, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock))
 			fakeClock = fakeClock.Add(time.Second)
-			event5 := ToStorable(b, FixtureBookCopyAddedToCirculation(bookID, fakeClock))
+			event5 := helper.ToStorable(b, helper.FixtureBookCopyAddedToCirculation(bookID, fakeClock))
 
 			b.StartTimer()
 			start := time.Now()
@@ -112,12 +112,12 @@ func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 
 			assert.NoError(b, err)
 
-			rowsAffected, dbErr := CleanUpBookEvents(ctx, wrapper, bookID)
+			rowsAffected, dbErr := postgreswrapper.CleanUpBookEvents(ctx, wrapper, bookID)
 			assert.NoError(b, dbErr)
 			assert.Equal(b, int64(5), rowsAffected)
 
 			if i%100 == 0 {
-				dbErr = OptimizeDBWhileBenchmarking(ctx, wrapper)
+				dbErr = postgreswrapper.OptimizeDBWhileBenchmarking(ctx, wrapper)
 				assert.NoError(b, dbErr)
 			}
 		}
@@ -129,15 +129,15 @@ func Benchmark_MultipleAppend_With_Many_Events_InTheStore(b *testing.B) {
 func Benchmark_Query_With_Many_Events_InTheStore(b *testing.B) {
 	// setup
 	ctx := context.Background()
-	wrapper := CreateWrapperWithBenchmarkConfig(b)
+	wrapper := postgreswrapper.CreateWrapperWithBenchmarkConfig(b)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 1000)
-	bookID := GetLatestBookIDFromDB(b, wrapper)
+	postgreswrapper.GuardThatThereAreEnoughFixtureEventsInStore(wrapper, 1000)
+	bookID := postgreswrapper.GetLatestBookIDFromDB(b, wrapper)
 
-	filter := FilterAllEventTypesForOneBook(bookID)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
 	// act
 	b.Run("query", func(b *testing.B) {

@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"                 //nolint:revive
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper" //nolint:revive
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper"
 )
 
 func Test_ConsistencyRouting_DefaultsToStrongConsistency(t *testing.T) {
@@ -18,11 +18,11 @@ func Test_ConsistencyRouting_DefaultsToStrongConsistency(t *testing.T) {
 	defer cleanup()
 
 	eventStore := wrapper.GetEventStore()
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
+	bookID := helper.GivenUniqueID(t)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
 	// Create a test event first
-	testEvent := ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, time.Now()))
+	testEvent := helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, time.Now()))
 	appendErr := eventStore.Append(ctx, filter, 0, testEvent)
 	assert.NoError(t, appendErr, "Should append test event")
 
@@ -42,11 +42,11 @@ func Test_ConsistencyRouting_RespectsExplicitConsistency(t *testing.T) {
 	defer cleanup()
 
 	eventStore := wrapper.GetEventStore()
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
+	bookID := helper.GivenUniqueID(t)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
 	// Create a test event first
-	testEvent := ToStorable(t, FixtureBookCopyAddedToCirculation(bookID, time.Now()))
+	testEvent := helper.ToStorable(t, helper.FixtureBookCopyAddedToCirculation(bookID, time.Now()))
 	appendErr := eventStore.Append(ctx, filter, 0, testEvent)
 	assert.NoError(t, appendErr, "Should append test event")
 
@@ -78,8 +78,8 @@ func Test_ConsistencyRouting_SnapshotOperationsWorkCorrectly(t *testing.T) {
 	defer cleanup()
 
 	eventStore := wrapper.GetEventStore()
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
+	bookID := helper.GivenUniqueID(t)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
 	// Create a test snapshot
 	snapshot := eventstore.Snapshot{
@@ -116,10 +116,10 @@ func Test_ConsistencyRouting_SnapshotOperationsWorkCorrectly(t *testing.T) {
 }
 
 // Test setup helpers.
-func setupConsistencyTestEnvironment(t *testing.T) (context.Context, Wrapper, func()) {
+func setupConsistencyTestEnvironment(t *testing.T) (context.Context, postgreswrapper.Wrapper, func()) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	wrapper := CreateWrapperWithTestConfig(t)
-	CleanUp(t, wrapper)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
+	postgreswrapper.CleanUp(t, wrapper)
 
 	cleanup := func() {
 		cancel()

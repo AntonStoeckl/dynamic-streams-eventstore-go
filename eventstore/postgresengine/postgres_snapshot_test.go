@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/eventstore"
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"                 //nolint:revive
-	. "github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper" //nolint:revive
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper"
+	"github.com/AntonStoeckl/dynamic-streams-eventstore-go/testutil/postgresengine/helper/postgreswrapper"
 )
 
 func Test_SaveAndLoad_Snapshot(t *testing.T) {
@@ -21,14 +21,14 @@ func Test_SaveAndLoad_Snapshot(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
+	postgreswrapper.CleanUp(t, wrapper)
+	bookID := helper.GivenUniqueID(t)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
 	projectionData := `{"books":[{"bookID":"book-123","title":"Test Book","count":1}],"count":1}`
 	snapshot, err := eventstore.BuildSnapshot(
@@ -61,14 +61,14 @@ func Test_LoadSnapshot_IfSnapshotIs_NotFound(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
+	postgreswrapper.CleanUp(t, wrapper)
+	bookID := helper.GivenUniqueID(t)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
 	// act
 	loadedSnapshot, loadErr := es.LoadSnapshot(ctxWithTimeout, "NonExistentProjection", filter)
@@ -84,7 +84,7 @@ func Test_Snapshot_SaveSnapshot_ValidatesInput(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
@@ -137,7 +137,7 @@ func Test_Snapshot_SaveSnapshot_ValidatesInput(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// arrange
-			CleanUp(t, wrapper) //nolint:contextcheck
+			postgreswrapper.CleanUp(t, wrapper) //nolint:contextcheck
 			snapshot := tt.snapshot()
 
 			// act
@@ -154,14 +154,14 @@ func Test_Snapshot_PreservesHigherSequence_WhenTryToUpsertWithLowerSequence(t *t
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
+	postgreswrapper.CleanUp(t, wrapper)
+	bookID := helper.GivenUniqueID(t)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
 	initialSnapshot, err := eventstore.BuildSnapshot(
 		"BooksInCirculation",
@@ -200,14 +200,14 @@ func Test_Snapshot_ConcurrentSave_SequenceProtection(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
+	postgreswrapper.CleanUp(t, wrapper)
+	bookID := helper.GivenUniqueID(t)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
 	projectionType := "ConcurrentTest"
 	numGoroutines := uint(10)
@@ -260,16 +260,16 @@ func Test_Snapshots_WithDifferentFilters_CreateDifferentSnapshots(t *testing.T) 
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	CleanUp(t, wrapper)
-	bookID1 := GivenUniqueID(t)
-	bookID2 := GivenUniqueID(t)
-	filter1 := FilterAllEventTypesForOneBook(bookID1)
-	filter2 := FilterAllEventTypesForOneBook(bookID2)
+	postgreswrapper.CleanUp(t, wrapper)
+	bookID1 := helper.GivenUniqueID(t)
+	bookID2 := helper.GivenUniqueID(t)
+	filter1 := helper.FilterAllEventTypesForOneBook(bookID1)
+	filter2 := helper.FilterAllEventTypesForOneBook(bookID2)
 
 	// act
 	snapshot1, err := eventstore.BuildSnapshot(
@@ -309,14 +309,14 @@ func Test_Snapshots_WithSameFilter_UpsertsSnapshot(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
+	postgreswrapper.CleanUp(t, wrapper)
+	bookID := helper.GivenUniqueID(t)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
 	initialSnapshot, err := eventstore.BuildSnapshot(
 		"BooksInCirculation",
@@ -352,14 +352,14 @@ func Test_SaveSnapshot_WithLargeJSONB_WithinLimits(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
+	postgreswrapper.CleanUp(t, wrapper)
+	bookID := helper.GivenUniqueID(t)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
 	// Create large JSON data (simulate ~1MB)
 	var books []map[string]interface{}
@@ -422,14 +422,14 @@ func Test_DeleteSnapshot(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
+	postgreswrapper.CleanUp(t, wrapper)
+	bookID := helper.GivenUniqueID(t)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
 	snapshot, err := eventstore.BuildSnapshot(
 		"BooksInCirculation",
@@ -460,14 +460,14 @@ func Test_DeleteSnapshot_Is_Idempotent(t *testing.T) {
 	ctxWithTimeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
+	postgreswrapper.CleanUp(t, wrapper)
+	bookID := helper.GivenUniqueID(t)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
 	// act
 	deleteErr := es.DeleteSnapshot(ctxWithTimeout, "NonExistentProjection", filter)
@@ -478,14 +478,14 @@ func Test_DeleteSnapshot_Is_Idempotent(t *testing.T) {
 
 func Test_Snapshot_Context_Cancellation(t *testing.T) {
 	// setup
-	wrapper := CreateWrapperWithTestConfig(t)
+	wrapper := postgreswrapper.CreateWrapperWithTestConfig(t)
 	defer wrapper.Close()
 	es := wrapper.GetEventStore()
 
 	// arrange
-	CleanUp(t, wrapper)
-	bookID := GivenUniqueID(t)
-	filter := FilterAllEventTypesForOneBook(bookID)
+	postgreswrapper.CleanUp(t, wrapper)
+	bookID := helper.GivenUniqueID(t)
+	filter := helper.FilterAllEventTypesForOneBook(bookID)
 
 	snapshot, err := eventstore.BuildSnapshot(
 		"BooksInCirculation",
