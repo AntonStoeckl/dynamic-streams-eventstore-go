@@ -14,11 +14,13 @@ Unlike traditional event stores with fixed streams tied to specific entities, th
 ## ✨ Key Features
 
 - **🔄 Dynamic Event Streams**: Query and modify events across multiple entities atomically
-- **⚡ High Performance**: Sub-millisecond queries, ~2.5 ms atomic appends with optimistic locking
+- **📸 Snapshot Support**: Efficient projection state storage with incremental updates and sequence number tracking
+- **⚡ High Performance**: Sub-millisecond queries (~0.36ms), ~3.1ms atomic appends with optimistic locking
 - **🛡️ ACID Transactions**: PostgreSQL-backed consistency without distributed transactions
 - **🎯 Fluent Filter API**: Type-safe, expressive event filtering with compile-time validation
 - **📊 JSON-First**: Efficient JSONB storage with GIN index optimization
 - **🔗 Multiple Adapters**: Support for pgx/v5, database/sql, and sqlx database connections
+- **🏢 Primary-Replica Support**: Context-based query routing for PostgreSQL streaming replication setups
 - **📝 Structured Logging**: Configurable SQL query logging and operational monitoring (slog, zerolog, logrus compatible)
 - **📝 OpenTelemetry Compatible Contextual Logging**: Context-aware logging with automatic trace correlation
 - **📈 OpenTelemetry Compatible Metrics**: Comprehensive observability with duration, counters, error tracking, and context cancellation/timeout detection
@@ -57,6 +59,12 @@ filter := BuildEventFilter().
 events, maxSeq, _ := eventStore.Query(ctx, filter)
 newEvent := applyBusinessLogic(events)
 err := eventStore.Append(ctx, filter, maxSeq, newEvent)
+
+// Snapshot support for efficient projections
+snapshot, _ := eventStore.LoadSnapshot(ctx, "BooksInCirculation", filter)
+// ... build projection from events since snapshot ...
+newSnapshot, _ := eventstore.BuildSnapshot("BooksInCirculation", filter.Hash(), maxSeq, projectionData)
+eventStore.SaveSnapshot(ctx, newSnapshot)
 ```
 
 ## 💡 The Dynamic Streams Advantage
@@ -205,6 +213,8 @@ logExporter := otlplog.New(...)
 
 - **[Getting Started](./docs/getting-started.md)** — Installation, setup, and first steps
 - **[Core Concepts](./docs/core-concepts.md)** — Understanding Dynamic Event Streams
+- **[Snapshots](./docs/snapshots.md)** — Efficient projection state management
+- **[Primary-Replica](./docs/primary-replica.md)** — PostgreSQL read scaling and consistency control
 - **[Usage Examples](./docs/usage-examples.md)** — Real-world implementation patterns
 - **[API Reference](./docs/api-reference.md)** — Complete API documentation
 - **[Performance](./docs/performance.md)** — Benchmarks and optimization guide
@@ -261,10 +271,9 @@ WHERE event_type IN ('BookCopyLentToReader', 'ReaderRegistered')
 
 ## ⚡ Performance
 
-With 10M events in PostgreSQL:
-- **Query**: ~0.12 ms average
-- **Append**: ~2.55 ms average  
-- **Full Workflow**: ~3.56 ms (Query + Business Logic + Append)
+With 2.5M events in PostgreSQL:
+- **Query**: ~0.36 ms average
+- **Append**: ~3.1 ms average
 
 See [Performance Documentation](./docs/performance.md) for detailed benchmarks and optimization strategies.
 

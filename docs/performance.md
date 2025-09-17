@@ -8,31 +8,31 @@ All three supported adapters (pgx.Pool, database/sql, sqlx) provide equivalent p
 
 ## Benchmark Results
 
-Benchmarks run on Linux with 8-core i7-8565U CPU @ 1.80 GHz, 16GB memory, PostgreSQL with 1M+ events.
+Benchmarks run on Linux with 8-core i7-8565U CPU @ 1.80 GHz, 16GB memory, PostgreSQL with 2.5M events.
 
 ### Query Performance
 
 ```
 Benchmark_Query_With_Many_Events_InTheStore
-Average: 0.12 ms/query-op
-Range: 0.11 - 0.13 ms per query
+Average: 0.36 ms/query-op
+Range: 0.34 - 0.38 ms per query
 ```
 
 **Key characteristics:**
-- Sub-millisecond query times even with 10M events
+- Sub-millisecond query times even with millions of events
 - Consistent performance due to PostgreSQL's efficient JSON indexing
 - Performance scales with filter selectivity, not total event count
 
 ### Single Event Appends
 
 ```
-Benchmark_SingleAppend_With_Many_Events_InTheStore  
-Average: 2.55 ms/append-op
-Range: 2.4 - 2.6 ms per append
+Benchmark_SingleAppend_With_Many_Events_InTheStore
+Average: 3.1 ms/append-op
+Range: 2.8 - 3.4 ms per append
 ```
 
 **Key characteristics:**
-- ~2.5 ms for atomic single event append with optimistic locking
+- ~3.1 ms for atomic single event append with optimistic locking
 - Time includes CTE evaluation and row insertion
 - Performance is consistent regardless of database size
 
@@ -40,8 +40,8 @@ Range: 2.4 - 2.6 ms per append
 
 ```
 Benchmark_MultipleAppend_With_Many_Events_InTheStore
-Average: 3.17 ms/append-op (for 5 events)
-Range: 2.8 - 3.7 ms per append operation
+Average: 4.8 ms/append-op (for 5 events)
+Range: 3.9 - 5.9 ms per append operation
 ```
 
 **Key characteristics:**
@@ -49,18 +49,6 @@ Range: 2.8 - 3.7 ms per append operation
 - All events succeed or fail together
 - More efficient than multiple single append operations
 
-### Complete Workflow
-
-```
-Benchmark_TypicalWorkload_With_Many_Events_InTheStore
-Average: 3.56 ms/total-op
-Breakdown:
-- Query: ~1.0 ms
-- Business Logic: ~0.05 ms  
-- Append: ~2.5 ms
-```
-
-This represents a complete business operation: Query → Apply Business Logic → Append.
 
 ## Testing Performance
 
@@ -281,7 +269,7 @@ Replica Database:
 - Guarantees read-after-write consistency
 - Essential for optimistic concurrency control
 - Required for command handlers using read-check-write patterns
-- Performance: ~2.5ms average append time
+- Performance: ~3.1ms average append time
 
 **Eventual Consistency:**
 - Accepts potential staleness for performance gains
